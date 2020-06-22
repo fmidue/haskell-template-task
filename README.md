@@ -1,0 +1,1 @@
+# haskell-template-task

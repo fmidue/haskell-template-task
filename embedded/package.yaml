@@ -1,0 +1,19 @@
+name: haskell-template-task-embedded
+ghc-options:
+  -Wall
+dependencies:
+  - base
+  - codeworld-api
+  - deepseq
+  - filepath
+  - haskell-src-exts
+  - HUnit
+  - IOSpec
+  - QuickCheck
+  - random
+  - syb
+library:
+  source-dirs: src
+  other-modules:
+    - TestHarness
+    - TestHelper

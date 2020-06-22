@@ -1,0 +1,50 @@
+name:                haskell-template-task
+version:             0.1.0.0
+github:              "fmidue/haskell-template-task"
+license:             MIT
+author:              "Marcellus Siegburg"
+maintainer:          "marcellus.siegburg@uni-due.de"
+copyright:           "2020 Formal Methods in Computer Science - University of Duisburg-Essen"
+
+extra-source-files:
+- README.md
+- ChangeLog.md
+
+synopsis:            A task type for haskell tasks developed for the e-learning platform Autotool
+category:            E-Learning
+
+description:         Please see the README on GitHub at <https://github.com/marcellussiegburg/haskell-template-task#readme>
+
+dependencies:
+- base >= 4.7 && < 5
+- HUnit
+- bytestring
+- directory
+- file-embed
+- filepath
+- haskell-src-exts
+- hint
+- hlint
+- mtl
+- raw-strings-qq
+- syb
+- template-haskell
+- temporary
+- text
+- th-utilities
+- wl-pprint-text
+- yaml
+
+library:
+  source-dirs: src
+
+tests:
+  haskell-template-task-test:
+    main:                Spec.hs
+    source-dirs:         test
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - haskell-template-task

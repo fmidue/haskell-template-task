@@ -1,0 +1,4 @@
+cradle:
+  stack:
+    - path: "./src"
+      component: "haskell-template-task-embedded:lib"

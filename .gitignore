@@ -1,0 +1,5 @@
+*.cabal
+*~
+.DS_Store
+.stack-work/
+stack.yaml.lock

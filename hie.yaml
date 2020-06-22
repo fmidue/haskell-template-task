@@ -1,0 +1,7 @@
+cradle:
+  stack:
+    - path: "./src"
+      component: "haskell-template-task:lib"
+
+    - path: "./test"
+      component: "haskell-template-task:test:haskell-template-task-test"
