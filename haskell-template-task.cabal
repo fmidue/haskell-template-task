@@ -1,0 +1,88 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.33.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: d9cfa30499cc55f83c474210fda7286bf8fa263f8be812cbaaf43de552f4cab4
+
+name:           haskell-template-task
+version:        0.1.0.0
+synopsis:       A task type for haskell tasks developed for the e-learning platform Autotool
+description:    Please see the README on GitHub at <https://github.com/marcellussiegburg/haskell-template-task#readme>
+category:       E-Learning
+homepage:       https://github.com/fmidue/haskell-template-task#readme
+bug-reports:    https://github.com/fmidue/haskell-template-task/issues
+author:         Marcellus Siegburg
+maintainer:     marcellus.siegburg@uni-due.de
+copyright:      2020 Formal Methods in Computer Science - University of Duisburg-Essen
+license:        MIT
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    README.md
+    ChangeLog.md
+
+source-repository head
+  type: git
+  location: https://github.com/fmidue/haskell-template-task
+
+library
+  exposed-modules:
+      Haskell.Template.FileContents
+      Haskell.Template.Match
+      Haskell.Template.Task
+  other-modules:
+      Paths_haskell_template_task
+  hs-source-dirs:
+      src
+  build-depends:
+      HUnit
+    , base >=4.7 && <5
+    , bytestring
+    , directory
+    , file-embed
+    , filepath
+    , haskell-src-exts
+    , hint
+    , hlint
+    , mtl
+    , raw-strings-qq
+    , syb
+    , template-haskell
+    , temporary
+    , text
+    , th-utilities
+    , wl-pprint-text
+    , yaml
+  default-language: Haskell2010
+
+test-suite haskell-template-task-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Paths_haskell_template_task
+  hs-source-dirs:
+      test
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      HUnit
+    , base >=4.7 && <5
+    , bytestring
+    , directory
+    , file-embed
+    , filepath
+    , haskell-src-exts
+    , haskell-template-task
+    , hint
+    , hlint
+    , mtl
+    , raw-strings-qq
+    , syb
+    , template-haskell
+    , temporary
+    , text
+    , th-utilities
+    , wl-pprint-text
+    , yaml
+  default-language: Haskell2010
