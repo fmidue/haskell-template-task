@@ -1,0 +1,28 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.33.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 6a6a707e99f83d9fbda6adb0cb9d78e088fca9a6a9b57ff1406dcf49382e8a72
+
+name:           haskell-template-task-embedded
+version:        0.0.0
+build-type:     Simple
+
+library
+  other-modules:
+      TestHarness
+      TestHelper
+  hs-source-dirs:
+      src
+  ghc-options: -Wall
+  build-depends:
+      HUnit
+    , QuickCheck
+    , base
+    , deepseq
+    , haskell-src-exts
+    , random
+    , syb
+  default-language: Haskell2010
