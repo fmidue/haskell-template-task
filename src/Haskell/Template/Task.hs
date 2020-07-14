@@ -8,7 +8,20 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeSynonymInstances #-}
-module Haskell.Template.Task (check, defaultCode, grade, unsafeTemplateSegment) where
+module Haskell.Template.Task (
+  FSolutionConfig (..),
+  SolutionConfig,
+  check,
+  defaultCode,
+  defaultSolutionConfig,
+  finaliseConfigs,
+  getHlintFeedback,
+  grade,
+  matchTemplate,
+  parse,
+  rejectMatch,
+  unsafeTemplateSegment,
+  ) where
 
 import qualified Control.Exception.Base           as MC
 import qualified Data.ByteString.Char8            as BS
@@ -248,8 +261,8 @@ check reject inform i = do
   void $ parseModule exts `mapM` ms
   where
     parseModule exts (m, s) = do
-       inform $ string $ "Parsing module " <> m
-       parse reject exts s
+      inform $ string $ "Parsing module " <> m
+      parse reject exts s
 
 grade
   :: MonadIO m
@@ -267,7 +280,7 @@ grade reject inform tmp task submission = do
     (mconfig, rawModules) <- splitConfigAndModules reject task
     config                <- addDefaults reject mconfig
     let exts = extensionsOf config
-    ((moduleName', blueprint), others) <-
+    ((moduleName', template), others) <-
       nameModules (reject . string) exts rawModules
     liftIO $ withTempDirectory tmp "Template" $ \ dirname -> do
       files <- ((moduleName', submission) : others) `forM` \(mname, contents) -> do
@@ -289,12 +302,12 @@ grade reject inform tmp task submission = do
         compilation <- liftIO $ runInterpreter (compiler config noTest)
         checkResult reject compilation reject $ const $ return ()
         compileWithArgsAndCheck reject inform config noTest True
-        getHlintFeedback reject inform config solutionFile True
-        matchPattern reject config 2 exts blueprint submission
+        void $ getHlintFeedback reject inform config solutionFile True
+        matchTemplate reject config 2 exts template submission
         result      <- liftIO $ runInterpreter (interpreter config modules)
         checkResult reject result reject $ handleCounts reject inform
         compileWithArgsAndCheck reject inform config noTest False
-        getHlintFeedback reject inform config solutionFile False
+        void $ getHlintFeedback reject inform config solutionFile False
   where
     testModule = [RS.r|module Test (test) where
 import qualified Solution (test)
@@ -311,21 +324,23 @@ extensionsOf = fmap readAll . msum . configLanguageExtensions
 getHlintFeedback
   :: MonadIO m
   => (Doc -> m a)
-  -> (Doc -> m ())
+  -> (Doc -> m a)
   -> SolutionConfig
   -> String
   -> Bool
-  -> m ()
-getHlintFeedback reject inform config file asError = unless (null hints) $ do
-  liftIO $ IO.writeFile additional $ hlintConfig rules
-  feedbackIdeas <- liftIO $ hlint $ addRules $
-    file
-    :  fmap ("--only=" ++) hints
-    ++ ["--with-group=" ++ group | group <- msum $ configHlintGroups config]
-    ++ ["--language=" ++ ext | ext <- msum $ configLanguageExtensions config]
-    ++ ["--quiet"]
-  liftIO $ removeFile additional
-  hlintFeedback feedbackIdeas
+  -> m [a]
+getHlintFeedback reject inform config file asError = case hints of
+  [] -> return []
+  _  -> do
+    liftIO $ IO.writeFile additional $ hlintConfig rules
+    feedbackIdeas <- liftIO $ hlint $ addRules $
+      file
+      :  fmap ("--only=" ++) hints
+      ++ ["--with-group=" ++ group | group <- msum $ configHlintGroups config]
+      ++ ["--language=" ++ ext | ext <- msum $ configLanguageExtensions config]
+      ++ ["--quiet"]
+    liftIO $ removeFile additional
+    sequence $ hlintFeedback feedbackIdeas
   where
     addRules
       | null rules = id
@@ -335,10 +350,10 @@ getHlintFeedback reject inform config file asError = unless (null hints) $ do
     hints = runIdentity $ selectHints config
     (selectHints, documentInfo) =
       if asError
-      then (configHlintErrors, void . reject)
+      then (configHlintErrors, reject)
       else (configHlintSuggestions, inform)
-    hlintFeedback feedbackIdeas = unless (null feedbackIdeas) $ documentInfo $
-      string $ intercalate "\n" [editFeedback $ show comment | comment <- feedbackIdeas]
+    hlintFeedback feedbackIdeas =
+      [documentInfo $ string $ editFeedback $ show comment | comment <- feedbackIdeas]
     editFeedback :: String -> String
     editFeedback xs = case elemIndex ':' xs of
       Just index -> drop (index + 1) xs
@@ -367,7 +382,7 @@ compileWithArgsAndCheck reject inform config modules asError = unless (null ghcO
       then (configGhcErrors,   void . reject)
       else (configGhcWarnings, inform)
 
-matchPattern
+matchTemplate
   :: Monad m
   => (Doc -> m (E.Module E.SrcSpanInfo))
   -> SolutionConfig
@@ -376,13 +391,13 @@ matchPattern
   -> String
   -> String
   -> m ()
-matchPattern reject config context exts blueprint submission = do
-  mblueprint  <- parse reject exts blueprint
+matchTemplate reject config context exts template submission = do
+  mtemplate  <- parse reject exts template
   msubmission <- parse reject exts submission
-  case test mblueprint msubmission of
-    Fail loc -> sequence_ $ rejectMatch reject config context blueprint submission <$> loc
+  case test mtemplate msubmission of
+    Fail loc -> sequence_ $ rejectMatch reject config context template submission <$> loc
     Ok _     -> return ()
-    Continue -> void $ reject [RS.r|Haskell.Template.Central.matchPattern:
+    Continue -> void $ reject [RS.r|Haskell.Template.Central.matchTemplate:
 Please inform a tutor about this issue providing your solution and this message.|]
 
 deriving instance Typeable Counts

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d9cfa30499cc55f83c474210fda7286bf8fa263f8be812cbaaf43de552f4cab4
+-- hash: 9694f90786c97ae904406850caf624e5efa9b6fbefc4851bb83a75ff93a1c3da
 
 name:           haskell-template-task
 version:        0.1.0.0
@@ -61,6 +61,8 @@ test-suite haskell-template-task-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      Haskell.Template.MatchSpec
+      Haskell.Template.TaskSpec
       Paths_haskell_template_task
   hs-source-dirs:
       test
@@ -76,8 +78,10 @@ test-suite haskell-template-task-test
     , haskell-template-task
     , hint
     , hlint
+    , hspec
     , mtl
     , raw-strings-qq
+    , string-interpolate
     , syb
     , template-haskell
     , temporary
