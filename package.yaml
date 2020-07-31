@@ -24,7 +24,7 @@ dependencies:
 - filepath
 - haskell-src-exts
 - hint
-- hlint
+- hlint >= 3.1.6
 - mtl
 - raw-strings-qq
 - syb

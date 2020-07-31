@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9694f90786c97ae904406850caf624e5efa9b6fbefc4851bb83a75ff93a1c3da
+-- hash: b1d823557dcb984a3717a23b6e2b46abcbe5ef3085d59720d77a244848d62e0c
 
 name:           haskell-template-task
 version:        0.1.0.0
@@ -45,7 +45,7 @@ library
     , filepath
     , haskell-src-exts
     , hint
-    , hlint
+    , hlint >=3.1.6
     , mtl
     , raw-strings-qq
     , syb
@@ -77,7 +77,7 @@ test-suite haskell-template-task-test
     , haskell-src-exts
     , haskell-template-task
     , hint
-    , hlint
+    , hlint >=3.1.6
     , hspec
     , mtl
     , raw-strings-qq
