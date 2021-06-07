@@ -102,22 +102,24 @@ data DeclarationKind l =
       name    :: String,
       funPart :: (Rhs l, [Pat l], Maybe (Binds l))
     }
-  | Unnamed
+  | Unnamed {
+      decl :: Decl l
+  }
 
 instance Eq (DeclarationKind l) where
   k1@TypeDeclaration {} == k2@TypeDeclaration {} =
     name k1 == name k2
   k1@FunctionDeclaration {} == k2@FunctionDeclaration {} =
     name k1 == name k2
-  Unnamed == Unnamed = True
+  Unnamed {} == Unnamed {} = True
   _       == _       = False
 
-instance Ord (DeclarationKind l) where
+instance Ord l => Ord (DeclarationKind l) where
   k1@TypeDeclaration {} `compare` k2@TypeDeclaration {} =
     name k1 `compare` name k2
   k1@FunctionDeclaration {} `compare` k2@FunctionDeclaration {} =
     name k1 `compare` name k2
-  Unnamed `compare` Unnamed = EQ
+  Unnamed d1 `compare` Unnamed d2 = d1 `compare` d2
   TypeDeclaration {}     `compare` _ = GT
   FunctionDeclaration {} `compare` _ = GT
   Unnamed {}             `compare` _ = LT
@@ -125,7 +127,8 @@ instance Ord (DeclarationKind l) where
 type Decl' l b = (DeclarationKind l, b)
 
 partitionByKind
-  :: [Decl' l b]
+  :: Ord l
+  => [Decl' l b]
   -> ([Decl' l b], [Decl' l b], [Decl' l b])
 partitionByKind []     = ([], [], [])
 partitionByKind (n:ns) = case fst n of
@@ -174,7 +177,7 @@ getFunctionName d = case d of
   FunBind _ xs ->
     [ (FunctionDeclaration n (rhs, vs, where_), FunBind s [m])
     | m@(Match s (Ident _ n) vs rhs where_) <- xs]
-  _ -> [(Unnamed, d)]
+  _ -> [(Unnamed d, d)]
 
 matchList
   :: (Annotated a, Data (a S.SrcSpanInfo))
@@ -216,8 +219,8 @@ go
   -> [(DeclarationKind S.SrcSpanInfo, Decl S.SrcSpanInfo)]
   -> [Location]
 go w ds1@((n1, d1) : ds1') ds2@((n2, d2) : ds2')
-  | Unnamed <- n1 = matchLocation w d1 d2 ++ go w ds1' ds2'
-  | Unnamed <- n2 = matchLocation w d1 d2 ++ go w ds1' ds2'
+  | Unnamed {} <- n1 = matchLocation w d1 d2 ++ go w ds1' ds2'
+  | Unnamed {} <- n2 = matchLocation w d1 d2 ++ go w ds1' ds2'
   | n1' == n2' = case n1 of
       -- allow replacing 'foo = undefined' by one or more bindings of 'foo'.
       FunctionDeclaration _ (rhs1@(UnGuardedRhs _ u), vs1, w1) -> case n2 of

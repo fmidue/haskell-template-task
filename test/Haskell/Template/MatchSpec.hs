@@ -88,6 +88,16 @@ spec =
       getComment withAdding modUndefined modPragma
       `shouldBe` Right [Additional ["{-# LANGUAGE TemplateHaskell #-}"
                                    ,"^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^"]]
+    describe "with instances" $ do
+      it "accepts code where instances are added at the end" $
+        getComment withAdding modData modDataInstEnd
+        `shouldBe` Right []
+      it "accepts code where instances are added in between" $
+        getComment withAdding modData modDataInst
+        `shouldBe` Right []
+      it "accepts code where instances are shifted" $
+        getComment noEdits modDataInst modDataInstEnd
+        `shouldBe` Right []
 
 data MatchKind a =
     Additional a
@@ -257,3 +267,36 @@ foo = undefined
 
 main :: IO ()
 main = print foo|]
+
+modData :: String
+modData = [RS.r|
+data Foo = Foo
+
+type Bar = Foo
+
+a :: Bool
+a = Foo == Foo|]
+
+modDataInst :: String
+modDataInst = [RS.r|
+data Foo = Foo
+
+instance Eq Foo where
+  Foo == Foo = True
+
+type Bar = Foo
+
+a :: Bool
+a = Foo == Foo|]
+
+modDataInstEnd :: String
+modDataInstEnd = [RS.r|
+data Foo = Foo
+
+type Bar = Foo
+
+a :: Bool
+a = Foo == Foo
+
+instance Eq Foo where
+  Foo == Foo = True|]
