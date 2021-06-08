@@ -15,6 +15,7 @@ import Data.Function                    (on)
 import Data.Generics
   (Data (..), GenericM, GenericM' (..), GenericQ, cast, gfoldlAccum, gmapQ)
 import Data.List                        (insertBy)
+import Data.Maybe                       (isJust)
 import Language.Haskell.Exts.Syntax
 
 data Where = OnlyTemplate | OnlySubmission
@@ -60,10 +61,11 @@ instance MonadPlus M where
     a' <- runM a
     case a' of
       Continue -> runM b
-      Fail _   -> do
+      Fail la  -> do
         b' <- runM b
         case b' of
           Ok _ -> return b'
+          Fail lb -> return $ Fail $ la ++ lb
           _    -> return a' -- Propagate failure information
       _ -> return a'
 
@@ -160,9 +162,27 @@ matchUndef :: forall a . Maybe (Exp a) -> Bool
 matchUndef (Just (Var _ (UnQual _ (Ident _ "undefined")))) = True
 matchUndef _ = False
 
+{-|
+Stores src span locations in state.
+In conrast to 'matchSrcSpanInfo' it checks also arguments of constructors for
+existing 'S.SrcSpanInfo'.
+(uses 'matchSrcSpanInfo')
+-}
+matchSrcSpanInfoSub :: (Data a, Data b) => What -> a -> b -> M ()
+matchSrcSpanInfoSub w f1 f2 = do
+  let fs1 = filter isJust $ gmapQ cast f1
+      fs2 = filter isJust $ gmapQ cast f2
+  uncurry (matchSrcSpanInfo w) `mapM_` zip fs1 fs2
+  matchSrcSpanInfo w (cast f1) (cast f2)
+
 -- match locations: store given locations
 matchSrcSpanInfo :: What -> Maybe S.SrcSpanInfo -> Maybe S.SrcSpanInfo -> M ()
-matchSrcSpanInfo w (Just this) (Just that) = M (put (SrcSpanInfoPair w this that) >> return (Ok ()))
+matchSrcSpanInfo w (Just this) (Just that) =
+  M (Ok <$> put (SrcSpanInfoPair w this that))
+matchSrcSpanInfo w (Just this) Nothing =
+  M (Ok <$> put (SrcSpanInfo w OnlyTemplate this))
+matchSrcSpanInfo w Nothing (Just that) =
+  M (Ok <$> put (SrcSpanInfo w OnlyTemplate that))
 matchSrcSpanInfo _ _ _ = continue
 
 getFunctionName
@@ -254,7 +274,7 @@ match :: (Data a, Data b) => What -> a -> b -> M b
 match w f1 f2 = do
   msum [
     -- 1. locations (see above)
-    void $ matchSrcSpanInfo w (cast f1) (cast f2),
+    void $ matchSrcSpanInfoSub w f1 f2,
 
     -- 2. declarations (see above)
     withCast matchDecl f1 f2,
@@ -285,7 +305,7 @@ matchModule (Module _ h1 p1 i1 d1) (Module _ h2 p2 i2 d2) = do
     then M $ return $ Ok r
     else M $ return $ Fail r
 matchModule m1 m2 = do
-  matchSrcSpanInfo CompleteModule (cast m1) (cast m2)
+  matchSrcSpanInfoSub CompleteModule m1 m2
   failLoc
 
 -- | test whether @m2@ is a suitable template for @m1@

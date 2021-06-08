@@ -39,8 +39,9 @@ spec =
     it "rejects code where types are changed" $
       head <$> getComment withAdding modUndefinedParameter modUndefined
       `shouldBe` Right (Mismatch ["foo :: Bool -> Int"
-                                 ,"^^^^              "
-                                 ,"foo :: Int","^^^^      "])
+                                 ,"       ^^^^^^^^^^^"
+                                 ,"foo :: Int"
+                                 ,"       ^^^"])
     it "rejects code where parameters are removed" $
       getComment withAdding modUndefinedParameter modUndefinedFunction
       `shouldBe` Right [Missing ["foo t = undefined"
@@ -88,6 +89,14 @@ spec =
       getComment withAdding modUndefined modPragma
       `shouldBe` Right [Additional ["{-# LANGUAGE TemplateHaskell #-}"
                                    ,"^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^"]]
+    it "rejects code where patterns are added" $
+      getComment noEdits modSum modSumPat
+      `shouldBe` Right [Mismatch ["sum xs = undefined"
+                                 ,"    ^^^           "
+                                 ,"sum [] = 0"
+                                 ,"    ^^^   "]
+                       ,Additional ["sum (x:xs) = (+) x (sum xs)"
+                                   ,"^^^^^^^^^^^^^^^^^^^^^^^^^^^"]]
     describe "with instances" $ do
       it "accepts code where instances are added at the end" $
         getComment withAdding modData modDataInstEnd
@@ -267,6 +276,17 @@ foo = undefined
 
 main :: IO ()
 main = print foo|]
+
+modSum :: String
+modSum = [RS.r|
+sum :: [Integer] -> Integer
+sum xs = undefined|]
+
+modSumPat :: String
+modSumPat = [RS.r|
+sum :: [Integer] -> Integer
+sum [] = 0
+sum (x:xs) = (+) x (sum xs)|]
 
 modData :: String
 modData = [RS.r|
