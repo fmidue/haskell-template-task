@@ -182,7 +182,7 @@ matchSrcSpanInfo w (Just this) (Just that) =
 matchSrcSpanInfo w (Just this) Nothing =
   M (Ok <$> put (SrcSpanInfo w OnlyTemplate this))
 matchSrcSpanInfo w Nothing (Just that) =
-  M (Ok <$> put (SrcSpanInfo w OnlyTemplate that))
+  M (Ok <$> put (SrcSpanInfo w OnlySubmission that))
 matchSrcSpanInfo _ _ _ = continue
 
 getFunctionName
