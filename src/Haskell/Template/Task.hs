@@ -56,8 +56,12 @@ import Language.Haskell.Interpreter
    loadModules, reset, runInterpreter, set, setImports, setTopLevelModules)
 import Language.Haskell.Interpreter.Unsafe
   (unsafeRunInterpreterWithArgs)
-import System.Directory
-  (removeFile, removeDirectoryRecursive, setCurrentDirectory)
+import System.Directory (
+  removeDirectoryRecursive,
+  removeFile,
+  setCurrentDirectory,
+  withCurrentDirectory,
+  )
 import System.FilePath                  ((</>), (<.>), takeBaseName, takeExtension)
 import System.IO.Temp                   (createTempDirectory)
 import Test.HUnit                       (Counts (..))
@@ -65,12 +69,18 @@ import Text.PrettyPrint.Leijen.Text
   (Doc, nest, text, vcat)
 import Text.Read                        (readMaybe)
 
--- TODO: get rid of this evil hack and use System.IO.Temp.withTempdirectory again when change directory bug is found/fixed
+{-|
+Create and use a temporarily created directory by
+changing into the directory after creation and leaving it before its deletion.
+Returning to the former directory and deleting the temporary directory
+happen even if the provided action throws an Exception.
+-}
 withTempDirectory :: FilePath -> String -> (FilePath -> IO a) -> IO a
-withTempDirectory targetDir template =
+withTempDirectory targetDir template f =
   MC.bracket
     (liftIO $ createTempDirectory targetDir template)
     (liftIO . removeDirectoryRecursive)
+    (\x -> withCurrentDirectory x $ f x)
 
 encode :: ToJSON a => a -> BS.ByteString
 encode = encodePretty $ setConfCompare compare defConfig
@@ -283,13 +293,14 @@ whileOpen h =
 
 grade
   :: MonadIO m
-  => (forall b . Doc -> m b)
+  => (m () -> IO b)
+  -> (forall b . Doc -> m b)
   -> (Doc -> m ())
   -> FilePath
   -> String
   -> String
-  -> m (m ())
-grade reject inform tmp task submission = do
+  -> m b
+grade eval reject inform tmp task submission = do
     when ("System.IO.Unsafe" `isInfixOf` submission)
       $ void $ reject "wants to use System.IO.Unsafe"
     when ("unsafePerformIO"  `isInfixOf` submission)
@@ -313,8 +324,7 @@ grade reject inform tmp task submission = do
         strictWriteFile (dirname </> "Test" <.> "hs") testModule
       strictWriteFile (dirname </> "TestHelper" <.> "hs") testHelperContents
       strictWriteFile (dirname </> "TestHarness" <.> "hs") testHarnessContents
-      setCurrentDirectory dirname
-      evaluate $ do
+      r <- evaluate $ do
         let noTest = delete "Test" modules
         compilation <- liftIO $ runInterpreter (compiler config noTest)
         checkResult reject compilation reject $ const $ return ()
@@ -325,6 +335,7 @@ grade reject inform tmp task submission = do
         checkResult reject result reject $ handleCounts reject inform
         compileWithArgsAndCheck reject inform config noTest False
         void $ getHlintFeedback reject inform config solutionFile False
+      eval r
   where
     testModule = [RS.r|module Test (test) where
 import qualified Solution (test)
