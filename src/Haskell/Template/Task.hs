@@ -57,7 +57,7 @@ import Language.Haskell.Interpreter
 import Language.Haskell.Interpreter.Unsafe
   (unsafeRunInterpreterWithArgs)
 import System.Directory
-  (removeFile, setCurrentDirectory)
+  (removeFile, removeDirectoryRecursive, setCurrentDirectory)
 import System.FilePath                  ((</>), (<.>), takeBaseName, takeExtension)
 import System.IO.Temp                   (createTempDirectory)
 import Test.HUnit                       (Counts (..))
@@ -70,7 +70,7 @@ withTempDirectory :: FilePath -> String -> (FilePath -> IO a) -> IO a
 withTempDirectory targetDir template =
   MC.bracket
     (liftIO $ createTempDirectory targetDir template)
-    (liftIO . setCurrentDirectory)
+    (liftIO . removeDirectoryRecursive)
 
 encode :: ToJSON a => a -> BS.ByteString
 encode = encodePretty $ setConfCompare compare defConfig
