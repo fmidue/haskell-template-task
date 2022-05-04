@@ -7,7 +7,6 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TupleSections #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 module Haskell.Template.Task (
   FSolutionConfig (..),
   SolutionConfig,
@@ -264,6 +263,24 @@ check reject inform i = do
       inform $ string $ "Parsing module " <> m
       parse reject exts s
 
+{-|
+Enforces completely writing the file by flushing the output,
+closing the handle and waiting for it to being closed.
+-}
+strictWriteFile :: FilePath -> String -> IO ()
+strictWriteFile f x = IO.withFile f IO.WriteMode $ \h -> do
+  IO.hPutStr h x
+  IO.hFlush h
+  IO.hClose h
+  whileOpen h
+
+{-|
+Actively wait until the Handle is closed.
+-}
+whileOpen :: IO.Handle -> IO ()
+whileOpen h =
+  IO.hIsClosed h >>= flip unless (whileOpen h)
+
 grade
   :: MonadIO m
   => (forall b . Doc -> m b)
@@ -285,7 +302,7 @@ grade reject inform tmp task submission = do
     liftIO $ withTempDirectory tmp "Template" $ \ dirname -> do
       files <- ((moduleName', submission) : others) `forM` \(mname, contents) -> do
         let fname = dirname </> mname <.> "hs"
-        IO.writeFile fname contents
+        strictWriteFile fname contents
         return fname
       let existingModules = map takeBaseName
             $ filter ((".hs" ==) . takeExtension)
@@ -293,9 +310,9 @@ grade reject inform tmp task submission = do
           modules = ["Test"] `union` existingModules
           solutionFile = dirname </> (moduleName' <.> "hs")
       when ("Test" `notElem` existingModules) $
-        IO.writeFile (dirname </> "Test" <.> "hs") testModule
-      IO.writeFile (dirname </> "TestHelper" <.> "hs") testHelperContents
-      IO.writeFile (dirname </> "TestHarness" <.> "hs") testHarnessContents
+        strictWriteFile (dirname </> "Test" <.> "hs") testModule
+      strictWriteFile (dirname </> "TestHelper" <.> "hs") testHelperContents
+      strictWriteFile (dirname </> "TestHarness" <.> "hs") testHarnessContents
       setCurrentDirectory dirname
       evaluate $ do
         let noTest = delete "Test" modules
@@ -332,7 +349,7 @@ getHlintFeedback
 getHlintFeedback reject inform config file asError = case hints of
   [] -> return []
   _  -> do
-    liftIO $ IO.writeFile additional $ hlintConfig rules
+    liftIO $ strictWriteFile additional $ hlintConfig rules
     feedbackIdeas <- liftIO $ hlint $ addRules $
       file
       :  fmap ("--only=" ++) hints
