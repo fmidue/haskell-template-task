@@ -57,8 +57,9 @@ import Language.Haskell.Interpreter
 import Language.Haskell.Interpreter.Unsafe
   (unsafeRunInterpreterWithArgs)
 import System.Directory (
-  removeDirectoryRecursive,
+  doesDirectoryExist,
   removeFile,
+  removePathForcibly,
   setCurrentDirectory,
   withCurrentDirectory,
   )
@@ -79,8 +80,15 @@ withTempDirectory :: FilePath -> String -> (FilePath -> IO a) -> IO a
 withTempDirectory targetDir template f =
   MC.bracket
     (liftIO $ createTempDirectory targetDir template)
-    (liftIO . removeDirectoryRecursive)
-    (\x -> withCurrentDirectory x $ f x)
+    (liftIO . removePathForcibly)
+    (\x -> untilM (doesDirectoryExist x) $ withCurrentDirectory x $ f x)
+  where
+    untilM :: IO Bool -> IO a -> IO a
+    untilM f g = do
+      continue <- f
+      if continue
+        then untilM f g
+        else g
 
 encode :: ToJSON a => a -> BS.ByteString
 encode = encodePretty $ setConfCompare compare defConfig
