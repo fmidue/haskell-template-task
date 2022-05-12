@@ -85,10 +85,10 @@ withTempDirectory targetDir template f =
   where
     untilM :: IO Bool -> IO a -> IO a
     untilM f g = do
-      continue <- f
-      if continue
-        then untilM f g
-        else g
+      ready <- f
+      if ready
+        then g
+        else untilM f g
 
 encode :: ToJSON a => a -> BS.ByteString
 encode = encodePretty $ setConfCompare compare defConfig
