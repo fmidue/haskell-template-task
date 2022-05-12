@@ -307,8 +307,9 @@ grade
   -> FilePath
   -> String
   -> String
-  -> m b
-grade eval reject inform tmp task submission = do
+  -> IO b
+grade eval reject inform tmp task submission =
+  withTempDirectory tmp "Template" $ \ dirname -> eval $ do
     when ("System.IO.Unsafe" `isInfixOf` submission)
       $ void $ reject "wants to use System.IO.Unsafe"
     when ("unsafePerformIO"  `isInfixOf` submission)
@@ -318,21 +319,22 @@ grade eval reject inform tmp task submission = do
     let exts = extensionsOf config
     ((moduleName', template), others) <-
       nameModules (reject . string) exts rawModules
-    liftIO $ withTempDirectory tmp "Template" $ \ dirname -> do
-      files <- ((moduleName', submission) : others) `forM` \(mname, contents) -> do
+    files <- liftIO $ ((moduleName', submission) : others)
+      `forM` \(mname, contents) -> do
         let fname = dirname </> mname <.> "hs"
         strictWriteFile fname contents
         return fname
-      let existingModules = map takeBaseName
+    let   existingModules = map takeBaseName
             $ filter ((".hs" ==) . takeExtension)
             $ filter (`notElem` [".",".."]) files
           modules = ["Test"] `union` existingModules
           solutionFile = dirname </> (moduleName' <.> "hs")
+    liftIO $ do
       when ("Test" `notElem` existingModules) $
         strictWriteFile (dirname </> "Test" <.> "hs") testModule
       strictWriteFile (dirname </> "TestHelper" <.> "hs") testHelperContents
       strictWriteFile (dirname </> "TestHarness" <.> "hs") testHarnessContents
-      r <- evaluate $ do
+    do
         let noTest = delete "Test" modules
         compilation <- liftIO $ runInterpreter (compiler config noTest)
         checkResult reject compilation reject $ const $ return ()
@@ -343,7 +345,6 @@ grade eval reject inform tmp task submission = do
         checkResult reject result reject $ handleCounts reject inform
         compileWithArgsAndCheck reject inform config noTest False
         void $ getHlintFeedback reject inform config solutionFile False
-      eval r
   where
     testModule = [RS.r|module Test (test) where
 import qualified Solution (test)
