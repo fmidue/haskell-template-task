@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 6a6a707e99f83d9fbda6adb0cb9d78e088fca9a6a9b57ff1406dcf49382e8a72
+-- hash: b2fc80f256d9b6b1e4a28ce66fabae802d716054475e6d8c08213438b0aa26c3
 
 name:           haskell-template-task-embedded
 version:        0.0.0
@@ -23,6 +23,7 @@ library
     , base
     , deepseq
     , haskell-src-exts
+    , mini-IOTasks
     , random
     , syb
   default-language: Haskell2010

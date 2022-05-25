@@ -9,6 +9,7 @@ dependencies:
   - QuickCheck
   - random
   - syb
+  - mini-IOTasks
 library:
   source-dirs: src
   other-modules:

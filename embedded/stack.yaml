@@ -1,3 +1,11 @@
 resolver: lts-14.27
 packages:
 - .
+
+extra-deps:
+- git: https://github.com/owestphal/mini-IOTasks
+  commit: 0b93dfed553a027b69aa7ba26d559a3bb77179a1
+
+- git: https://github.com/IagoAbal/haskell-z3
+  commit: 7e2a3e0977f277b9ed39ad182287317d2b819476
+- express-1.0.8@sha256:02d6e556befd3fa072600305202e7eda9b54f37b7c8aa84a2f874b1a646474d1,11062

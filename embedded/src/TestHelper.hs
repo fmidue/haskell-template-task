@@ -3,10 +3,11 @@ module TestHelper (
   isDefined, isDeeplyDefined, mustFail,
   qcWithTimeout, qcWithTimeoutAndArgs, qcWithTimeoutAndRuns
   , qc, qc', qcWithArgs --DEPRECATED
+  , tcWithTimeout, tcWithTimeoutAndArgs
   ) where
 import Prelude (
-  Bool (..), Either (Left, Right), Int, IO, String,
-  const, error, return, seq, ($), (++))
+  Bool (..), Either (Left, Right), Int, IO, String, Maybe (Nothing, Just),
+  const, error, return, seq, ($), (++), show)
 
 import Control.Exception
   (ErrorCall, SomeException, catch, evaluate, try)
@@ -17,6 +18,10 @@ import Test.QuickCheck
    quickCheckWithResult, stdArgs, within)
 import Test.QuickCheck.Monadic          (monadicIO, run)
 import Control.DeepSeq                  (NFData, deepseq)
+
+import IOTasks (taskCheckWithOutcome, IOrep, Specification, pPrintOutcomeSimple)
+import qualified IOTasks (Outcome(..), Args, stdArgs)
+import qualified System.Timeout as System (timeout)
 
 qcWithArgs :: Testable prop => Int -> Args -> prop -> Assertion
 qcWithArgs = qcWithTimeoutAndArgs
@@ -64,3 +69,16 @@ isDefined :: a -> IO Bool
 isDefined x = catch
   (seq x $ return True)
   ((const $ return False) :: ErrorCall -> IO Bool)
+
+-- helper for new IOTasks implementation
+tcWithTimeout :: Int -> IOrep () -> Specification -> Assertion
+tcWithTimeout to = tcWithTimeoutAndArgs to IOTasks.stdArgs
+
+tcWithTimeoutAndArgs :: Int -> IOTasks.Args -> IOrep () -> Specification -> Assertion
+tcWithTimeoutAndArgs to args prog spec = do
+  outcome <- System.timeout to $ taskCheckWithOutcome args prog spec
+  case outcome of
+    Just IOTasks.Success{} -> return ()
+    Just IOTasks.GaveUp -> assertFailure "Gave up on testing. This is usually not caused by a fault within your solution. Please contact your lecturers"
+    Just o@IOTasks.Failure{} -> assertFailure $ show $ pPrintOutcomeSimple o
+    Nothing -> assertFailure "Failure: Timeout"
