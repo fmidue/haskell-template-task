@@ -40,7 +40,7 @@ data Result a = Continue | Fail [Location] | Ok a
 newtype M a = M { runM :: State Location (Result a) }
 
 instance Monad M where
-  return = M . return . Ok
+  return = pure
   a >>= b = M $ do
     a' <- runM a
     case a' of
@@ -52,7 +52,7 @@ instance Functor M where
   fmap = liftM
 
 instance Applicative M where
-  pure = return
+  pure = M . return . Ok
   (<*>) = ap
 
 instance MonadPlus M where
@@ -270,7 +270,7 @@ withCast m a b = case (cast a, cast b) of
   _                  -> continue
 
 -- match syntax trees
-match :: (Data a, Data b) => What -> a -> b -> M b
+match :: Data a => What -> a -> GenericM M
 match w f1 f2 = do
   msum [
     -- 1. locations (see above)
