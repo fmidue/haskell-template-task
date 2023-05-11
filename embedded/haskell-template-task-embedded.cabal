@@ -1,16 +1,18 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.35.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b2fc80f256d9b6b1e4a28ce66fabae802d716054475e6d8c08213438b0aa26c3
+-- hash: b0e5a3b154eb19d8967e8155c17386bfd2fcf825ca849c3eb816f1c00dd7290c
 
 name:           haskell-template-task-embedded
-version:        0.0.0
+version:        0.1.1.0
 build-type:     Simple
 
 library
+  exposed-modules:
+      Haskell.Template.FileContents
   other-modules:
       TestHarness
       TestHelper
@@ -22,8 +24,11 @@ library
     , QuickCheck
     , base
     , deepseq
+    , filepath
     , haskell-src-exts
     , mini-IOTasks
     , random
     , syb
+    , template-haskell
+    , th-utilities
   default-language: Haskell2010

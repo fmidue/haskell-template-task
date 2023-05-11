@@ -12,13 +12,13 @@ import TH.RelativePaths                 (pathRelativeToCabalPackage)
 testHelperContents :: String
 testHelperContents  =
   $(do file     <- pathRelativeToCabalPackage
-         $ "embedded" </> "src" </> "TestHelper.hs"
+         $ "src" </> "TestHelper.hs"
        contents <- runIO $ readFile file
        stringE contents)
 
 testHarnessContents :: String
 testHarnessContents =
   $(do file     <- pathRelativeToCabalPackage
-         $ "embedded" </> "src" </> "TestHarness.hs"
+         $ "src" </> "TestHarness.hs"
        contents <- runIO $ readFile file
        stringE contents)

@@ -1,8 +1,12 @@
+version: 0.1.1.0
 name: haskell-template-task-embedded
 ghc-options:
   -Wall
 dependencies:
   - base
+  - filepath
+  - template-haskell
+  - th-utilities
   - deepseq
   - haskell-src-exts
   - HUnit

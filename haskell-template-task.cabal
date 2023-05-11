@@ -1,13 +1,13 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
+-- This file has been generated from package.yaml by hpack version 0.35.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b1d823557dcb984a3717a23b6e2b46abcbe5ef3085d59720d77a244848d62e0c
+-- hash: a0099faae3e39aa468237fedc9fdc36a2b904e07517b842b1d2924234f4b7817
 
 name:           haskell-template-task
-version:        0.1.0.0
+version:        0.1.1.0
 synopsis:       A task type for haskell tasks developed for the e-learning platform Autotool
 description:    Please see the README on GitHub at <https://github.com/marcellussiegburg/haskell-template-task#readme>
 category:       E-Learning
@@ -29,7 +29,6 @@ source-repository head
 
 library
   exposed-modules:
-      Haskell.Template.FileContents
       Haskell.Template.Match
       Haskell.Template.Task
   other-modules:
@@ -41,18 +40,16 @@ library
     , base >=4.7 && <5
     , bytestring
     , directory
-    , file-embed
     , filepath
     , haskell-src-exts
+    , haskell-template-task-embedded
     , hint
     , hlint >=3.1.6
     , mtl
     , raw-strings-qq
     , syb
-    , template-haskell
     , temporary
     , text
-    , th-utilities
     , wl-pprint-text
     , yaml
   default-language: Haskell2010
@@ -72,7 +69,6 @@ test-suite haskell-template-task-test
     , base >=4.7 && <5
     , bytestring
     , directory
-    , file-embed
     , filepath
     , haskell-src-exts
     , haskell-template-task
@@ -83,10 +79,8 @@ test-suite haskell-template-task-test
     , raw-strings-qq
     , string-interpolate
     , syb
-    , template-haskell
     , temporary
     , text
-    , th-utilities
     , wl-pprint-text
     , yaml
   default-language: Haskell2010
