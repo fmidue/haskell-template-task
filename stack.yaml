@@ -2,6 +2,7 @@ resolver: lts-14.27
 packages:
 - .
 extra-deps:
+- raw
 - hlint-3.1.6@sha256:98e2260142e275c39a8626e3d2463bdeb844ebeb4e6f40d252c17945797690d1,3991
 - extra-1.7.3@sha256:1bd10f22f9065ef6c150d0333e19673aeaea3ad2dc72a582ecfbdfd9241f95b8,2667
 - ghc-lib-parser-8.10.1.20200523@sha256:857dbd2d456d4b74e6c3dbd3dacff3888a3c64bdb9fe306bd51b94fdcfb9094e,8770

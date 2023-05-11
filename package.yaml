@@ -1,5 +1,5 @@
 name:                haskell-template-task
-version:             0.1.0.0
+version:             0.1.0.1
 github:              "fmidue/haskell-template-task"
 license:             MIT
 author:              "Marcellus Siegburg"
@@ -23,15 +23,14 @@ dependencies:
 - file-embed
 - filepath
 - haskell-src-exts
+- haskell-template-task-raw
 - hint
 - hlint >= 3.1.6
 - mtl
 - raw-strings-qq
 - syb
-- template-haskell
 - temporary
 - text
-- th-utilities
 - wl-pprint-text
 - yaml
 
