@@ -1,0 +1,12 @@
+name:                haskell-template-task-raw
+version:             0.0.0.1
+ghc-options:
+ - -Wall
+dependencies:
+ - base >= 4.7 && < 5
+ - filepath
+ - template-haskell
+ - th-utilities
+
+library:
+  source-dirs: src
