@@ -4,8 +4,11 @@ packages:
 
 extra-deps:
 - git: https://github.com/owestphal/mini-IOTasks
-  commit: 0b93dfed553a027b69aa7ba26d559a3bb77179a1
+  commit: 5bdc9c76cb8901b40d53084d2709e8ab1c356225
+
+- git: https://github.com/owestphal/type-match
+  commit: e5c0d104032d7e6ea147009669cbb95f3291b7bb
 
 - git: https://github.com/IagoAbal/haskell-z3
-  commit: 7e2a3e0977f277b9ed39ad182287317d2b819476
+  commit: 6368e451e45359563106da7e917f6594453c5161
 - express-1.0.8@sha256:02d6e556befd3fa072600305202e7eda9b54f37b7c8aa84a2f874b1a646474d1,11062

@@ -20,7 +20,7 @@ import Test.QuickCheck.Monadic          (monadicIO, run)
 import Control.DeepSeq                  (NFData, deepseq)
 
 import IOTasks (taskCheckWithOutcome, IOrep, Specification, pPrintOutcomeSimple)
-import qualified IOTasks (Outcome(..), Args, stdArgs)
+import qualified IOTasks (Outcome(..), CoreOutcome(..), Args, stdArgs)
 import qualified System.Timeout as System (timeout)
 
 qcWithArgs :: Testable prop => Int -> Args -> prop -> Assertion
@@ -78,7 +78,7 @@ tcWithTimeoutAndArgs :: Int -> IOTasks.Args -> IOrep () -> Specification -> Asse
 tcWithTimeoutAndArgs to args prog spec = do
   outcome <- System.timeout to $ taskCheckWithOutcome args prog spec
   case outcome of
-    Just IOTasks.Success{} -> return ()
-    Just IOTasks.GaveUp -> assertFailure "Gave up on testing. This is usually not caused by a fault within your solution. Please contact your lecturers"
-    Just o@IOTasks.Failure{} -> assertFailure $ show $ pPrintOutcomeSimple o
+    Just (IOTasks.Outcome IOTasks.Success{} _) -> return ()
+    Just (IOTasks.Outcome IOTasks.GaveUp _) -> assertFailure "Gave up on testing. This is usually not caused by a fault within your solution. Please contact your lecturers"
+    Just o@(IOTasks.Outcome IOTasks.Failure{} _) -> assertFailure $ show $ pPrintOutcomeSimple o
     Nothing -> assertFailure "Failure: Timeout"
