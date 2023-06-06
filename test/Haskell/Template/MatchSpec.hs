@@ -2,7 +2,7 @@
 module Haskell.Template.MatchSpec where
 
 import qualified Text.PrettyPrint.Leijen.Text     as PP
-import qualified Text.RawString.QQ                as RS (r)
+import qualified Data.String.Interpolate          as SI (i)
 
 import Haskell.Template.Task
 import Haskell.Template.Match           (Result (..), test)
@@ -166,7 +166,7 @@ splitLine (x:xs)        = (x:y, ys)
   where (y, ys) = splitLine xs
 
 modUndefined :: String
-modUndefined = [RS.r|
+modUndefined = [SI.i|
 foo :: Int
 foo = undefined
 
@@ -174,14 +174,14 @@ main :: IO ()
 main = print foo|]
 
 modNoType :: String
-modNoType = [RS.r|
+modNoType = [SI.i|
 foo = undefined
 
 main :: IO ()
 main = print foo|]
 
 modUndefinedFunction :: String
-modUndefinedFunction = [RS.r|
+modUndefinedFunction = [SI.i|
 foo :: Bool -> Int
 foo = undefined
 
@@ -189,7 +189,7 @@ main :: IO ()
 main = print foo|]
 
 modUndefinedParameter :: String
-modUndefinedParameter = [RS.r|
+modUndefinedParameter = [SI.i|
 foo :: Bool -> Int
 foo t = undefined
 
@@ -197,7 +197,7 @@ main :: IO ()
 main = print foo|]
 
 mod42 :: String
-mod42 = [RS.r|
+mod42 = [SI.i|
 foo :: Int
 foo = 42
 
@@ -205,7 +205,7 @@ main :: IO ()
 main = print foo|]
 
 mod43 :: String
-mod43 = [RS.r|
+mod43 = [SI.i|
 main :: IO ()
 main = print foo
 
@@ -213,7 +213,7 @@ foo :: Int
 foo = 43|]
 
 modGuards :: String
-modGuards = [RS.r|
+modGuards = [SI.i|
 foo :: Int
 foo | False = 23
 foo | True = 42
@@ -222,7 +222,7 @@ main :: IO ()
 main = print foo|]
 
 modGuardsParameter :: String
-modGuardsParameter = [RS.r|
+modGuardsParameter = [SI.i|
 foo :: Bool -> Int
 foo t | t == False = 23
       | otherwise  = 42
@@ -231,14 +231,14 @@ main :: IO ()
 main = print foo|]
 
 modRemove :: String
-modRemove = [RS.r|
+modRemove = [SI.i|
 foo :: Int
 foo = 42
 
 main = print foo|]
 
 modAdd :: String
-modAdd = [RS.r|
+modAdd = [SI.i|
 foo :: Int
 foo = helper
 
@@ -250,7 +250,7 @@ main = print foo
 |]
 
 modHeader :: String
-modHeader = [RS.r|
+modHeader = [SI.i|
 module Main where
 
 foo :: Int
@@ -260,7 +260,7 @@ main :: IO ()
 main = print foo|]
 
 modImport :: String
-modImport = [RS.r|
+modImport = [SI.i|
 import Data.List
 foo :: Int
 foo = undefined
@@ -269,8 +269,8 @@ main :: IO ()
 main = print foo|]
 
 modPragma :: String
-modPragma = [RS.r|
-{-# LANGUAGE TemplateHaskell #-}
+modPragma = [SI.i|
+{-\# LANGUAGE TemplateHaskell \#-}
 foo :: Int
 foo = undefined
 
@@ -278,18 +278,18 @@ main :: IO ()
 main = print foo|]
 
 modSum :: String
-modSum = [RS.r|
+modSum = [SI.i|
 sum :: [Integer] -> Integer
 sum xs = undefined|]
 
 modSumPat :: String
-modSumPat = [RS.r|
+modSumPat = [SI.i|
 sum :: [Integer] -> Integer
 sum [] = 0
 sum (x:xs) = (+) x (sum xs)|]
 
 modData :: String
-modData = [RS.r|
+modData = [SI.i|
 data Foo = Foo
 
 type Bar = Foo
@@ -298,7 +298,7 @@ a :: Bool
 a = Foo == Foo|]
 
 modDataInst :: String
-modDataInst = [RS.r|
+modDataInst = [SI.i|
 data Foo = Foo
 
 instance Eq Foo where
@@ -310,7 +310,7 @@ a :: Bool
 a = Foo == Foo|]
 
 modDataInstEnd :: String
-modDataInstEnd = [RS.r|
+modDataInstEnd = [SI.i|
 data Foo = Foo
 
 type Bar = Foo

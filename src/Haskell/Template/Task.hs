@@ -27,7 +27,7 @@ import qualified Data.ByteString.Char8            as BS
 import qualified Language.Haskell.Exts            as E
 import qualified Language.Haskell.Exts.Parser     as P
 import qualified System.IO                        as IO {- required to avoid encoding problems -}
-import qualified Text.RawString.QQ                as RS (r)
+import qualified Data.String.Interpolate          as SI (i)
 
 import Haskell.Template.FileContents    (testHelperContents, testHarnessContents)
 import Haskell.Template.Match
@@ -41,6 +41,7 @@ import Data.Functor.Identity            (Identity (..))
 import Data.List
   (delete, elemIndex, groupBy, intercalate, isInfixOf, isPrefixOf,
    nub, partition, union)
+import Data.List.Extra (nubOrd)
 import Data.Text.Lazy                   (pack)
 import Data.Typeable                    (Typeable)
 import Data.Yaml
@@ -95,18 +96,18 @@ encode = encodePretty $ setConfCompare compare defConfig
 
 defaultCode :: String
 defaultCode = BS.unpack (encode defaultSolutionConfig) ++
-  [RS.r|##### parameter description:
-# allowAdding              - allow adding program parts
-# allowModifying           - allow modifying program parts
-# allowRemoving            - allow removing program parts
-# configGhcErrors          - GHC warnings to enforce
-# configGhcWarnings        - GHC warnings to provide as hints
-# configHlintErrors        - hlint hints to enforce
-# configHlintGroups        - hlint extra hint groups to use
-# configHlintRules         - hlint extra hint rules to use
-# configHlintSuggestions   - hlint hints to provide
-# configLanguageExtensions - this sets LanguageExtensions for hlint as well
-# configModules            - DEPRECATED (will be ignored)
+  [SI.i|\#\#\#\#\# parameter description:
+\# allowAdding              - allow adding program parts
+\# allowModifying           - allow modifying program parts
+\# allowRemoving            - allow removing program parts
+\# configGhcErrors          - GHC warnings to enforce
+\# configGhcWarnings        - GHC warnings to provide as hints
+\# configHlintErrors        - hlint hints to enforce
+\# configHlintGroups        - hlint extra hint groups to use
+\# configHlintRules         - hlint extra hint rules to use
+\# configHlintSuggestions   - hlint hints to provide
+\# configLanguageExtensions - this sets LanguageExtensions for hlint as well
+\# configModules            - DEPRECATED (will be ignored)
 ----------
 module Solution where
 import Prelude
@@ -116,7 +117,7 @@ r = undefined
 
 ----------
 {- You can add additional modules separated by lines of three or more dashes: -}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-\# LANGUAGE ScopedTypeVariables \#-}
 module Test (test) where
 import Prelude
 {-
@@ -139,7 +140,7 @@ import qualified Solution
 test :: [Test]
 test =
   ["Test with QuickCheck (random input)" ~:
-     qc 5000 $ \(xs :: [Int]) ->
+     qc 5000 $ \\(xs :: [Int]) ->
        Solution.r xs == Prelude.reverse xs
   ]
 ----------
@@ -273,6 +274,7 @@ check reject inform i = do
   inform $ string $ "Completed configuration to:\n" ++ show config
   let exts = extensionsOf config
   ((m,s), ms) <- nameModules (reject . string) exts modules
+  checkUniqueness (m : map fst ms)
   inform $ string $ "Parsing template module " <> m
   void $ parse reject exts s
   void $ parseModule exts `mapM` ms
@@ -280,7 +282,7 @@ check reject inform i = do
     parseModule exts (m, s) = do
       inform $ string $ "Parsing module " <> m
       parse reject exts s
-
+    checkUniqueness xs = when (nubOrd xs /= xs) $ reject "duplicate module name"
 {-|
 Enforces completely writing the file by flushing the output,
 closing the handle and waiting for it to being closed.
@@ -331,7 +333,7 @@ grade eval reject inform tmp task submission =
           solutionFile = dirname </> (moduleName' <.> "hs")
     liftIO $ do
       when ("Test" `notElem` existingModules) $
-        strictWriteFile (dirname </> "Test" <.> "hs") testModule
+        strictWriteFile (dirname </> "Test" <.> "hs") $ testModule moduleName'
       strictWriteFile (dirname </> "TestHelper" <.> "hs") testHelperContents
       strictWriteFile (dirname </> "TestHarness" <.> "hs") testHarnessContents
     do
@@ -346,9 +348,10 @@ grade eval reject inform tmp task submission =
         compileWithArgsAndCheck dirname reject inform config noTest False
         void $ getHlintFeedback reject inform config solutionFile False
   where
-    testModule = [RS.r|module Test (test) where
-import qualified Solution (test)
-test = Solution.test|]
+    testModule :: String -> String
+    testModule s = [SI.i|module Test (test) where
+import qualified #{s} (test)
+test = #{s}.test|]
 
 extensionsOf :: SolutionConfig -> [E.Extension]
 extensionsOf = fmap readAll . msum . configLanguageExtensions
@@ -435,7 +438,7 @@ matchTemplate reject config context exts template submission = do
   case test mtemplate msubmission of
     Fail loc -> sequence_ $ rejectMatch reject config context template submission <$> loc
     Ok _     -> return ()
-    Continue -> void $ reject [RS.r|Haskell.Template.Central.matchTemplate:
+    Continue -> void $ reject [SI.i|Haskell.Template.Central.matchTemplate:
 Please inform a tutor about this issue providing your solution and this message.|]
 
 deriving instance Typeable Counts
@@ -611,11 +614,8 @@ nameModules reject exts modules =
   case withNames exts modules of
     P.ParseFailed _   msg  ->
       reject $ "Please contact a tutor sending the following error report:\n" <> msg
-    P.ParseOk ms -> case partition (("Solution" ==) . fst) ms of
-      ([]  , _ ) -> case partition (("Main" ==) . fst) ms of
-        ([]  , _ ) -> reject "No \"Solution\" module in config."
-        (x:xs, ys) -> return (x, xs ++ ys)
-      (x:xs, ys) -> return (x, xs ++ ys)
+    P.ParseOk [] -> reject "No modules"
+    P.ParseOk (m:ms) -> return (m,ms)
 
 withNames :: [E.Extension] -> [String] -> P.ParseResult [(String, String)]
 withNames exts mods =

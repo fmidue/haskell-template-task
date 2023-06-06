@@ -20,6 +20,7 @@ dependencies:
 - HUnit
 - bytestring
 - directory
+- extra
 - file-embed
 - filepath
 - haskell-src-exts
@@ -27,7 +28,7 @@ dependencies:
 - hint
 - hlint >= 3.1.6
 - mtl
-- raw-strings-qq
+- string-interpolate
 - syb
 - temporary
 - text

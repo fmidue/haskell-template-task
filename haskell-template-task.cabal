@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
+-- This file has been generated from package.yaml by hpack version 0.35.1.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: bd50401e13e1e15586fa6095d81e77ac121b471024e859ee247d08d7f2c362e8
+-- hash: 8087aa25591b6b4e49ee397d1af37e97d9c3f43d1b17e364d9fc4a69807b2109
 
 name:           haskell-template-task
 version:        0.1.0.1
@@ -40,6 +40,7 @@ library
     , base >=4.7 && <5
     , bytestring
     , directory
+    , extra
     , file-embed
     , filepath
     , haskell-src-exts
@@ -47,7 +48,7 @@ library
     , hint
     , hlint >=3.1.6
     , mtl
-    , raw-strings-qq
+    , string-interpolate
     , syb
     , temporary
     , text
@@ -70,6 +71,7 @@ test-suite haskell-template-task-test
     , base >=4.7 && <5
     , bytestring
     , directory
+    , extra
     , file-embed
     , filepath
     , haskell-src-exts
@@ -79,7 +81,6 @@ test-suite haskell-template-task-test
     , hlint >=3.1.6
     , hspec
     , mtl
-    , raw-strings-qq
     , string-interpolate
     , syb
     , temporary
