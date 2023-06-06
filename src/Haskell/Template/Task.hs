@@ -53,7 +53,7 @@ import Control.Exception                (evaluate)
 import Language.Haskell.Interpreter
   (GhcError (..), InterpreterError (..), MonadInterpreter, OptionVal (..),
    as, installedModulesInScope, interpret, languageExtensions, liftIO,
-   loadModules, reset, runInterpreter, set, setImports, setTopLevelModules)
+   loadModules, reset, runInterpreter, set, setImports, setTopLevelModules, searchPath)
 import Language.Haskell.Interpreter.Unsafe
   (unsafeRunInterpreterWithArgs)
 import System.Directory (
@@ -61,7 +61,7 @@ import System.Directory (
   removeFile,
   removePathForcibly,
   setCurrentDirectory,
-  withCurrentDirectory,
+  makeAbsolute,
   )
 import System.FilePath                  ((</>), (<.>), takeBaseName, takeExtension)
 import System.IO.Temp                   (createTempDirectory)
@@ -81,7 +81,7 @@ withTempDirectory targetDir template f =
   MC.bracket
     (liftIO $ createTempDirectory targetDir template)
     (liftIO . removePathForcibly)
-    (\x -> untilM (doesDirectoryExist x) $ withCurrentDirectory x $ f x)
+    (\x -> untilM (doesDirectoryExist x) $ makeAbsolute x >>= f)
   where
     untilM :: IO Bool -> IO a -> IO a
     untilM f g = do
@@ -336,14 +336,14 @@ grade eval reject inform tmp task submission =
       strictWriteFile (dirname </> "TestHarness" <.> "hs") testHarnessContents
     do
         let noTest = delete "Test" modules
-        compilation <- liftIO $ runInterpreter (compiler config noTest)
+        compilation <- liftIO $ runInterpreter (compiler dirname config noTest)
         checkResult reject compilation reject $ const $ return ()
-        compileWithArgsAndCheck reject inform config noTest True
+        compileWithArgsAndCheck dirname reject inform config noTest True
         void $ getHlintFeedback reject inform config solutionFile True
         matchTemplate reject config 2 exts template submission
-        result      <- liftIO $ runInterpreter (interpreter config modules)
+        result      <- liftIO $ runInterpreter (interpreter dirname config modules)
         checkResult reject result reject $ handleCounts reject inform
-        compileWithArgsAndCheck reject inform config noTest False
+        compileWithArgsAndCheck dirname reject inform config noTest False
         void $ getHlintFeedback reject inform config solutionFile False
   where
     testModule = [RS.r|module Test (test) where
@@ -401,15 +401,16 @@ hlintConfig rules = unlines ["- " ++ r | r <- rules]
 
 compileWithArgsAndCheck
   :: MonadIO m
-  => (Doc -> m a)
+  => FilePath
+  -> (Doc -> m a)
   -> (Doc -> m ())
   -> SolutionConfig
   -> [String]
   -> Bool
   -> m ()
-compileWithArgsAndCheck reject inform config modules asError = unless (null ghcOpts) $ do
+compileWithArgsAndCheck dirname reject inform config modules asError = unless (null ghcOpts) $ do
   ghcErrors <-
-    liftIO $ unsafeRunInterpreterWithArgs ghcOpts (compiler config modules)
+    liftIO $ unsafeRunInterpreterWithArgs ghcOpts (compiler dirname config modules)
   checkResult (void . reject) ghcErrors how $ const $ return ()
   where
     makeOpts xs = ("-w":) $ ("-Werror=" ++) <$> xs
@@ -478,23 +479,25 @@ checkResult reject result handleError handleResult = case result of
 
 interpreter
   :: MonadInterpreter m
-  => SolutionConfig
+  => FilePath
+  -> SolutionConfig
   -> [String]
   -> m (Counts, ShowS)
-interpreter config modules = do
-  prepareInterpreter config modules
+interpreter dirname config modules = do
+  prepareInterpreter dirname config modules
   interpret "TestHarness.run Test.test" (as :: (Counts, ShowS))
 
-compiler :: MonadInterpreter m => SolutionConfig -> [String] -> m Bool
-compiler config modules = do
-  prepareInterpreter config modules
+compiler :: MonadInterpreter m => FilePath -> SolutionConfig -> [String] -> m Bool
+compiler dirname config modules = do
+  prepareInterpreter dirname config modules
   interpret "Prelude.True" (as :: Bool)
 
-prepareInterpreter :: MonadInterpreter m => SolutionConfig -> [String] -> m ()
-prepareInterpreter config modules = do
+prepareInterpreter :: MonadInterpreter m => FilePath -> SolutionConfig -> [String] -> m ()
+prepareInterpreter dirname config modules = do
   set [languageExtensions := map read (msum $ configLanguageExtensions config)]
   reset -- Make sure nothing is available
   set [installedModulesInScope := False]
+  set [searchPath := [dirname]]
   loadModules ("TestHarness" : modules)
   setTopLevelModules modules
   setImports $ ["Prelude", "Test.HUnit", "TestHarness"]
