@@ -1,5 +1,11 @@
 resolver: lts-20.18
 packages:
-- .
+  - .
 extra-deps:
-- raw
+  - git: https://github.com/fmidue/IOTasks
+    commit: 017ad23b0abeaa6aaa86c7c534beadd70f9c7c34
+  - git: https://github.com/IagoAbal/haskell-z3
+    commit: 6368e451e45359563106da7e917f6594453c5161
+  - git: https://github.com/owestphal/type-match
+    commit: e5c0d104032d7e6ea147009669cbb95f3291b7bb
+  - raw

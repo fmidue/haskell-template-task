@@ -19,8 +19,18 @@ import Test.QuickCheck
 import Test.QuickCheck.Monadic          (monadicIO, run)
 import Control.DeepSeq                  (NFData, deepseq)
 
-import IOTasks (taskCheckWithOutcome, IOrep, Specification, pPrintOutcomeSimple)
-import qualified IOTasks (Outcome(..), CoreOutcome(..), Args, stdArgs)
+import Test.IOTasks (
+  IOrep,
+  Specification,
+  pPrintOutcomeSimple,
+  taskCheckWithOutcome,
+  )
+import qualified Test.IOTasks as IOTasks (
+  Args,
+  CoreOutcome (..),
+  Outcome (..),
+  stdArgs,
+  )
 import qualified System.Timeout as System (timeout)
 
 qcWithArgs :: Testable prop => Int -> Args -> prop -> Assertion

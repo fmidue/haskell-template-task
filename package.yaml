@@ -47,6 +47,10 @@ tests:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
+    - IOTasks
+    - QuickCheck
+    - deepseq
     - haskell-template-task
     - hspec
+    - random
     - string-interpolate

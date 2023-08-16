@@ -1,13 +1,15 @@
 {-# LANGUAGE QuasiQuotes #-}
 module Haskell.Template.TaskSpec where
 
-import qualified Data.String.Interpolate          as SI (i)
+import qualified Data.String.Interpolate          as SI (__i, i)
 import qualified Text.PrettyPrint.Leijen.Text     as PP
 
 import Haskell.Template.Task
 
 import Control.Arrow                    ((+++))
 import Control.Monad.IO.Class           (liftIO)
+import Data.List                        (intercalate, isPrefixOf)
+import Data.List.Extra                  (split)
 import Data.Maybe                       (fromJust)
 import Data.Text.Lazy                   (unpack)
 import System.Directory
@@ -28,7 +30,7 @@ withHlintRules :: Monad m => FSolutionConfig m -> [String] -> FSolutionConfig m
 withHlintRules config xs = config { configHlintRules = return xs}
 
 spec :: Spec
-spec =
+spec = do
   describe "hlintFeedback" $ do
     it "accepts code without warnings/errors" $
       hlintIO defaultConfig noError True `shouldReturn` []
@@ -50,7 +52,41 @@ spec =
     it "allows specifying fixity" $
       hlintIO dilatedWithFixity useDilated True
       `shouldReturn` [Left "Warning: Use dilated"]
+  describe "grade" $ do
+    it "is running" $
+      gradeIO defaultCode useImport `shouldReturn` ()
+    it "allows syntaxCheck" $
+      gradeIO (withSyntaxCheck True) useImport `shouldReturn` ()
+    it "error on failing syntaxCheck" $
+      gradeIO (withSyntaxCheck False) useImport `shouldThrow` anyErrorCall
   where
+    useImport = [SI.__i|
+      module Solution where
+      import Prelude
+      r :: [a] -> [a]
+      r = reverse
+      |]
+    withSyntaxCheck withReverse = unlines $ intercalate ["-------"] $
+      let (config : program : _ : remaining) =
+            split ("---" `isPrefixOf`) $ lines defaultCode
+      in config : program : [syntaxCheck withReverse] : remaining
+    syntaxCheck :: Bool -> String
+    syntaxCheck withReverse = [SI.__i|
+      module Test (test) where
+      import Prelude
+      import Test.HUnit ((~:),(@?=), Test)
+      import TestHarness
+      test :: [Test]
+      test = [
+        "'r' does #{negateString}use 'reverse'?" ~:
+          syntaxCheck $ \\modul ->
+            contains (ident "reverse") (findTopLevelDeclsOf "r" modul) @?= #{withReverse}
+        ]
+      |]
+      where
+        negateString
+          | withReverse = "" :: String
+          | otherwise = "not "
     idSuggestion = defaultConfig
       `withHlintSuggestions` ["Redundant id"]
       `withHlintErrors` []
@@ -66,6 +102,13 @@ spec =
     dilatedWithFixity = defaultConfig
       `withHlintErrors` ["Use dilated"]
       `withHlintRules` ["fixity: infixr 0 &", "warn: {lhs: scaled x x, rhs: dilated x}"]
+
+gradeIO :: String -> String -> IO ()
+gradeIO task submission = do
+  tmp <- getTemporaryDirectory
+  withTempDirectory tmp "Grade-test" $ \dir -> do
+    setCurrentDirectory dir
+    grade id (error . show) print dir task submission
 
 hlintIO :: SolutionConfig -> String -> Bool -> IO [Either String String]
 hlintIO config content asError = do

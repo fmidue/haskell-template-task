@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 8087aa25591b6b4e49ee397d1af37e97d9c3f43d1b17e364d9fc4a69807b2109
+-- hash: 0f09465a25e796db314108cff48300ff4c807e864e48ddeea0e1b4e5aa0b3cf1
 
 name:           haskell-template-task
 version:        0.1.0.1
@@ -68,8 +68,11 @@ test-suite haskell-template-task-test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       HUnit
+    , IOTasks
+    , QuickCheck
     , base >=4.7 && <5
     , bytestring
+    , deepseq
     , directory
     , extra
     , file-embed
@@ -81,6 +84,7 @@ test-suite haskell-template-task-test
     , hlint >=3.1.6
     , hspec
     , mtl
+    , random
     , string-interpolate
     , syb
     , temporary
