@@ -41,7 +41,7 @@ import Data.Functor.Identity            (Identity (..))
 import Data.List
   (delete, elemIndex, groupBy, intercalate, isInfixOf, isPrefixOf,
    nub, partition, union)
-import Data.List.Extra (nubOrd)
+import Data.List.Extra                  (nubOrd, replace)
 import Data.Text.Lazy                   (pack)
 import Data.Typeable                    (Typeable)
 import Data.Yaml
@@ -335,7 +335,8 @@ grade eval reject inform tmp task submission =
       when ("Test" `notElem` existingModules) $
         strictWriteFile (dirname </> "Test" <.> "hs") $ testModule moduleName'
       strictWriteFile (dirname </> "TestHelper" <.> "hs") testHelperContents
-      strictWriteFile (dirname </> "TestHarness" <.> "hs") testHarnessContents
+      strictWriteFile (dirname </> "TestHarness" <.> "hs")
+        $ testHarnessFor solutionFile
     do
         let noTest = delete "Test" modules
         compilation <- liftIO $ runInterpreter (compiler dirname config noTest)
@@ -348,6 +349,9 @@ grade eval reject inform tmp task submission =
         compileWithArgsAndCheck dirname reject inform config noTest False
         void $ getHlintFeedback reject inform config solutionFile False
   where
+    testHarnessFor file =
+      let quoted xs = '"' : xs ++ "\""
+      in replace (quoted "Solution.hs") (quoted file) testHarnessContents
     testModule :: String -> String
     testModule s = [SI.i|module Test (test) where
 import qualified #{s} (test)
