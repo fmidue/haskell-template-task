@@ -6,10 +6,10 @@ dependencies:
   - deepseq
   - haskell-src-exts
   - HUnit
+  - IOTasks
   - QuickCheck
   - random
   - syb
-  - mini-IOTasks
 library:
   source-dirs: src
   other-modules:

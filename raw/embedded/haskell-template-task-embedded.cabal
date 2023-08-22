@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b2fc80f256d9b6b1e4a28ce66fabae802d716054475e6d8c08213438b0aa26c3
+-- hash: 902c4c2cc717bd20a94c748e700d0c2b1b871317e452d36a14596181ce0b74a5
 
 name:           haskell-template-task-embedded
 version:        0.0.0
@@ -19,11 +19,11 @@ library
   ghc-options: -Wall
   build-depends:
       HUnit
+    , IOTasks
     , QuickCheck
     , base
     , deepseq
     , haskell-src-exts
-    , mini-IOTasks
     , random
     , syb
   default-language: Haskell2010
