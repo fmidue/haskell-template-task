@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 0f09465a25e796db314108cff48300ff4c807e864e48ddeea0e1b4e5aa0b3cf1
+-- hash: 01d5785bd7fb0ef3a8814502570d11e0e7cd040673653a82429f44ad3b81f696
 
 name:           haskell-template-task
 version:        0.1.0.1
@@ -89,6 +89,7 @@ test-suite haskell-template-task-test
     , syb
     , temporary
     , text
+    , transformers
     , wl-pprint-text
     , yaml
   default-language: Haskell2010

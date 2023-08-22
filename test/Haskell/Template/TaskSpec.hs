@@ -8,6 +8,7 @@ import Haskell.Template.Task
 
 import Control.Arrow                    ((+++))
 import Control.Monad.IO.Class           (liftIO)
+import Control.Monad.Trans.Writer       (execWriterT, tell)
 import Data.List                        (intercalate, isPrefixOf)
 import Data.List.Extra                  (split)
 import Data.Maybe                       (fromJust)
@@ -54,9 +55,9 @@ spec = do
       `shouldReturn` [Left "Warning: Use dilated"]
   describe "grade" $ do
     it "is running" $
-      gradeIO defaultCode useImport `shouldReturn` ()
+      gradeIO defaultCode useImport `shouldReturn` ""
     it "allows syntaxCheck" $
-      gradeIO (withSyntaxCheck True) useImport `shouldReturn` ()
+      gradeIO (withSyntaxCheck True) useImport `shouldReturn` ""
     it "error on failing syntaxCheck" $
       gradeIO (withSyntaxCheck False) useImport `shouldThrow` anyErrorCall
   where
@@ -103,12 +104,12 @@ spec = do
       `withHlintErrors` ["Use dilated"]
       `withHlintRules` ["fixity: infixr 0 &", "warn: {lhs: scaled x x, rhs: dilated x}"]
 
-gradeIO :: String -> String -> IO ()
+gradeIO :: String -> String -> IO String
 gradeIO task submission = do
   tmp <- getTemporaryDirectory
   withTempDirectory tmp "Grade-test" $ \dir -> do
     setCurrentDirectory dir
-    grade id (error . show) print dir task submission
+    grade execWriterT (error . show) (tell . show) dir task submission
 
 hlintIO :: SolutionConfig -> String -> Bool -> IO [Either String String]
 hlintIO config content asError = do

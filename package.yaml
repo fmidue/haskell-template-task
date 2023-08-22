@@ -54,3 +54,4 @@ tests:
     - hspec
     - random
     - string-interpolate
+    - transformers
