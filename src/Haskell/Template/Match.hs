@@ -8,9 +8,16 @@ module Haskell.Template.Match where
 import qualified Language.Haskell.Exts.SrcLoc     as S
 
 import Control.Applicative              (Alternative (..))
-import Control.Monad.State
-  (MonadPlus (..), State, ap, evalState, gets, liftM, msum, put, void, unless,
-   when)
+import Control.Monad (
+  MonadPlus (..),
+  ap,
+  liftM,
+  msum,
+  unless,
+  void,
+  when,
+  )
+import Control.Monad.State              (State, evalState, gets, put)
 import Data.Function                    (on)
 import Data.Generics
   (Data (..), GenericM, GenericM' (..), GenericQ, cast, gfoldlAccum, gmapQ)
@@ -326,7 +333,7 @@ gzipWithM' f x y = case gmapAccumM' perkid funs y of
                     ([], c) -> c
                     _       -> error "gzipWithM"
  where
-  perkid a d = (tail a, unGM (head a) d)
+  perkid (a:as) d = (as, unGM a d)
   funs = gmapQ (\k -> GM (f k)) x
 
 -- | gmapM with accumulation
