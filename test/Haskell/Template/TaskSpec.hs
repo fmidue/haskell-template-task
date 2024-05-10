@@ -1,22 +1,34 @@
 {-# LANGUAGE QuasiQuotes #-}
 module Haskell.Template.TaskSpec where
 
+import qualified Data.ByteString.Char8            as BS (unpack)
 import qualified Data.String.Interpolate          as SI (__i, i)
 import qualified Text.PrettyPrint.Leijen.Text     as PP
 
 import Haskell.Template.Task
 
 import Control.Arrow                    ((+++))
+import Control.Monad.Catch (
+  Exception,
+  MonadCatch (..),
+  MonadThrow (..),
+  )
 import Control.Monad.IO.Class           (liftIO)
 import Control.Monad.Trans.Writer       (execWriterT, tell)
 import Data.List                        (intercalate, isPrefixOf)
 import Data.List.Extra                  (split)
 import Data.Maybe                       (fromJust)
 import Data.Text.Lazy                   (unpack)
+import Data.Yaml                        (encode)
 import System.Directory
   (getTemporaryDirectory, setCurrentDirectory)
 import System.IO.Temp                   (withTempDirectory)
 import Test.Hspec
+
+newtype CustomException = CustomException PP.Doc
+  deriving Show
+
+instance Exception CustomException
 
 defaultConfig :: SolutionConfig
 defaultConfig = fromJust $ finaliseConfigs [defaultSolutionConfig]
@@ -59,14 +71,34 @@ spec = do
     it "allows syntaxCheck" $
       gradeIO (withSyntaxCheck True) useImport `shouldReturn` ""
     it "error on failing syntaxCheck" $
-      gradeIO (withSyntaxCheck False) useImport `shouldThrow` anyErrorCall
+      exceptionToString (gradeIO (withSyntaxCheck False) useImport)
+      `shouldReturn` [SI.__i|
+          \#\#\# Failure in: 'r' does not use 'reverse'?
+          expected: False
+           but got: True
+          |] ++ "\n"
+    it "returns specified warnings" $
+      exceptionToString (gradeIO withHlintError useId)
+      `shouldReturn` [SI.__i|
+         3:9-12: Warning: Redundant id
+         Found:
+           id x
+         Perhaps:
+           x
+         |]
+         ++ '\n' : '\n' : render rejectHint
   where
+    exceptionToString f = catch f (\(CustomException x) -> pure $ render x)
+    withHlintError = idErrorConfig
+      ++ "\n----\n"
+      ++ useId
     useImport = [SI.__i|
       module Solution where
       import Prelude
       r :: [a] -> [a]
       r = reverse
       |]
+    idErrorConfig = BS.unpack $ encode $ toSolutionConfigOpt idError
     withSyntaxCheck withReverse = unlines $ intercalate ["-------"] $
       let (config : program : _ : remaining) =
             split ("---" `isPrefixOf`) $ lines defaultCode
@@ -109,7 +141,7 @@ gradeIO task submission = do
   tmp <- getTemporaryDirectory
   withTempDirectory tmp "Grade-test" $ \dir -> do
     setCurrentDirectory dir
-    grade execWriterT (error . show) (tell . show) dir task submission
+    grade execWriterT (throwM . CustomException) (tell . show) dir task submission
 
 hlintIO :: SolutionConfig -> String -> Bool -> IO [Either String String]
 hlintIO config content asError = do
@@ -132,11 +164,14 @@ hlintIO config content asError = do
     firstLineOf (y:ys)            = y : firstLineOf ys
     firstLineOf []                = []
 
+render :: PP.Doc -> String
+render = unpack . PP.displayT . PP.renderPretty 1.0 100
+
 errorP :: PP.Doc -> IO (Either String b)
-errorP = return . Left . unpack . PP.displayT . PP.renderPretty 1.0 100
+errorP = return . Left . render
 
 infoP :: PP.Doc -> IO (Either a String)
-infoP = return . Right . unpack . PP.displayT . PP.renderPretty 1.0 100
+infoP = return . Right . render
 
 noError :: String
 noError = [SI.i|

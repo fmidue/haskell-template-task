@@ -50,6 +50,7 @@ tests:
     - IOTasks
     - QuickCheck
     - deepseq
+    - exceptions
     - haskell-template-task
     - hspec
     - random

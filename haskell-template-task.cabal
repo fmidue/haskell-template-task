@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.1.
+-- This file has been generated from package.yaml by hpack version 0.36.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 01d5785bd7fb0ef3a8814502570d11e0e7cd040673653a82429f44ad3b81f696
+-- hash: b6f1febca6666e1d18e17dd5598f504cc11669b16a8a6d491c15c6a5744e3a6a
 
 name:           haskell-template-task
 version:        0.1.0.1
@@ -74,6 +74,7 @@ test-suite haskell-template-task-test
     , bytestring
     , deepseq
     , directory
+    , exceptions
     , extra
     , file-embed
     , filepath

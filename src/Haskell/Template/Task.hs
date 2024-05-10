@@ -18,7 +18,9 @@ module Haskell.Template.Task (
   grade,
   matchTemplate,
   parse,
+  rejectHint,
   rejectMatch,
+  toSolutionConfigOpt,
   unsafeTemplateSegment,
   ) where
 
@@ -27,7 +29,7 @@ import qualified Data.ByteString.Char8            as BS
 import qualified Language.Haskell.Exts            as E
 import qualified Language.Haskell.Exts.Parser     as P
 import qualified System.IO                        as IO {- required to avoid encoding problems -}
-import qualified Data.String.Interpolate          as SI (i)
+import qualified Data.String.Interpolate          as SI (i, iii)
 
 import Haskell.Template.FileContents    (testHelperContents, testHarnessContents)
 import Haskell.Template.Match
@@ -40,8 +42,12 @@ import Data.Char                        (isUpper)
 import Data.Functor.Identity            (Identity (..))
 import Data.List
   (delete, elemIndex, groupBy, intercalate, isInfixOf, isPrefixOf,
-   nub, partition, union)
-import Data.List.Extra                  (nubOrd, replace)
+   nub,
+   partition,
+   singleton,
+   union,
+   )
+import Data.List.Extra                  (nubOrd, replace, takeEnd)
 import Data.Text.Lazy                   (pack)
 import Data.Typeable                    (Typeable)
 import Data.Yaml
@@ -211,6 +217,20 @@ defaultSolutionConfig = SolutionConfig {
     configModules            = Nothing
   }
 
+toSolutionConfigOpt :: SolutionConfig -> SolutionConfigOpt
+toSolutionConfigOpt SolutionConfig {..} = runIdentity $ SolutionConfig
+  <$> fmap Just allowAdding
+  <*> fmap Just allowModifying
+  <*> fmap Just allowRemoving
+  <*> fmap Just configGhcErrors
+  <*> fmap Just configGhcWarnings
+  <*> fmap Just configHlintErrors
+  <*> fmap Just configHlintGroups
+  <*> fmap Just configHlintRules
+  <*> fmap Just configHlintSuggestions
+  <*> fmap Just configLanguageExtensions
+  <*> fmap Just configModules
+
 finaliseConfigs :: [SolutionConfigOpt] -> Maybe SolutionConfig
 finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
   where
@@ -342,7 +362,7 @@ grade eval reject inform tmp task submission =
         compilation <- liftIO $ runInterpreter (compiler dirname config noTest)
         checkResult reject compilation reject $ const $ return ()
         compileWithArgsAndCheck dirname reject inform config noTest True
-        void $ getHlintFeedback reject inform config solutionFile True
+        void $ getHlintFeedback rejectWithHint inform config solutionFile True
         matchTemplate reject config 2 exts template submission
         result      <- liftIO $ runInterpreter (interpreter dirname config modules)
         checkResult reject result reject $ handleCounts reject inform
@@ -356,6 +376,14 @@ grade eval reject inform tmp task submission =
     testModule s = [SI.i|module Test (test) where
 import qualified #{s} (test)
 test = #{s}.test|]
+    rejectWithHint = reject . vcat . (: singleton rejectHint)
+
+rejectHint :: Doc
+rejectHint = [SI.iii|
+  Unless you fix the above things,
+  your submission will not be considered further
+  (e.g., no tests being run on it).
+  |]
 
 extensionsOf :: SolutionConfig -> [E.Extension]
 extensionsOf = fmap readAll . msum . configLanguageExtensions
@@ -440,7 +468,7 @@ matchTemplate reject config context exts template submission = do
   mtemplate  <- parse reject exts template
   msubmission <- parse reject exts submission
   case test mtemplate msubmission of
-    Fail loc -> sequence_ $ rejectMatch reject config context template submission <$> loc
+    Fail loc -> mapM_ (rejectMatch reject config context template submission) loc
     Ok _     -> return ()
     Continue -> void $ reject [SI.i|Haskell.Template.Central.matchTemplate:
 Please inform a tutor about this issue providing your solution and this message.|]
@@ -507,7 +535,7 @@ prepareInterpreter dirname config modules = do
   set [searchPath := [dirname]]
   loadModules ("TestHarness" : modules)
   setTopLevelModules modules
-  setImports $ ["Prelude", "Test.HUnit", "TestHarness"]
+  setImports ["Prelude", "Test.HUnit", "TestHarness"]
 
 parse
   :: Monad m
@@ -528,7 +556,7 @@ parse reject' exts' m = case E.readExtensions m of
 rejectParse :: (Doc -> t) -> String -> E.SrcLoc -> String -> t
 rejectParse reject' m loc msg =
   let (lpre, _) = splitAt (E.srcLine loc) $ lines m
-      lpre'     = reverse $ take 3 $ reverse lpre
+      lpre'     = takeEnd 3 lpre
       tag       = replicate (E.srcColumn loc - 1) '.' ++ "^"
   in reject' $ vcat
        ["Syntax error (your solution is no Haskell program):",
