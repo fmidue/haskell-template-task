@@ -150,9 +150,10 @@ hlintIO config content asError = do
     setCurrentDirectory dir
     let file = dir <> "Main.hs"
     writeFile file content
-    feedback <- getHlintFeedback errorP infoP config file asError
+    feedback <- getHlintFeedback display config file asError
     return $ (repackStrings +++ repackStrings) <$> feedback
   where
+    display = if asError then errorP else infoP
     repackStrings x =
       let xs = filterWarnings $ lines x
       in if null xs then x else head xs

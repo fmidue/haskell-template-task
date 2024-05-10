@@ -352,7 +352,7 @@ grade eval reject inform tmp task submission =
           modules = ["Test"] `union` existingModules
           solutionFile = dirname </> (moduleName' <.> "hs")
     liftIO $ do
-      when ("Test" `notElem` existingModules) $
+      unless ("Test" `elem` existingModules) $
         strictWriteFile (dirname </> "Test" <.> "hs") $ testModule moduleName'
       strictWriteFile (dirname </> "TestHelper" <.> "hs") testHelperContents
       strictWriteFile (dirname </> "TestHarness" <.> "hs")
@@ -362,12 +362,12 @@ grade eval reject inform tmp task submission =
         compilation <- liftIO $ runInterpreter (compiler dirname config noTest)
         checkResult reject compilation reject $ const $ return ()
         compileWithArgsAndCheck dirname reject inform config noTest True
-        void $ getHlintFeedback rejectWithHint inform config solutionFile True
+        void $ getHlintFeedback rejectWithHint config solutionFile True
         matchTemplate reject config 2 exts template submission
         result      <- liftIO $ runInterpreter (interpreter dirname config modules)
         checkResult reject result reject $ handleCounts reject inform
         compileWithArgsAndCheck dirname reject inform config noTest False
-        void $ getHlintFeedback reject inform config solutionFile False
+        void $ getHlintFeedback inform config solutionFile False
   where
     testHarnessFor file =
       let quoted xs = '"' : xs ++ "\""
@@ -380,7 +380,7 @@ test = #{s}.test|]
 
 rejectHint :: Doc
 rejectHint = [SI.iii|
-  Unless you fix the above things,
+  Unless you fix the above,
   your submission will not be considered further
   (e.g., no tests being run on it).
   |]
@@ -396,12 +396,11 @@ extensionsOf = fmap readAll . msum . configLanguageExtensions
 getHlintFeedback
   :: MonadIO m
   => (Doc -> m a)
-  -> (Doc -> m a)
   -> SolutionConfig
   -> String
   -> Bool
   -> m [a]
-getHlintFeedback reject inform config file asError = case hints of
+getHlintFeedback documentInfo config file asError = case hints of
   [] -> return []
   _  -> do
     liftIO $ strictWriteFile additional $ hlintConfig rules
@@ -420,10 +419,10 @@ getHlintFeedback reject inform config file asError = case hints of
     additional = "additional.yaml"
     rules = runIdentity $ configHlintRules config
     hints = runIdentity $ selectHints config
-    (selectHints, documentInfo) =
+    selectHints =
       if asError
-      then (configHlintErrors, reject)
-      else (configHlintSuggestions, inform)
+      then configHlintErrors
+      else configHlintSuggestions
     hlintFeedback feedbackIdeas =
       [documentInfo $ string $ editFeedback $ show comment | comment <- feedbackIdeas]
     editFeedback :: String -> String
