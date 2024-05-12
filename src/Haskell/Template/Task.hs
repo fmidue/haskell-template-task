@@ -361,7 +361,7 @@ grade eval reject inform tmp task submission =
         let noTest = delete "Test" modules
         compilation <- liftIO $ runInterpreter (compiler dirname config noTest)
         checkResult reject compilation reject $ const $ return ()
-        compileWithArgsAndCheck dirname reject inform config noTest True
+        compileWithArgsAndCheck dirname reject undefined config noTest True
         void $ getHlintFeedback rejectWithHint config solutionFile True
         matchTemplate reject config 2 exts template submission
         result      <- liftIO $ runInterpreter (interpreter dirname config modules)
@@ -437,7 +437,7 @@ compileWithArgsAndCheck
   :: MonadIO m
   => FilePath
   -> (Doc -> m a)
-  -> (Doc -> m ())
+  -> (Doc -> m a)
   -> SolutionConfig
   -> [String]
   -> Bool
@@ -445,13 +445,13 @@ compileWithArgsAndCheck
 compileWithArgsAndCheck dirname reject inform config modules asError = unless (null ghcOpts) $ do
   ghcErrors <-
     liftIO $ unsafeRunInterpreterWithArgs ghcOpts (compiler dirname config modules)
-  checkResult (void . reject) ghcErrors how $ const $ return ()
+  checkResult reject ghcErrors how $ const $ return ()
   where
     makeOpts xs = ("-w":) $ ("-Werror=" ++) <$> xs
     ghcOpts  = makeOpts $ msum (warnings config)
     (warnings, how) =
       if asError
-      then (configGhcErrors,   void . reject)
+      then (configGhcErrors,   reject)
       else (configGhcWarnings, inform)
 
 matchTemplate
