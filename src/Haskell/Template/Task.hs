@@ -451,8 +451,9 @@ compileWithArgsAndCheck dirname reject inform config modules asError = unless (n
     ghcOpts  = makeOpts $ msum (warnings config)
     (warnings, how) =
       if asError
-      then (configGhcErrors,   reject)
+      then (configGhcErrors,   rejectWithHint)
       else (configGhcWarnings, inform)
+    rejectWithHint = reject . vcat . (: singleton rejectHint)
 
 matchTemplate
   :: Monad m
@@ -467,7 +468,9 @@ matchTemplate reject config context exts template submission = do
   mtemplate  <- parse reject exts template
   msubmission <- parse reject exts submission
   case test mtemplate msubmission of
-    Fail loc -> mapM_ (rejectMatch reject config context template submission) loc
+    Fail loc -> mapM_ (rejectMatch rejectWithHint config context template submission) loc
+      where
+        rejectWithHint = reject . vcat . (: singleton rejectHint)
     Ok _     -> return ()
     Continue -> void $ reject [SI.i|Haskell.Template.Central.matchTemplate:
 Please inform a tutor about this issue providing your solution and this message.|]
