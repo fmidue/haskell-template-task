@@ -501,7 +501,7 @@ checkResult
 checkResult reject result handleError handleResult = case result of
   Right result' -> void $ handleResult result'
   Left (WontCompile msgs) -> void $ handleError $ string
-    $ editFeedback $ intercalate "\n" $ filterWerrors msgs
+    $ intercalate "\n" $ map editFeedback $ filterWerrors msgs
   Left err -> void $ reject $
     vcat ["An unexpected error occurred.",
           "This is usually not caused by a fault within your solution.",

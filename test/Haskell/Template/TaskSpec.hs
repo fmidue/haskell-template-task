@@ -94,6 +94,10 @@ spec = do
              Pattern match(es) are non-exhaustive
              In an equation for ‘incomplete’:
                  Patterns of type ‘[a]’ not matched: (_:_)
+         6:1: error:
+             Pattern match(es) are non-exhaustive
+             In an equation for ‘incomplete2’:
+                 Patterns of type ‘[a]’ not matched: []
          |]
          ++ rejectLine
   where
@@ -106,6 +110,7 @@ spec = do
       r :: [a] -> [a]
       r = reverse
       incomplete [] = undefined
+      incomplete2 (_:_) = undefined
       |]
     (config : program : tests : remaining) =
       split ("---" `isPrefixOf`) $ lines defaultCode
