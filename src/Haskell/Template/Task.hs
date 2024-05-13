@@ -42,7 +42,6 @@ import Data.Char                        (isUpper)
 import Data.Functor.Identity            (Identity (..))
 import Data.List
   (delete, elemIndex, groupBy, intercalate, isInfixOf, isPrefixOf,
-   nub,
    partition,
    singleton,
    union,
@@ -509,11 +508,11 @@ checkResult reject result handleError handleResult = case result of
           "Please contact your lecturers providing the following error message:",
           nest 4 $ string $ show err]
   where
-    filterWerrors xs =
-      -- 'nub' is used only because hint provides duplicates for each error:
+    filterWerrors xs = nubOrd
+      -- 'nubOrd' is used only because hint provides duplicates for each error:
       -- issue filed at: https://github.com/haskell-hint/hint/issues/83
-      nub [x | GhcError x <- xs
-             , x /= "<no location info>: error: \nFailing due to -Werror."]
+      [x | GhcError x <- xs
+         , x /= "<no location info>: error: \nFailing due to -Werror."]
 
 interpreter
   :: MonadInterpreter m
