@@ -425,8 +425,9 @@ getHlintFeedback documentInfo config file asError = case hints of
       else configHlintSuggestions
     hlintFeedback feedbackIdeas =
       [documentInfo $ string $ editFeedback $ show comment | comment <- feedbackIdeas]
-    editFeedback :: String -> String
-    editFeedback xs = case elemIndex ':' xs of
+
+editFeedback :: String -> String
+editFeedback xs = case elemIndex ':' xs of
       Just index -> drop (index + 1) xs
       Nothing    -> xs
 
@@ -500,8 +501,8 @@ checkResult
   -> m ()
 checkResult reject result handleError handleResult = case result of
   Right result' -> void $ handleResult result'
-  Left (WontCompile msgs) -> void $ handleError $ string $ intercalate "\n" $
-    filterWerrors msgs
+  Left (WontCompile msgs) -> void $ handleError $ string
+    $ editFeedback $ intercalate "\n" $ filterWerrors msgs
   Left err -> void $ reject $
     vcat ["An unexpected error occurred.",
           "This is usually not caused by a fault within your solution.",

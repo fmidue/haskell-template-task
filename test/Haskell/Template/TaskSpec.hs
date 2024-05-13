@@ -86,19 +86,29 @@ spec = do
          Perhaps:
            x
          |]
-         ++ '\n' : '\n' : render rejectHint
+         ++ '\n' : rejectLine
+    it "fails with forbidden warnings" $
+      exceptionToString (gradeIO (toCode incompletePattern [useImport, unlines tests]) useImport)
+      `shouldReturn` [SI.__i|
+         5:1: error:
+             Pattern match(es) are non-exhaustive
+             In an equation for ‘incomplete’:
+                 Patterns of type ‘[a]’ not matched: (_:_)
+         |]
+         ++ rejectLine
   where
+    rejectLine = '\n' : render rejectHint
     exceptionToString f = catch f (\(CustomException x) -> pure $ render x)
-    withHlintError = idErrorConfig
-      ++ "\n----\n"
-      ++ useId
+    withHlintError = toCode idError [useId]
     useImport = [SI.__i|
       module Solution where
       import Prelude
       r :: [a] -> [a]
       r = reverse
+      incomplete [] = undefined
       |]
-    idErrorConfig = BS.unpack $ encode $ toSolutionConfigOpt idError
+    (config : program : tests : remaining) =
+      split ("---" `isPrefixOf`) $ lines defaultCode
     withSyntaxCheck withReverse = unlines $ intercalate ["-------"] $
       let (config : program : _ : remaining) =
             split ("---" `isPrefixOf`) $ lines defaultCode
@@ -120,6 +130,9 @@ spec = do
         negateString
           | withReverse = "" :: String
           | otherwise = "not "
+    incompletePattern = defaultConfig {
+      configGhcErrors = pure ["incomplete-patterns"]
+      }
     idSuggestion = defaultConfig
       `withHlintSuggestions` ["Redundant id"]
       `withHlintErrors` []
@@ -135,6 +148,11 @@ spec = do
     dilatedWithFixity = defaultConfig
       `withHlintErrors` ["Use dilated"]
       `withHlintRules` ["fixity: infixr 0 &", "warn: {lhs: scaled x x, rhs: dilated x}"]
+
+toCode :: SolutionConfig -> [String] -> String
+toCode config programs = intercalate "\n----\n" $ configText : programs
+  where
+    configText = BS.unpack . encode $ toSolutionConfigOpt config
 
 gradeIO :: String -> String -> IO String
 gradeIO task submission = do
