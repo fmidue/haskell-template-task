@@ -46,7 +46,7 @@ import Data.List
    singleton,
    union,
    )
-import Data.List.Extra                  (nubOrd, replace, takeEnd)
+import Data.List.Extra                  (nubOrd, replace, takeEnd, takeWhileEnd)
 import Data.Text.Lazy                   (pack)
 import Data.Typeable                    (Typeable)
 import Data.Yaml
@@ -69,7 +69,13 @@ import System.Directory (
   setCurrentDirectory,
   makeAbsolute,
   )
-import System.FilePath                  ((</>), (<.>), takeBaseName, takeExtension)
+import System.FilePath (
+  (<.>),
+  (</>),
+  pathSeparator,
+  takeBaseName,
+  takeExtension,
+  )
 import System.IO.Temp                   (createTempDirectory)
 import Test.HUnit                       (Counts (..))
 import Text.PrettyPrint.Leijen.Text
@@ -427,7 +433,9 @@ getHlintFeedback documentInfo config file asError = case hints of
 
 editFeedback :: String -> String
 editFeedback xs = case elemIndex ':' xs of
-      Just index -> drop (index + 1) xs
+      Just index ->
+        let (path, position) = splitAt index xs
+        in takeWhileEnd (/= pathSeparator) path ++ position
       Nothing    -> xs
 
 hlintConfig :: [String] -> String

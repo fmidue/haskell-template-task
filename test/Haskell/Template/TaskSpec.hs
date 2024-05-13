@@ -80,7 +80,7 @@ spec = do
     it "returns specified warnings" $
       exceptionToString (gradeIO withHlintError useId)
       `shouldReturn` [SI.__i|
-         3:9-12: Warning: Redundant id
+         Main.hs:3:9-12: Warning: Redundant id
          Found:
            id x
          Perhaps:
@@ -90,11 +90,11 @@ spec = do
     it "fails with forbidden warnings" $
       exceptionToString (gradeIO (toCode incompletePattern [useImport, unlines tests]) useImport)
       `shouldReturn` [SI.__i|
-         5:1: error:
+         Solution.hs:5:1: error:
              Pattern match(es) are non-exhaustive
              In an equation for ‘incomplete’:
                  Patterns of type ‘[a]’ not matched: (_:_)
-         6:1: error:
+         Solution.hs:6:1: error:
              Pattern match(es) are non-exhaustive
              In an equation for ‘incomplete2’:
                  Patterns of type ‘[a]’ not matched: []
