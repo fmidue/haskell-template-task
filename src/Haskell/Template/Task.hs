@@ -478,18 +478,20 @@ Please inform a tutor about this issue providing your solution and this message.
 deriving instance Typeable Counts
 
 handleCounts
-  :: Monad m
+  :: MonadIO m
   => (Doc -> m ())
   -> (Doc -> m ())
-  -> (Counts, String -> String)
+  -> IO (Counts, String -> String)
   -> m ()
-handleCounts reject inform result = case result of
-  (Counts {errors=a,failures=0} ,f) | a /= 0 -> do
-    inform "Some error occurred before fully testing the solution:"
-    reject (string (f ""))
-    -- e.g. quickcheck timeout errors
-  (Counts {errors=0, failures=0},_) -> return ()
-  (_                            ,f) -> reject (string (f ""))
+handleCounts reject inform runResult = do
+  result <- liftIO runResult
+  case result of
+    (Counts {errors=x, failures=0}, f) | x /= 0 -> do
+      inform "Some error occurred before fully testing the solution:"
+      reject (string (f ""))
+      -- e.g. quickcheck timeout errors
+    (Counts {errors=0, failures=0}, _) -> pure ()
+    (_                            , f) -> reject (string (f ""))
 
 checkResult
   :: Monad m
@@ -519,10 +521,10 @@ interpreter
   => FilePath
   -> SolutionConfig
   -> [String]
-  -> m (Counts, ShowS)
+  -> m (IO (Counts, ShowS))
 interpreter dirname config modules = do
   prepareInterpreter dirname config modules
-  interpret "TestHarness.run Test.test" (as :: (Counts, ShowS))
+  interpret "TestHarness.run Test.test" (as :: IO (Counts, ShowS))
 
 compiler :: MonadInterpreter m => FilePath -> SolutionConfig -> [String] -> m Bool
 compiler dirname config modules = do
