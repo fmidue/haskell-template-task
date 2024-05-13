@@ -40,17 +40,15 @@ import Data.List                        (elem, intercalate, notElem, null)
 import Language.Haskell.Exts
   (Decl (..), Exp (..), Match (..) , Module (..), Name (..), ParseResult (..), Pat (..),
    Rhs (..), SrcSpanInfo, classifyExtension, parseFileContentsWithExts)
-import System.IO.Unsafe                 (unsafePerformIO) -- We need to run the tests inside the interpreter
 import System.Random                    (randomRIO)
 import Test.HUnit.Base
   (Node (Label), Test, Counts (Counts), errors, failures, path, performTest)
 import Test.HUnit.Text                  (showPath)
 
 {-| Function called by the interpreter, getting the tests to run as the argument. -}
-run :: HU.Testable t => [t] -> (HU.Counts, ShowS)
+run :: HU.Testable t => [t] -> IO (HU.Counts, ShowS)
 run testables =
-  unsafePerformIO $
-    catches
+  catches
     (foldM performTestUnlessError (Counts 0 0 0 0, id) testables)
     [Handler $ \(e :: ErrorCall)        -> pairWith e,
      Handler $ \(e :: PatternMatchFail) -> pairWith e,
