@@ -4,7 +4,7 @@ packages:
 
 extra-deps:
 - git: https://github.com/fmidue/IOTasks
-  commit: 471e0eb506607c3ff69690dcb45eef9d21f79bdd
+  commit: 5738cda64d5658dcaa0aff473f06853a26f6702d
 
 - git: https://github.com/owestphal/type-match
   commit: 744797d33f85daa1d78181e2c512052903352dcc
