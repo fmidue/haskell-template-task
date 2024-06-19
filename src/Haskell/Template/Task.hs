@@ -513,7 +513,7 @@ checkResult reject result handleError handleResult = case result of
   Left err -> void $ reject $
     vcat ["An unexpected error occurred.",
           "This is usually not caused by a fault within your solution.",
-          "Please contact your lecturers providing the following error message:",
+          "Please contact your lecturers, providing the following error message:",
           nest 4 $ string $ show err]
   where
     filterWerrors xs = nubOrd

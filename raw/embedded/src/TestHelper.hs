@@ -90,6 +90,6 @@ tcWithTimeoutAndArgs to args prog spec = do
   outcome <- System.timeout to $ taskCheckWithOutcome args prog spec
   case outcome of
     Just (IOTasks.Outcome IOTasks.Success{} _) -> return ()
-    Just (IOTasks.Outcome IOTasks.GaveUp _) -> assertFailure "Gave up on testing. This is usually not caused by a fault within your solution. Please contact your lecturers"
+    Just (IOTasks.Outcome IOTasks.GaveUp _) -> assertFailure "Gave up on testing. This is usually not caused by a fault within your solution. Please contact your lecturers."
     Just o@(IOTasks.Outcome IOTasks.Failure{} _) -> assertFailure $ show $ printOutcomeWith (feedbackStyle args) o
     Nothing -> assertFailure "Failure: Timeout"
