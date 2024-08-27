@@ -3,11 +3,11 @@ module TestHelper (
   isDefined, isDeeplyDefined, mustFail,
   qcWithTimeout, qcWithTimeoutAndArgs, qcWithTimeoutAndRuns
   , qc, qc', qcWithArgs --DEPRECATED
-  , tcWithTimeout, tcWithTimeoutAndArgs
+  , tcWithTimeout, tcWithTimeoutAndArgs, tcCustomizedWithTimeoutAndArgs, tcWithInputsOnFailure
   ) where
 import Prelude (
   Bool (..), Either (Left, Right), Int, IO, String, Maybe (Nothing, Just),
-  const, error, return, seq, ($), (++), show)
+  const, error, return, seq, ($), (++), show, (.), id)
 
 import Control.Exception
   (ErrorCall, SomeException, catch, evaluate, try)
@@ -25,6 +25,7 @@ import Test.IOTasks (
   taskCheckWithOutcome,
   feedbackStyle,
   printOutcomeWith,
+  terminalOutput,
   )
 import qualified Test.IOTasks as IOTasks (
   Args,
@@ -86,10 +87,25 @@ tcWithTimeout :: Int -> IOrep () -> Specification -> Assertion
 tcWithTimeout to = tcWithTimeoutAndArgs to IOTasks.stdArgs
 
 tcWithTimeoutAndArgs :: Int -> IOTasks.Args -> IOrep () -> Specification -> Assertion
-tcWithTimeoutAndArgs to args prog spec = do
-  outcome <- System.timeout to $ taskCheckWithOutcome args prog spec
+tcWithTimeoutAndArgs to args prog spec = tcCustomizedWithTimeoutAndArgs to args prog spec id
+
+tcCustomizedWithTimeoutAndArgs :: Int -> IOTasks.Args -> IOrep () -> Specification -> (String -> String) -> Assertion
+tcCustomizedWithTimeoutAndArgs to args prog spec transfom = tcTimeoutAndArgsHandleFailure to args prog spec (transfom . defaultErrorMessage args)
+
+tcWithInputsOnFailure :: Int -> IOTasks.Args -> IOrep () -> Specification -> ([String] -> String) -> Assertion
+tcWithInputsOnFailure to args prog spec withInputs =  tcTimeoutAndArgsHandleFailure to args prog spec handleFailure
+ where
+  handleFailure (IOTasks.Outcome (IOTasks.Failure inputs _ _ _) _) = withInputs inputs
+  handleFailure _ = error "only called with failures"
+
+defaultErrorMessage :: IOTasks.Args -> IOTasks.Outcome -> String
+defaultErrorMessage args = show . printOutcomeWith (feedbackStyle args)
+
+tcTimeoutAndArgsHandleFailure :: Int -> IOTasks.Args -> IOrep () -> Specification -> (IOTasks.Outcome -> String) -> Assertion
+tcTimeoutAndArgsHandleFailure to args prog spec withFailure = do
+  outcome <- System.timeout to $ taskCheckWithOutcome args{ terminalOutput = False } prog spec
   case outcome of
     Just (IOTasks.Outcome IOTasks.Success{} _) -> return ()
-    Just (IOTasks.Outcome IOTasks.GaveUp _) -> assertFailure "Gave up on testing. This is usually not caused by a fault within your solution. Please contact your lecturers."
-    Just o@(IOTasks.Outcome IOTasks.Failure{} _) -> assertFailure $ show $ printOutcomeWith (feedbackStyle args) o
+    Just (IOTasks.Outcome IOTasks.GaveUp _) -> assertFailure "Gave up on testing. This is usually not caused by a fault within your solution. Please contact your lecturers"
+    Just o@(IOTasks.Outcome IOTasks.Failure{} _) -> assertFailure $ withFailure o
     Nothing -> assertFailure "Failure: Timeout"
