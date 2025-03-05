@@ -14,6 +14,7 @@ module Haskell.Template.Task (
   defaultCode,
   defaultSolutionConfig,
   finaliseConfigs,
+  getCodeWorldButtonOption,
   getHlintFeedback,
   grade,
   matchTemplate,
@@ -47,6 +48,7 @@ import Data.List
    union,
    )
 import Data.List.Extra                  (nubOrd, replace, takeEnd, takeWhileEnd)
+import Data.Maybe                       (fromMaybe)
 import Data.Text.Lazy                   (pack)
 import Data.Typeable                    (Typeable)
 import Data.Yaml
@@ -111,6 +113,8 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \# allowAdding              - allow adding program parts
 \# allowModifying           - allow modifying program parts
 \# allowRemoving            - allow removing program parts
+\# addCodeWorldButton       - adds a button to transfer student visible code
+\#                            into the CodeWorld editor
 \# configGhcErrors          - GHC warnings to enforce
 \# configGhcWarnings        - GHC warnings to provide as hints
 \# configHlintErrors        - hlint hints to enforce
@@ -186,6 +190,7 @@ data FSolutionConfig m = SolutionConfig {
     allowAdding              :: m Bool,
     allowModifying           :: m Bool,
     allowRemoving            :: m Bool,
+    addCodeWorldButton       :: m Bool,
     configGhcErrors          :: m [String],
     configGhcWarnings        :: m [String],
     configHlintErrors        :: m [String],
@@ -212,6 +217,7 @@ defaultSolutionConfig = SolutionConfig {
     allowAdding              = Just True,
     allowModifying           = Just False,
     allowRemoving            = Just False,
+    addCodeWorldButton       = Just True,
     configGhcErrors          = Just [],
     configGhcWarnings        = Just [],
     configHlintErrors        = Just [],
@@ -227,6 +233,7 @@ toSolutionConfigOpt SolutionConfig {..} = runIdentity $ SolutionConfig
   <$> fmap Just allowAdding
   <*> fmap Just allowModifying
   <*> fmap Just allowRemoving
+  <*> fmap Just addCodeWorldButton
   <*> fmap Just configGhcErrors
   <*> fmap Just configGhcWarnings
   <*> fmap Just configHlintErrors
@@ -244,6 +251,7 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
       <$> fmap Identity allowAdding
       <*> fmap Identity allowModifying
       <*> fmap Identity allowRemoving
+      <*> fmap Identity addCodeWorldButton
       <*> fmap Identity configGhcErrors
       <*> fmap Identity configGhcWarnings
       <*> fmap Identity configHlintErrors
@@ -256,6 +264,7 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
         allowAdding              = allowAdding              x <|> allowAdding              y,
         allowModifying           = allowModifying           x <|> allowModifying           y,
         allowRemoving            = allowRemoving            x <|> allowRemoving            y,
+        addCodeWorldButton       = addCodeWorldButton       x <|> addCodeWorldButton       y,
         configGhcErrors          = configGhcErrors          x <|> configGhcErrors          y,
         configGhcWarnings        = configGhcWarnings        x <|> configGhcWarnings        y,
         configHlintErrors        = configHlintErrors        x <|> configHlintErrors        y,
@@ -269,6 +278,7 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
         allowAdding              = Nothing,
         allowRemoving            = Nothing,
         allowModifying           = Nothing,
+        addCodeWorldButton       = Nothing,
         configGhcErrors          = Nothing,
         configGhcWarnings        = Nothing,
         configHlintErrors        = Nothing,
@@ -308,6 +318,17 @@ check reject inform i = do
       inform $ string $ "Parsing module " <> m
       parse reject exts s
     checkUniqueness xs = when (nubOrd xs /= xs) $ reject "duplicate module name"
+
+{-|
+Extract the value of the `addCodeWorldButton` option.
+Defaults to `False` if not specified.
+Also returns `False` in case the config cannot be read.
+-}
+getCodeWorldButtonOption :: String -> Bool
+getCodeWorldButtonOption s = fromMaybe False mOption
+  where
+    mOption = splitConfigAndModules (const Nothing) s >>= addCodeWorldButton . fst
+
 {-|
 Enforces completely writing the file by flushing the output,
 closing the handle and waiting for it to being closed.
