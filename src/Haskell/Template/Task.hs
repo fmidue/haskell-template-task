@@ -43,7 +43,6 @@ import Data.Char                        (isUpper)
 import Data.Functor.Identity            (Identity (..))
 import Data.List
   (delete, elemIndex, groupBy, intercalate, isInfixOf, isPrefixOf,
-   partition,
    singleton,
    union,
    )
@@ -57,7 +56,6 @@ import Data.Yaml.Pretty
   (defConfig, encodePretty, setConfCompare)
 import GHC.Generics                     (Generic (..))
 import Language.Haskell.HLint           (hlint)
-import Control.Exception                (evaluate)
 import Language.Haskell.Interpreter
   (GhcError (..), InterpreterError (..), MonadInterpreter, OptionVal (..),
    as, installedModulesInScope, interpret, languageExtensions, liftIO,
@@ -66,9 +64,7 @@ import Language.Haskell.Interpreter.Unsafe
   (unsafeRunInterpreterWithArgs)
 import System.Directory (
   doesDirectoryExist,
-  removeFile,
   removePathForcibly,
-  setCurrentDirectory,
   makeAbsolute,
   )
 import System.FilePath (
@@ -91,11 +87,11 @@ Returning to the former directory and deleting the temporary directory
 happen even if the provided action throws an Exception.
 -}
 withTempDirectory :: FilePath -> String -> (FilePath -> IO a) -> IO a
-withTempDirectory targetDir template f =
+withTempDirectory targetDir template process =
   MC.bracket
     (liftIO $ createTempDirectory targetDir template)
     (liftIO . removePathForcibly)
-    (\x -> untilM (doesDirectoryExist x) $ makeAbsolute x >>= f)
+    (\x -> untilM (doesDirectoryExist x) $ makeAbsolute x >>= process)
   where
     untilM :: IO Bool -> IO a -> IO a
     untilM f g = do
@@ -350,7 +346,7 @@ whileOpen h =
 grade
   :: MonadIO m
   => (m () -> IO b)
-  -> (forall b . Doc -> m b)
+  -> (forall c . Doc -> m c)
   -> (Doc -> m ())
   -> FilePath
   -> String
@@ -388,12 +384,12 @@ grade eval reject inform tmp task submission =
         compilation <- liftIO $ runInterpreter (compiler dirname config noTest)
         checkResult reject compilation reject $ const $ return ()
         compileWithArgsAndCheck dirname reject undefined config noTest True
-        void $ getHlintFeedback rejectWithHint config solutionFile True
+        void $ getHlintFeedback rejectWithHint config tmp solutionFile True
         matchTemplate reject config 2 exts template submission
         result      <- liftIO $ runInterpreter (interpreter dirname config modules)
         checkResult reject result reject $ handleCounts reject inform
         compileWithArgsAndCheck dirname reject inform config noTest False
-        void $ getHlintFeedback inform config solutionFile False
+        void $ getHlintFeedback inform config tmp solutionFile False
   where
     testHarnessFor file =
       let quoted xs = '"' : xs ++ "\""
@@ -423,10 +419,12 @@ getHlintFeedback
   :: MonadIO m
   => (Doc -> m a)
   -> SolutionConfig
+  -> FilePath
+  -- ^ directory where to write @additional.yaml@ for hints to check to
   -> String
   -> Bool
   -> m [a]
-getHlintFeedback documentInfo config file asError = case hints of
+getHlintFeedback documentInfo config dir file asError = case hints of
   [] -> return []
   _  -> do
     liftIO $ strictWriteFile additional $ hlintConfig rules
@@ -436,13 +434,12 @@ getHlintFeedback documentInfo config file asError = case hints of
       ++ ["--with-group=" ++ group | group <- msum $ configHlintGroups config]
       ++ ["--language=" ++ ext | ext <- msum $ configLanguageExtensions config]
       ++ ["--quiet"]
-    liftIO $ removeFile additional
     sequence $ hlintFeedback feedbackIdeas
   where
     addRules
       | null rules = id
       | otherwise  = (:) ("--hint=" ++ additional)
-    additional = "additional.yaml"
+    additional = dir </> "additional.yaml"
     rules = runIdentity $ configHlintRules config
     hints = runIdentity $ selectHints config
     selectHints =

@@ -22,6 +22,7 @@ import Data.Text.Lazy                   (unpack)
 import Data.Yaml                        (encode)
 import System.Directory
   (getTemporaryDirectory, setCurrentDirectory)
+import System.FilePath                  ((</>))
 import System.IO.Temp                   (withTempDirectory)
 import Test.Hspec
 
@@ -171,9 +172,9 @@ hlintIO config content asError = do
   tmp <- liftIO getTemporaryDirectory
   withTempDirectory tmp "Template-test" $ \dir -> do
     setCurrentDirectory dir
-    let file = dir <> "Main.hs"
+    let file = dir </> "Main.hs"
     writeFile file content
-    feedback <- getHlintFeedback display config file asError
+    feedback <- getHlintFeedback display config tmp file asError
     return $ (repackStrings +++ repackStrings) <$> feedback
   where
     display = if asError then errorP else infoP

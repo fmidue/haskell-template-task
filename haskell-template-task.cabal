@@ -1,13 +1,13 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.36.0.
+-- This file has been generated from package.yaml by hpack version 0.38.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b6f1febca6666e1d18e17dd5598f504cc11669b16a8a6d491c15c6a5744e3a6a
+-- hash: a3dd1a76204cb44c5c18d17a9f59895631572a2cbc4573d597af2b0c9d1f045f
 
 name:           haskell-template-task
-version:        0.1.0.1
+version:        0.2
 synopsis:       A task type for haskell tasks developed for the e-learning platform Autotool
 description:    Please see the README on GitHub at <https://github.com/marcellussiegburg/haskell-template-task#readme>
 category:       E-Learning
@@ -35,6 +35,7 @@ library
       Paths_haskell_template_task
   hs-source-dirs:
       src
+  ghc-options: -Wall -Wwarn=incomplete-uni-patterns
   build-depends:
       HUnit
     , base >=4.7 && <5
@@ -65,7 +66,7 @@ test-suite haskell-template-task-test
       Paths_haskell_template_task
   hs-source-dirs:
       test
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -Wwarn=incomplete-uni-patterns -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       HUnit
     , IOTasks

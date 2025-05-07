@@ -1,5 +1,5 @@
 name:                haskell-template-task
-version:             0.1.0.1
+version:             0.2
 github:              "fmidue/haskell-template-task"
 license:             MIT
 author:              "Marcellus Siegburg"
@@ -7,8 +7,8 @@ maintainer:          "marcellus.siegburg@uni-due.de"
 copyright:           "2020 Formal Methods in Computer Science - University of Duisburg-Essen"
 
 extra-source-files:
-- README.md
-- ChangeLog.md
+  - README.md
+  - ChangeLog.md
 
 synopsis:            A task type for haskell tasks developed for the e-learning platform Autotool
 category:            E-Learning
@@ -16,24 +16,28 @@ category:            E-Learning
 description:         Please see the README on GitHub at <https://github.com/marcellussiegburg/haskell-template-task#readme>
 
 dependencies:
-- base >= 4.7 && < 5
-- HUnit
-- bytestring
-- directory
-- extra
-- file-embed
-- filepath
-- haskell-src-exts
-- haskell-template-task-raw
-- hint
-- hlint >= 3.1.6
-- mtl
-- string-interpolate
-- syb
-- temporary
-- text
-- wl-pprint-text
-- yaml
+  - base >= 4.7 && < 5
+  - HUnit
+  - bytestring
+  - directory
+  - extra
+  - file-embed
+  - filepath
+  - haskell-src-exts
+  - haskell-template-task-raw
+  - hint
+  - hlint >= 3.1.6
+  - mtl
+  - string-interpolate
+  - syb
+  - temporary
+  - text
+  - wl-pprint-text
+  - yaml
+
+ghc-options:
+  - -Wall
+  - -Wwarn=incomplete-uni-patterns
 
 library:
   source-dirs: src
@@ -43,16 +47,16 @@ tests:
     main:                Spec.hs
     source-dirs:         test
     ghc-options:
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
     dependencies:
-    - IOTasks
-    - QuickCheck
-    - deepseq
-    - exceptions
-    - haskell-template-task
-    - hspec
-    - random
-    - string-interpolate
-    - transformers
+      - IOTasks
+      - QuickCheck
+      - deepseq
+      - exceptions
+      - haskell-template-task
+      - hspec
+      - random
+      - string-interpolate
+      - transformers
