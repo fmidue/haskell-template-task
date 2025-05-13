@@ -384,12 +384,12 @@ grade eval reject inform tmp task submission =
         compilation <- liftIO $ runInterpreter (compiler dirname config noTest)
         checkResult reject compilation reject $ const $ return ()
         compileWithArgsAndCheck dirname reject undefined config noTest True
-        void $ getHlintFeedback rejectWithHint config tmp solutionFile True
+        void $ getHlintFeedback rejectWithHint config dirname solutionFile True
         matchTemplate reject config 2 exts template submission
         result      <- liftIO $ runInterpreter (interpreter dirname config modules)
         checkResult reject result reject $ handleCounts reject inform
         compileWithArgsAndCheck dirname reject inform config noTest False
-        void $ getHlintFeedback inform config tmp solutionFile False
+        void $ getHlintFeedback inform config dirname solutionFile False
   where
     testHarnessFor file =
       let quoted xs = '"' : xs ++ "\""
