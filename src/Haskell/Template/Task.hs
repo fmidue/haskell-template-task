@@ -30,7 +30,7 @@ import qualified Data.ByteString.Char8            as BS
 import qualified Language.Haskell.Exts            as E
 import qualified Language.Haskell.Exts.Parser     as P
 import qualified System.IO                        as IO {- required to avoid encoding problems -}
-import qualified Data.String.Interpolate          as SI (i, iii)
+import qualified Data.String.Interpolate          as SI (i, iii'E)
 
 import Haskell.Template.FileContents    (testHelperContents, testHarnessContents)
 import Haskell.Template.Match
@@ -401,7 +401,7 @@ test = #{s}.test|]
     rejectWithHint = reject . vcat . (: singleton rejectHint)
 
 rejectHint :: Doc
-rejectHint = [SI.iii|
+rejectHint = [SI.iii'E|
   Unless you fix the above,
   your submission will not be considered further
   (e.g., no tests being run on it).
