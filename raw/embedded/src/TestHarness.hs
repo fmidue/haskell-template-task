@@ -7,6 +7,7 @@ module TestHarness (
   randomChoice,
   run,
   syntaxCheck,
+  syntaxCheckWithExts,
   ) where
 
 import Prelude
@@ -28,7 +29,7 @@ import Data.Generics                    (Data, Typeable, everything, mkQ)
 import Data.List                        (intercalate, null)
 import Language.Haskell.Exts
   (Decl (..), Match (..) , Module (..), Name (..), ParseResult (..), Pat (..),
-   SrcSpanInfo, parseFileContents)
+   SrcSpanInfo, classifyExtension, parseFileContentsWithExts)
 import System.IO.Unsafe                 (unsafePerformIO) -- We need to run the tests inside the interpreter
 import System.Random                    (randomRIO)
 import Test.HUnit.Base
@@ -112,9 +113,12 @@ ident name (Symbol _ name') | name == "("++name'++")" = True
 ident _    _                                          = False
 
 syntaxCheck :: (Module SrcSpanInfo -> HU.Assertion) -> HU.Assertion
-syntaxCheck check = do
+syntaxCheck = syntaxCheckWithExts []
+
+syntaxCheckWithExts :: [String] -> (Module SrcSpanInfo -> HU.Assertion) -> HU.Assertion
+syntaxCheckWithExts exts check = do
   contents <- IO.readFile "Solution.hs"
-  let mod = case parseFileContents contents of
+  let mod = case parseFileContentsWithExts (map classifyExtension exts) contents of
               ParseOk mod'    -> mod'
               ParseFailed l e -> error $ "Parsing file contents failed at " ++ show l ++ ": " ++ e
   check mod
