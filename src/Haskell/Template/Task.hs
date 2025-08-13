@@ -46,7 +46,8 @@ import Data.List
    singleton,
    union,
    )
-import Data.List.Extra                  (nubOrd, replace, takeEnd, takeWhileEnd)
+import Data.List.Extra
+  (genericTake, nubOrd, replace, takeEnd, takeWhileEnd)
 import Data.Maybe                       (fromMaybe)
 import Data.Text.Lazy                   (pack)
 import Data.Typeable                    (Typeable)
@@ -62,6 +63,7 @@ import Language.Haskell.Interpreter
    loadModules, reset, runInterpreter, set, setImports, setTopLevelModules, searchPath)
 import Language.Haskell.Interpreter.Unsafe
   (unsafeRunInterpreterWithArgs)
+import Numeric.Natural                  (Natural)
 import System.Directory (
   doesDirectoryExist,
   removePathForcibly,
@@ -111,8 +113,10 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \# allowRemoving            - allow removing program parts
 \# addCodeWorldButton       - adds a button to transfer student visible code
 \#                            into the CodeWorld editor
+\# configGhcLimit           - caps amount of GHC warnings/errors to display
 \# configGhcErrors          - GHC warnings to enforce
 \# configGhcWarnings        - GHC warnings to provide as hints
+\# configHlintLimit         - caps amount of hlint hints to display
 \# configHlintErrors        - hlint hints to enforce
 \# configHlintGroups        - hlint extra hint groups to use
 \# configHlintRules         - hlint extra hint rules to use
@@ -187,8 +191,10 @@ data FSolutionConfig m = SolutionConfig {
     allowModifying           :: m Bool,
     allowRemoving            :: m Bool,
     addCodeWorldButton       :: m Bool,
+    configGhcLimit           :: m (Maybe Natural),
     configGhcErrors          :: m [String],
     configGhcWarnings        :: m [String],
+    configHlintLimit         :: m (Maybe Natural),
     configHlintErrors        :: m [String],
     configHlintGroups        :: m [String],
     configHlintRules         :: m [String],
@@ -214,8 +220,10 @@ defaultSolutionConfig = SolutionConfig {
     allowModifying           = Just False,
     allowRemoving            = Just False,
     addCodeWorldButton       = Just True,
+    configGhcLimit           = Just Nothing,
     configGhcErrors          = Just [],
     configGhcWarnings        = Just [],
+    configHlintLimit         = Just Nothing,
     configHlintErrors        = Just [],
     configHlintGroups        = Just [],
     configHlintRules         = Just [],
@@ -230,8 +238,10 @@ toSolutionConfigOpt SolutionConfig {..} = runIdentity $ SolutionConfig
   <*> fmap Just allowModifying
   <*> fmap Just allowRemoving
   <*> fmap Just addCodeWorldButton
+  <*> fmap Just configGhcLimit
   <*> fmap Just configGhcErrors
   <*> fmap Just configGhcWarnings
+  <*> fmap Just configHlintLimit
   <*> fmap Just configHlintErrors
   <*> fmap Just configHlintGroups
   <*> fmap Just configHlintRules
@@ -248,8 +258,10 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
       <*> fmap Identity allowModifying
       <*> fmap Identity allowRemoving
       <*> fmap Identity addCodeWorldButton
+      <*> fmap Identity configGhcLimit
       <*> fmap Identity configGhcErrors
       <*> fmap Identity configGhcWarnings
+      <*> fmap Identity configHlintLimit
       <*> fmap Identity configHlintErrors
       <*> fmap Identity configHlintGroups
       <*> fmap Identity configHlintRules
@@ -261,8 +273,10 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
         allowModifying           = allowModifying           x <|> allowModifying           y,
         allowRemoving            = allowRemoving            x <|> allowRemoving            y,
         addCodeWorldButton       = addCodeWorldButton       x <|> addCodeWorldButton       y,
+        configGhcLimit           = configGhcLimit           x <|> configGhcLimit           y,
         configGhcErrors          = configGhcErrors          x <|> configGhcErrors          y,
         configGhcWarnings        = configGhcWarnings        x <|> configGhcWarnings        y,
+        configHlintLimit         = configHlintLimit         x <|> configHlintLimit         y,
         configHlintErrors        = configHlintErrors        x <|> configHlintErrors        y,
         configHlintGroups        = configHlintGroups        x <|> configHlintGroups        y,
         configHlintRules         = configHlintRules         x <|> configHlintRules         y,
@@ -275,8 +289,10 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
         allowRemoving            = Nothing,
         allowModifying           = Nothing,
         addCodeWorldButton       = Nothing,
+        configGhcLimit           = Nothing,
         configGhcErrors          = Nothing,
         configGhcWarnings        = Nothing,
+        configHlintLimit         = Nothing,
         configHlintErrors        = Nothing,
         configHlintGroups        = Nothing,
         configHlintRules         = Nothing,
@@ -382,12 +398,12 @@ grade eval reject inform tmp task submission =
     do
         let noTest = delete "Test" modules
         compilation <- liftIO $ runInterpreter (compiler dirname config noTest)
-        checkResult reject compilation reject $ const $ return ()
+        checkResult reject compilation reject Nothing $ const $ return ()
         compileWithArgsAndCheck dirname reject undefined config noTest True
         void $ getHlintFeedback rejectWithHint config dirname solutionFile True
         matchTemplate reject config 2 exts template submission
         result      <- liftIO $ runInterpreter (interpreter dirname config modules)
-        checkResult reject result reject $ handleCounts reject inform
+        checkResult reject result reject Nothing $ handleCounts reject inform
         compileWithArgsAndCheck dirname reject inform config noTest False
         void $ getHlintFeedback inform config dirname solutionFile False
   where
@@ -446,8 +462,10 @@ getHlintFeedback documentInfo config dir file asError = case hints of
       if asError
       then configHlintErrors
       else configHlintSuggestions
+    hintLimit =
+      maybe id genericTake $ runIdentity $ configHlintLimit config
     hlintFeedback feedbackIdeas =
-      [documentInfo $ string $ editFeedback $ show comment | comment <- feedbackIdeas]
+      hintLimit [documentInfo $ string $ editFeedback $ show comment | comment <- feedbackIdeas]
 
 editFeedback :: String -> String
 editFeedback xs = case elemIndex ':' xs of
@@ -471,7 +489,7 @@ compileWithArgsAndCheck
 compileWithArgsAndCheck dirname reject inform config modules asError = unless (null ghcOpts) $ do
   ghcErrors <-
     liftIO $ unsafeRunInterpreterWithArgs ghcOpts (compiler dirname config modules)
-  checkResult reject ghcErrors how $ const $ return ()
+  checkResult reject ghcErrors how howMany $ const $ return ()
   where
     makeOpts xs = ("-w":) $ ("-Werror=" ++) <$> xs
     ghcOpts  = makeOpts $ msum (warnings config)
@@ -479,6 +497,7 @@ compileWithArgsAndCheck dirname reject inform config modules asError = unless (n
       if asError
       then (configGhcErrors,   rejectWithHint)
       else (configGhcWarnings, inform)
+    howMany = runIdentity $ configGhcLimit config
     rejectWithHint = reject . vcat . (: singleton rejectHint)
 
 matchTemplate
@@ -522,18 +541,20 @@ checkResult
   => (Doc -> m b)
   -> Either InterpreterError a
   -> (Doc -> m c)
+  -> Maybe Natural
   -> (a -> m d)
   -> m ()
-checkResult reject result handleError handleResult = case result of
+checkResult reject result handleError mErrorLimit handleResult = case result of
   Right result' -> void $ handleResult result'
   Left (WontCompile msgs) -> void $ handleError $ string
-    $ intercalate "\n" $ map editFeedback $ filterWerrors msgs
+    $ intercalate "\n" $ amount $ map editFeedback $ filterWerrors msgs
   Left err -> void $ reject $
     vcat ["An unexpected error occurred.",
           "This is usually not caused by a fault within your solution.",
           "Please contact your lecturers, providing the following error message:",
           nest 4 $ string $ show err]
   where
+    amount = maybe id genericTake mErrorLimit
     filterWerrors xs = nubOrd
       -- 'nubOrd' is used only because hint provides duplicates for each error:
       -- issue filed at: https://github.com/haskell-hint/hint/issues/83
