@@ -116,11 +116,11 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \# configGhcLimit           - caps amount of GHC warnings/errors to display
 \# configGhcErrors          - GHC warnings to enforce
 \# configGhcWarnings        - GHC warnings to provide as hints
-\# configHlintLimit         - caps amount of hlint hints to display
-\# configHlintErrors        - hlint hints to enforce
+\# configHlintLimit         - caps amount of hlint suggestions to display
+\# configHlintErrors        - hlint hints to enforce, only first one encountered is displayed
 \# configHlintGroups        - hlint extra hint groups to use
 \# configHlintRules         - hlint extra hint rules to use
-\# configHlintSuggestions   - hlint hints to provide
+\# configHlintSuggestions   - hlint hints to provide as suggestions
 \# configLanguageExtensions - this sets LanguageExtensions for hlint as well
 \# configModules            - DEPRECATED (will be ignored)
 ----------
