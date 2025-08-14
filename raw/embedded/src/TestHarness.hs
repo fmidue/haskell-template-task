@@ -2,12 +2,18 @@
 module TestHarness (
   allowFailures,
   contains,
+  doNotation,
+  rhsContains,
+  findDecls,
   findTopLevelDeclsOf,
   ident,
+  listComprehension,
   randomChoice,
   run,
+  selfRecursive,
   syntaxCheck,
   syntaxCheckWithExts,
+  typeSignatureOf
   ) where
 
 import Prelude
@@ -25,11 +31,11 @@ import Control.Exception
   (ArithException, ArrayException, ErrorCall, Handler (Handler),
    PatternMatchFail, SomeException, catches, displayException, try)
 import Control.Monad                    (foldM, when)
-import Data.Generics                    (Data, Typeable, everything, mkQ)
+import Data.Generics                    (Data, Typeable, everything, listify, mkQ)
 import Data.List                        (intercalate, null)
 import Language.Haskell.Exts
-  (Decl (..), Match (..) , Module (..), Name (..), ParseResult (..), Pat (..),
-   SrcSpanInfo, classifyExtension, parseFileContentsWithExts)
+  (Decl (..), Exp (..), Match (..) , Module (..), Name (..), ParseResult (..), Pat (..),
+   Rhs (..), SrcSpanInfo, classifyExtension, parseFileContentsWithExts)
 import System.IO.Unsafe                 (unsafePerformIO) -- We need to run the tests inside the interpreter
 import System.Random                    (randomRIO)
 import Test.HUnit.Base
@@ -104,17 +110,91 @@ randomChoice xs = do
   return $ xs !! r
 
 {-* Syntax predicates -}
+
+{- |
+Search a structure for a node satisfying some predicate.
+Use case: scan submission code syntax tree.
+
+Also matches the left hand side of function definitions,
+so cannot be used to check if a function calls itself.
+
+This will also match explicit imports
+when searching for an identifier in the overall module via `ident`.
+-}
 contains :: (Typeable b, Data a) => (b -> Bool) -> a -> Bool
 contains pred = everything (||) (mkQ False pred)
 
+{- |
+Same as `contains`, but only considers the right hand side of equations.
+Can therefore be used to check for self recursion and avoids overlap with imports.
+-}
+rhsContains :: (Typeable b, Data a) => (b -> Bool) -> a -> Bool
+rhsContains pred = contains (contains pred :: Rhs SrcSpanInfo -> Bool)
+
+{-* Predicates to use with `contains` and `rhsContains` -}
+
+{- |
+True if identifier is the given String.
+-}
 ident :: String -> Name SrcSpanInfo -> Bool
 ident name (Ident _ name')  | name == name'           = True
 ident name (Symbol _ name') | name == "("++name'++")" = True
 ident _    _                                          = False
 
+{- |
+True if expression is a list comprehension.
+-}
+listComprehension :: Exp SrcSpanInfo -> Bool
+listComprehension (ListComp {}) = True
+listComprehension _             = False
+
+{- |
+True if expression is a do block.
+-}
+doNotation :: Exp SrcSpanInfo -> Bool
+doNotation (Do _ _) = True
+doNotation _        = False
+
+{- |
+True if declaration is defined recursively.
+
+This returns a false positive if a binding in the righthand side
+uses the definition's name but goes unused.
+-}
+selfRecursive :: Decl SrcSpanInfo -> Bool
+selfRecursive decl = case decl of
+  (FunBind _ matches@(aMatch:_))  -> rhsContains (sameIdent $ matchName aMatch) matches
+  (PatBind _ (PVar _ name) rhs _) -> contains (sameIdent name) rhs
+  _                               -> False
+  where
+    matchName (Match _ n _ _ _)        = n
+    matchName (InfixMatch _ _ n _ _ _) = n
+
+    sameIdent (Ident _ n1) = ident n1
+    sameIdent (Symbol _ n1) = ident $ "(" ++ n1 ++ ")"
+
+{- |
+True if declaration is a type signature of the given function name.
+-}
+typeSignatureOf :: String -> Decl SrcSpanInfo -> Bool
+typeSignatureOf name (TypeSig _ xs _) = contains (ident name) xs
+typeSignatureOf _    _                = False
+
+{-* Performing syntax checks -}
+
+{- |
+Run an assertion on the submission module's syntax tree.
+
+Only enables language extensions explicitly listed in the student's solution file.
+Using any hidden default extensions will cause a parse error.
+-}
 syntaxCheck :: (Module SrcSpanInfo -> HU.Assertion) -> HU.Assertion
 syntaxCheck = syntaxCheckWithExts []
 
+{- |
+Same as `syntaxCheck`, but takes a list of extensions to enable
+on top of what is found in the file.
+-}
 syntaxCheckWithExts :: [String] -> (Module SrcSpanInfo -> HU.Assertion) -> HU.Assertion
 syntaxCheckWithExts exts check = do
   contents <- IO.readFile "Solution.hs"
@@ -123,6 +203,11 @@ syntaxCheckWithExts exts check = do
               ParseFailed l e -> error $ "Parsing file contents failed at " ++ show l ++ ": " ++ e
   check mod
 
+{-* Syntax queries -}
+
+{- |
+Query a module's syntax tree for all top level function declarations and constants.
+-}
 findTopLevelDeclsOf :: String -> Module SrcSpanInfo -> [Decl SrcSpanInfo]
 findTopLevelDeclsOf _    XmlPage   {} = [] -- ignore non modules
 findTopLevelDeclsOf _    XmlHybrid {} = [] -- ignore non modules
@@ -131,3 +216,10 @@ findTopLevelDeclsOf name (Module _ _ _ _ decls) = filter matches decls
     matches (PatBind _ (PVar _ (Ident _ name')) _ _)      | name == name' = True
     matches (FunBind _ (Match _ (Ident _ name') _ _ _:_)) | name == name' = True
     matches _                                                             = False
+
+{- |
+Query a syntax tree for all declarations and constants.
+This includes let and where bindings.
+-}
+findDecls :: Data a => a -> [Decl SrcSpanInfo]
+findDecls = listify $ const True
