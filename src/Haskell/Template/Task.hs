@@ -30,7 +30,7 @@ import qualified Data.ByteString.Char8            as BS
 import qualified Language.Haskell.Exts            as E
 import qualified Language.Haskell.Exts.Parser     as P
 import qualified System.IO                        as IO {- required to avoid encoding problems -}
-import qualified Data.String.Interpolate          as SI (i, iii'E)
+import qualified Data.String.Interpolate          as SI (i, iii, iii'E)
 
 import Haskell.Template.FileContents    (testHelperContents, testHarnessContents)
 import Haskell.Template.Match
@@ -399,6 +399,9 @@ grade eval reject inform tmp task submission =
         let noTest = delete "Test" modules
         compilation <- liftIO $ runInterpreter (compiler dirname config noTest)
         checkResult reject compilation reject Nothing $ const $ return ()
+        when (runIdentity $ allowModifying config) $ do
+          compilationWithTests <- liftIO $ runInterpreter (compiler dirname config modules)
+          checkResult reject compilationWithTests signatureError Nothing $ const $ return ()
         compileWithArgsAndCheck dirname reject undefined config noTest True
         void $ getHlintFeedback rejectWithHint config dirname solutionFile True
         matchTemplate reject config 2 exts template submission
@@ -415,6 +418,11 @@ grade eval reject inform tmp task submission =
 import qualified #{s} (test)
 test = #{s}.test|]
     rejectWithHint = reject . vcat . (: singleton rejectHint)
+
+    signatureError = const $ rejectWithHint $ string [SI.iii|
+      Your code is not compatible with the test suite.
+      Please do not change type signatures in the given code template.
+      |]
 
 rejectHint :: Doc
 rejectHint = [SI.iii'E|
