@@ -108,21 +108,21 @@ encode = encodePretty $ setConfCompare compare defConfig
 defaultCode :: String
 defaultCode = BS.unpack (encode defaultSolutionConfig) ++
   [SI.i|\#\#\#\#\# parameter description:
-\# allowAdding              - allow adding program parts
-\# allowModifying           - allow modifying program parts
-\# allowRemoving            - allow removing program parts
-\# addCodeWorldButton       - adds a button to transfer student visible code
-\#                            into the CodeWorld editor
-\# configGhcLimit           - caps amount of GHC warnings/errors to display
-\# configGhcErrors          - GHC warnings to enforce
-\# configGhcWarnings        - GHC warnings to provide as hints
-\# configHlintLimit         - caps amount of hlint suggestions to display
-\# configHlintErrors        - hlint hints to enforce, only first one encountered is displayed
-\# configHlintGroups        - hlint extra hint groups to use
-\# configHlintRules         - hlint extra hint rules to use
-\# configHlintSuggestions   - hlint hints to provide as suggestions
-\# configLanguageExtensions - this sets LanguageExtensions for hlint as well
-\# configModules            - DEPRECATED (will be ignored)
+\# allowAdding                 - allow adding program parts
+\# allowModifying              - allow modifying program parts
+\# allowRemoving               - allow removing program parts
+\# addCodeWorldButton          - adds a button to transfer student visible code
+\#                               into the CodeWorld editor
+\# configGhcLimit              - caps amount of GHC warnings/errors to display
+\# configGhcErrors             - GHC warnings to enforce
+\# configGhcWarnings           - GHC warnings to provide as hints
+\# configHlintSuggestionsLimit - caps amount of hlint suggestions to display
+\# configHlintErrors           - hlint hints to enforce, only first one encountered is displayed
+\# configHlintGroups           - hlint extra hint groups to use
+\# configHlintRules            - hlint extra hint rules to use
+\# configHlintSuggestions      - hlint hints to provide as suggestions
+\# configLanguageExtensions    - this sets LanguageExtensions for hlint as well
+\# configModules               - DEPRECATED (will be ignored)
 ----------
 module Solution where
 import Prelude
@@ -187,20 +187,20 @@ Also available are the following modules:
  -}|]
 
 data FSolutionConfig m = SolutionConfig {
-    allowAdding              :: m Bool,
-    allowModifying           :: m Bool,
-    allowRemoving            :: m Bool,
-    addCodeWorldButton       :: m Bool,
-    configGhcLimit           :: m (Maybe Natural),
-    configGhcErrors          :: m [String],
-    configGhcWarnings        :: m [String],
-    configHlintLimit         :: m (Maybe Natural),
-    configHlintErrors        :: m [String],
-    configHlintGroups        :: m [String],
-    configHlintRules         :: m [String],
-    configHlintSuggestions   :: m [String],
-    configLanguageExtensions :: m [String],
-    configModules            :: m [String]
+    allowAdding                 :: m Bool,
+    allowModifying              :: m Bool,
+    allowRemoving               :: m Bool,
+    addCodeWorldButton          :: m Bool,
+    configGhcLimit              :: m (Maybe Natural),
+    configGhcErrors             :: m [String],
+    configGhcWarnings           :: m [String],
+    configHlintSuggestionsLimit :: m (Maybe Natural),
+    configHlintErrors           :: m [String],
+    configHlintGroups           :: m [String],
+    configHlintRules            :: m [String],
+    configHlintSuggestions      :: m [String],
+    configLanguageExtensions    :: m [String],
+    configModules               :: m [String]
   } deriving Generic
 {-# DEPRECATED configModules "config Modules will be removed" #-}
 
@@ -216,20 +216,20 @@ deriving instance Show SolutionConfig
 
 defaultSolutionConfig :: SolutionConfigOpt
 defaultSolutionConfig = SolutionConfig {
-    allowAdding              = Just True,
-    allowModifying           = Just False,
-    allowRemoving            = Just False,
-    addCodeWorldButton       = Just True,
-    configGhcLimit           = Just Nothing,
-    configGhcErrors          = Just [],
-    configGhcWarnings        = Just [],
-    configHlintLimit         = Just Nothing,
-    configHlintErrors        = Just [],
-    configHlintGroups        = Just [],
-    configHlintRules         = Just [],
-    configHlintSuggestions   = Just [],
-    configLanguageExtensions = Just ["NPlusKPatterns","ScopedTypeVariables"],
-    configModules            = Nothing
+    allowAdding                 = Just True,
+    allowModifying              = Just False,
+    allowRemoving               = Just False,
+    addCodeWorldButton          = Just True,
+    configGhcLimit              = Just Nothing,
+    configGhcErrors             = Just [],
+    configGhcWarnings           = Just [],
+    configHlintSuggestionsLimit = Just Nothing,
+    configHlintErrors           = Just [],
+    configHlintGroups           = Just [],
+    configHlintRules            = Just [],
+    configHlintSuggestions      = Just [],
+    configLanguageExtensions    = Just ["NPlusKPatterns","ScopedTypeVariables"],
+    configModules               = Nothing
   }
 
 toSolutionConfigOpt :: SolutionConfig -> SolutionConfigOpt
@@ -241,7 +241,7 @@ toSolutionConfigOpt SolutionConfig {..} = runIdentity $ SolutionConfig
   <*> fmap Just configGhcLimit
   <*> fmap Just configGhcErrors
   <*> fmap Just configGhcWarnings
-  <*> fmap Just configHlintLimit
+  <*> fmap Just configHlintSuggestionsLimit
   <*> fmap Just configHlintErrors
   <*> fmap Just configHlintGroups
   <*> fmap Just configHlintRules
@@ -261,7 +261,7 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
       <*> fmap Identity configGhcLimit
       <*> fmap Identity configGhcErrors
       <*> fmap Identity configGhcWarnings
-      <*> fmap Identity configHlintLimit
+      <*> fmap Identity configHlintSuggestionsLimit
       <*> fmap Identity configHlintErrors
       <*> fmap Identity configHlintGroups
       <*> fmap Identity configHlintRules
@@ -269,36 +269,36 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
       <*> fmap Identity configLanguageExtensions
       <*> fmap Identity configModules
     combineConfigs x y = SolutionConfig {
-        allowAdding              = allowAdding              x <|> allowAdding              y,
-        allowModifying           = allowModifying           x <|> allowModifying           y,
-        allowRemoving            = allowRemoving            x <|> allowRemoving            y,
-        addCodeWorldButton       = addCodeWorldButton       x <|> addCodeWorldButton       y,
-        configGhcLimit           = configGhcLimit           x <|> configGhcLimit           y,
-        configGhcErrors          = configGhcErrors          x <|> configGhcErrors          y,
-        configGhcWarnings        = configGhcWarnings        x <|> configGhcWarnings        y,
-        configHlintLimit         = configHlintLimit         x <|> configHlintLimit         y,
-        configHlintErrors        = configHlintErrors        x <|> configHlintErrors        y,
-        configHlintGroups        = configHlintGroups        x <|> configHlintGroups        y,
-        configHlintRules         = configHlintRules         x <|> configHlintRules         y,
-        configHlintSuggestions   = configHlintSuggestions   x <|> configHlintSuggestions   y,
-        configLanguageExtensions = configLanguageExtensions x <|> configLanguageExtensions y,
-        configModules            = Just []
+        allowAdding                 = allowAdding                 x <|> allowAdding                 y,
+        allowModifying              = allowModifying              x <|> allowModifying              y,
+        allowRemoving               = allowRemoving               x <|> allowRemoving               y,
+        addCodeWorldButton          = addCodeWorldButton          x <|> addCodeWorldButton          y,
+        configGhcLimit              = configGhcLimit              x <|> configGhcLimit              y,
+        configGhcErrors             = configGhcErrors             x <|> configGhcErrors             y,
+        configGhcWarnings           = configGhcWarnings           x <|> configGhcWarnings           y,
+        configHlintSuggestionsLimit = configHlintSuggestionsLimit x <|> configHlintSuggestionsLimit y,
+        configHlintErrors           = configHlintErrors           x <|> configHlintErrors           y,
+        configHlintGroups           = configHlintGroups           x <|> configHlintGroups           y,
+        configHlintRules            = configHlintRules            x <|> configHlintRules            y,
+        configHlintSuggestions      = configHlintSuggestions      x <|> configHlintSuggestions      y,
+        configLanguageExtensions    = configLanguageExtensions    x <|> configLanguageExtensions    y,
+        configModules               = Just []
       }
     emptyConfig = SolutionConfig {
-        allowAdding              = Nothing,
-        allowRemoving            = Nothing,
-        allowModifying           = Nothing,
-        addCodeWorldButton       = Nothing,
-        configGhcLimit           = Nothing,
-        configGhcErrors          = Nothing,
-        configGhcWarnings        = Nothing,
-        configHlintLimit         = Nothing,
-        configHlintErrors        = Nothing,
-        configHlintGroups        = Nothing,
-        configHlintRules         = Nothing,
-        configHlintSuggestions   = Nothing,
-        configLanguageExtensions = Nothing,
-        configModules            = Nothing
+        allowAdding                 = Nothing,
+        allowRemoving               = Nothing,
+        allowModifying              = Nothing,
+        addCodeWorldButton          = Nothing,
+        configGhcLimit              = Nothing,
+        configGhcErrors             = Nothing,
+        configGhcWarnings           = Nothing,
+        configHlintSuggestionsLimit = Nothing,
+        configHlintErrors           = Nothing,
+        configHlintGroups           = Nothing,
+        configHlintRules            = Nothing,
+        configHlintSuggestions      = Nothing,
+        configLanguageExtensions    = Nothing,
+        configModules               = Nothing
       }
 
 string :: String -> Doc
@@ -463,7 +463,7 @@ getHlintFeedback documentInfo config dir file asError = case hints of
       then configHlintErrors
       else configHlintSuggestions
     hintLimit =
-      maybe id genericTake $ runIdentity $ configHlintLimit config
+      maybe id genericTake $ runIdentity $ configHlintSuggestionsLimit config
     hlintFeedback feedbackIdeas =
       hintLimit [documentInfo $ string $ editFeedback $ show comment | comment <- feedbackIdeas]
 
