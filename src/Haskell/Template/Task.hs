@@ -400,12 +400,9 @@ grade eval reject inform tmp task submission =
         compilation <- liftIO $ runInterpreter (compiler dirname config noTest)
         checkResult reject compilation reject Nothing $ const $ return ()
         when (runIdentity $ allowModifying config) $ do
-          compilationWithoutTestHarness <- liftIO $ runInterpreter $
-            compiler dirname config $ delete "TestHarness" modules
-          checkResult reject compilationWithoutTestHarness reject Nothing $ const $ return ()
-          compilationAllModules <- liftIO $ runInterpreter $
+          compilationWithTests <- liftIO $ runInterpreter $
             compiler dirname config modules
-          checkResult reject compilationAllModules signatureError Nothing $ const $ return ()
+          checkResult reject compilationWithTests signatureError Nothing $ const $ return ()
         compileWithArgsAndCheck dirname reject undefined config noTest True
         void $ getHlintFeedback rejectWithHint config dirname solutionFile True
         matchTemplate reject config 2 exts template submission
