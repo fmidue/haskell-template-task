@@ -1,19 +1,23 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module TestHarness (
   allowFailures,
+  callTo,
   contains,
+  declName,
   doNotation,
   rhsContains,
   findDecls,
+  findDeclsCalling,
   findTopLevelDeclsOf,
+  globallySelfRecursive,
   ident,
   listComprehension,
+  locallySelfRecursive,
   randomChoice,
   run,
-  selfRecursive,
   syntaxCheck,
   syntaxCheckWithExts,
-  typeSignatureOf
+  typeSignatureOf,
   ) where
 
 import Prelude
@@ -32,7 +36,7 @@ import Control.Exception
    PatternMatchFail, SomeException, catches, displayException, try)
 import Control.Monad                    (foldM, when)
 import Data.Generics                    (Data, Typeable, everything, listify, mkQ)
-import Data.List                        (intercalate, null)
+import Data.List                        (elem, intercalate, notElem, null)
 import Language.Haskell.Exts
   (Decl (..), Exp (..), Match (..) , Module (..), Name (..), ParseResult (..), Pat (..),
    Rhs (..), SrcSpanInfo, classifyExtension, parseFileContentsWithExts)
@@ -156,22 +160,33 @@ doNotation (Do _ _) = True
 doNotation _        = False
 
 {- |
-True if declaration is defined recursively.
+True if declaration is defined recursively,
+but only if the recursion is stated in the righthand side of the equation.
+Recursion through indirection, e.g. via a chain of global definitions is not detected.
+This is sufficient if 'allowAdding' is set to False.
 
 This returns a false positive if a binding in the righthand side
 uses the definition's name but goes unused.
 -}
-selfRecursive :: Decl SrcSpanInfo -> Bool
-selfRecursive decl = case decl of
+locallySelfRecursive :: Decl SrcSpanInfo -> Bool
+locallySelfRecursive decl = case decl of
   (FunBind _ matches@(aMatch:_))  -> rhsContains (sameIdent $ matchName aMatch) matches
   (PatBind _ (PVar _ name) rhs _) -> contains (sameIdent name) rhs
   _                               -> False
   where
-    matchName (Match _ n _ _ _)        = n
-    matchName (InfixMatch _ _ n _ _ _) = n
-
     sameIdent (Ident _ n1) = ident n1
     sameIdent (Symbol _ n1) = ident $ "(" ++ n1 ++ ")"
+
+{- |
+True if declaration is defined recursively,
+taking the entire module into account.
+
+This returns a false positive if a binding in a righthand side
+uses the definition's name but goes unused.
+-}
+globallySelfRecursive :: Module SrcSpanInfo -> Decl SrcSpanInfo -> Bool
+globallySelfRecursive mod decl = let name = declName decl
+  in name `elem` findDeclsCalling name mod
 
 {- |
 True if declaration is a type signature of the given function name.
@@ -179,6 +194,16 @@ True if declaration is a type signature of the given function name.
 typeSignatureOf :: String -> Decl SrcSpanInfo -> Bool
 typeSignatureOf name (TypeSig _ xs _) = contains (ident name) xs
 typeSignatureOf _    _                = False
+
+{- |
+True if name appears directly or indirectly in the declaration,
+considering the entire module.
+
+Used to detect if student code contains required exercise components
+when 'AllowAdding' is set to True.
+-}
+callTo :: String -> Module SrcSpanInfo -> Decl SrcSpanInfo -> Bool
+callTo name mod decl = declName decl `elem` findDeclsCalling name mod
 
 {-* Performing syntax checks -}
 
@@ -223,3 +248,32 @@ This includes let and where bindings.
 -}
 findDecls :: Data a => a -> [Decl SrcSpanInfo]
 findDecls = listify $ const True
+
+{- |
+Extract the name of a declaration.
+-}
+declName :: Decl SrcSpanInfo -> String
+declName decl = case decl of
+  (FunBind _ (aMatch:_))  -> getName $ matchName aMatch
+  (PatBind _ (PVar _ name) _ _) -> getName name
+  _                               -> ""
+  where
+    getName (Ident _ n) = n
+    getName (Symbol _ n) = "(" ++ n ++ ")"
+
+{- |
+Query a syntax tree for all declaration names containing the given name.
+This also takes indirecting bindings into account.
+-}
+findDeclsCalling :: Data a => String -> a -> [String]
+findDeclsCalling name tree = search [] [name]
+  where
+    search seen (x:xs) =
+      let newHits = filter (`notElem` seen) $ map declName $
+            listify (rhsContains $ ident x) tree
+      in search (seen ++ newHits) (xs ++ newHits)
+    search seen [] = seen
+
+matchName :: Match SrcSpanInfo -> Name SrcSpanInfo
+matchName (Match _ n _ _ _)        = n
+matchName (InfixMatch _ _ n _ _ _) = n
