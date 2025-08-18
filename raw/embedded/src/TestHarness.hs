@@ -236,11 +236,7 @@ Query a module's syntax tree for all top level function declarations and constan
 findTopLevelDeclsOf :: String -> Module SrcSpanInfo -> [Decl SrcSpanInfo]
 findTopLevelDeclsOf _    XmlPage   {} = [] -- ignore non modules
 findTopLevelDeclsOf _    XmlHybrid {} = [] -- ignore non modules
-findTopLevelDeclsOf name (Module _ _ _ _ decls) = filter matches decls
-  where
-    matches (PatBind _ (PVar _ (Ident _ name')) _ _)      | name == name' = True
-    matches (FunBind _ (Match _ (Ident _ name') _ _ _:_)) | name == name' = True
-    matches _                                                             = False
+findTopLevelDeclsOf name (Module _ _ _ _ decls) = filter ((==name) . declName) decls
 
 {- |
 Query a syntax tree for all declarations and constants.
