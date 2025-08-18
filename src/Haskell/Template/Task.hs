@@ -397,14 +397,15 @@ grade eval reject inform tmp task submission =
         $ testHarnessFor solutionFile
     do
         let noTest = delete "Test" modules
-        let noSolution = delete "TestHarness" modules
         compilation <- liftIO $ runInterpreter (compiler dirname config noTest)
         checkResult reject compilation reject Nothing $ const $ return ()
         when (runIdentity $ allowModifying config) $ do
-          compilationTests <- liftIO $ runInterpreter $ compiler dirname config noSolution
-          checkResult reject compilationTests reject Nothing $ const $ return ()
-          compilationSolAndTests <- liftIO $ runInterpreter (compiler dirname config modules)
-          checkResult reject compilationSolAndTests signatureError Nothing $ const $ return ()
+          compilationWithoutTestHarness <- liftIO $ runInterpreter $
+            compiler dirname config $ delete "TestHarness" modules
+          checkResult reject compilationWithoutTestHarness reject Nothing $ const $ return ()
+          compilationAllModules <- liftIO $ runInterpreter $
+            compiler dirname config modules
+          checkResult reject compilationAllModules signatureError Nothing $ const $ return ()
         compileWithArgsAndCheck dirname reject undefined config noTest True
         void $ getHlintFeedback rejectWithHint config dirname solutionFile True
         matchTemplate reject config 2 exts template submission
