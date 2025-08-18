@@ -163,7 +163,7 @@ doNotation _        = False
 True if declaration is defined recursively,
 but only if the recursion is stated in the righthand side of the equation.
 Recursion through indirection, e.g. via a chain of global definitions is not detected.
-This is sufficient if 'allowAdding' is set to False.
+This is usually sufficient if 'allowAdding' is set to False.
 
 This returns a false positive if a binding in the righthand side
 uses the definition's name but goes unused.
