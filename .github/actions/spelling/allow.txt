@@ -1,5 +1,6 @@
 autotool
 Bifunctor
+concat
 elems
 fmap
 fmidue
@@ -10,8 +11,15 @@ ghc
 GHC
 ghci
 github
+hlint
 Hspec
+HUnit
 mempty
+mplus
+msum
+mzero
+snd
 thd
+uncurry
 unlines
 yml

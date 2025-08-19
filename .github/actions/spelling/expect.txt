@@ -1,0 +1,12 @@
+deepseq
+Felgenhauer
+gfoldl
+gmap
+IOrep
+Leijen
+lhs
+listify
+quickcheck
+rhs
+vcat
+werror
