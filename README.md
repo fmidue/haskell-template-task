@@ -35,7 +35,7 @@ exports a function named `test`.
 
 ## Issues & Pull requests
 
-If you required further explanations on the task type or or having issues with
+If you require further explanations on the task type or are having issues with
 the task type please file an issue.
 
-Improvements and bug fixes should be shared by filing a pull request.
+Improvements and bugfixes should be shared by filing a pull request.
