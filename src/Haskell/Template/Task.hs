@@ -380,8 +380,8 @@ grade eval reject inform tmp task submission =
     ((moduleName', template), others) <-
       nameModules (reject . string) exts rawModules
     files <- liftIO $ ((moduleName', submission) : others)
-      `forM` \(mname, contents) -> do
-        let fname = dirname </> mname <.> "hs"
+      `forM` \(mName, contents) -> do
+        let fname = dirname </> mName <.> "hs"
         strictWriteFile fname contents
         return fname
     let   existingModules = map takeBaseName
@@ -519,9 +519,9 @@ matchTemplate
   -> String
   -> m ()
 matchTemplate reject config context exts template submission = do
-  mtemplate  <- parse reject exts template
-  msubmission <- parse reject exts submission
-  case test mtemplate msubmission of
+  mTemplate  <- parse reject exts template
+  mSubmission <- parse reject exts submission
+  case test mTemplate mSubmission of
     Fail loc -> mapM_ (rejectMatch rejectWithHint config context template submission) loc
       where
         rejectWithHint = reject . vcat . (: singleton rejectHint)
@@ -604,9 +604,9 @@ parse
 parse reject' exts' m = case E.readExtensions m of
   Nothing -> reject' "cannot parse LANGUAGE pragmas at top of file"
   Just (_, exts) ->
-    let pamo = P.defaultParseMode
-               { P.extensions = exts ++ exts' }
-    in case P.parseModuleWithMode pamo m of
+    let parseMode = P.defaultParseMode
+                    { P.extensions = exts ++ exts' }
+    in case P.parseModuleWithMode parseMode m of
          P.ParseOk a -> return a
          P.ParseFailed loc msg ->
            rejectParse reject' m loc msg
@@ -689,9 +689,9 @@ splitBy p = dropOdd . groupBy (\l r -> not (p l) && not (p r))
 
 unsafeTemplateSegment :: String -> String
 unsafeTemplateSegment task = either id id $ do
-  let Just (mconfig, modules) =
+  let Just (mConfig, modules) =
         splitConfigAndModules (const $ Just (defaultSolutionConfig, [])) task
-      exts = maybe [] extensionsOf $ addDefaults (const Nothing) mconfig
+      exts = maybe [] extensionsOf $ addDefaults (const Nothing) mConfig
   snd . fst <$> nameModules Left exts modules
 
 nameModules
