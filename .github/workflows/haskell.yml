@@ -3,9 +3,9 @@ name: Haskell CI
 
 on:
   push:
-    branches: ["main", "workflows"]
+    branches: ["master", "workflows"]
   pull_request:
-    branches: ["main"]
+    branches: ["master"]
 
 permissions: read-all
 
