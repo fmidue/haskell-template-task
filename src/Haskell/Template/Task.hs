@@ -315,9 +315,9 @@ check reject inform i = do
     $ reject "wants to use System.IO.Unsafe"
   when ("unsafePerformIO"  `isInfixOf` i)
     $ reject "wants to use unsafePerformIO"
-  (mconfig, modules) <- splitConfigAndModules reject i
-  inform $ string $ "Parsed the following setting options:\n" ++ show mconfig
-  config <- addDefaults reject mconfig
+  (mConfig, modules) <- splitConfigAndModules reject i
+  inform $ string $ "Parsed the following setting options:\n" ++ show mConfig
+  config <- addDefaults reject mConfig
   inform $ string $ "Completed configuration to:\n" ++ show config
   let exts = extensionsOf config
   ((m,s), ms) <- nameModules (reject . string) exts modules
@@ -374,14 +374,14 @@ grade eval reject inform tmp task submission =
       $ void $ reject "wants to use System.IO.Unsafe"
     when ("unsafePerformIO"  `isInfixOf` submission)
       $ void $ reject "wants to use unsafePerformIO"
-    (mconfig, rawModules) <- splitConfigAndModules reject task
-    config                <- addDefaults reject mconfig
+    (mConfig, rawModules) <- splitConfigAndModules reject task
+    config                <- addDefaults reject mConfig
     let exts = extensionsOf config
     ((moduleName', template), others) <-
       nameModules (reject . string) exts rawModules
     files <- liftIO $ ((moduleName', submission) : others)
-      `forM` \(mname, contents) -> do
-        let fname = dirname </> mname <.> "hs"
+      `forM` \(mName, contents) -> do
+        let fname = dirname </> mName <.> "hs"
         strictWriteFile fname contents
         return fname
     let   existingModules = map takeBaseName
@@ -519,9 +519,9 @@ matchTemplate
   -> String
   -> m ()
 matchTemplate reject config context exts template submission = do
-  mtemplate  <- parse reject exts template
-  msubmission <- parse reject exts submission
-  case test mtemplate msubmission of
+  mTemplate  <- parse reject exts template
+  mSubmission <- parse reject exts submission
+  case test mTemplate mSubmission of
     Fail loc -> mapM_ (rejectMatch rejectWithHint config context template submission) loc
       where
         rejectWithHint = reject . vcat . (: singleton rejectHint)
@@ -604,21 +604,21 @@ parse
 parse reject' exts' m = case E.readExtensions m of
   Nothing -> reject' "cannot parse LANGUAGE pragmas at top of file"
   Just (_, exts) ->
-    let pamo = P.defaultParseMode
-               { P.extensions = exts ++ exts' }
-    in case P.parseModuleWithMode pamo m of
+    let parseMode = P.defaultParseMode
+                    { P.extensions = exts ++ exts' }
+    in case P.parseModuleWithMode parseMode m of
          P.ParseOk a -> return a
          P.ParseFailed loc msg ->
            rejectParse reject' m loc msg
 
 rejectParse :: (Doc -> t) -> String -> E.SrcLoc -> String -> t
 rejectParse reject' m loc msg =
-  let (lpre, _) = splitAt (E.srcLine loc) $ lines m
-      lpre'     = takeEnd 3 lpre
+  let (lPre, _) = splitAt (E.srcLine loc) $ lines m
+      lPre'     = takeEnd 3 lPre
       tag       = replicate (E.srcColumn loc - 1) '.' ++ "^"
   in reject' $ vcat
        ["Syntax error (your solution is no Haskell program):",
-        bloc $ lpre' ++ [tag],
+        bloc $ lPre' ++ [tag],
         string msg]
 
 rejectMatch
@@ -689,9 +689,9 @@ splitBy p = dropOdd . groupBy (\l r -> not (p l) && not (p r))
 
 unsafeTemplateSegment :: String -> String
 unsafeTemplateSegment task = either id id $ do
-  let Just (mconfig, modules) =
+  let Just (mConfig, modules) =
         splitConfigAndModules (const $ Just (defaultSolutionConfig, [])) task
-      exts = maybe [] extensionsOf $ addDefaults (const Nothing) mconfig
+      exts = maybe [] extensionsOf $ addDefaults (const Nothing) mConfig
   snd . fst <$> nameModules Left exts modules
 
 nameModules
@@ -714,4 +714,4 @@ withNames exts mods =
 moduleName :: E.Module l -> String
 moduleName (E.Module _ (Just (E.ModuleHead _ (E.ModuleName _ n) _ _)) _ _ _) = n
 moduleName (E.Module _ Nothing _ _ _) = "Main"
-moduleName _                          = error "unsopported module type"
+moduleName _                          = error "unsupported module type"
