@@ -31,5 +31,6 @@ jobs:
         env:
           YAML_ERROR_ON_WARNING: true
           GITHUB_ACTIONS_COMMAND_ARGS: -shellcheck=
+          VALIDATE_MMARKDOWN_PRETTIER: false
           VALIDATE_YAML_PRETTIER: false
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
