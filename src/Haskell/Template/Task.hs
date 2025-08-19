@@ -315,9 +315,9 @@ check reject inform i = do
     $ reject "wants to use System.IO.Unsafe"
   when ("unsafePerformIO"  `isInfixOf` i)
     $ reject "wants to use unsafePerformIO"
-  (mconfig, modules) <- splitConfigAndModules reject i
-  inform $ string $ "Parsed the following setting options:\n" ++ show mconfig
-  config <- addDefaults reject mconfig
+  (mConfig, modules) <- splitConfigAndModules reject i
+  inform $ string $ "Parsed the following setting options:\n" ++ show mConfig
+  config <- addDefaults reject mConfig
   inform $ string $ "Completed configuration to:\n" ++ show config
   let exts = extensionsOf config
   ((m,s), ms) <- nameModules (reject . string) exts modules
@@ -374,8 +374,8 @@ grade eval reject inform tmp task submission =
       $ void $ reject "wants to use System.IO.Unsafe"
     when ("unsafePerformIO"  `isInfixOf` submission)
       $ void $ reject "wants to use unsafePerformIO"
-    (mconfig, rawModules) <- splitConfigAndModules reject task
-    config                <- addDefaults reject mconfig
+    (mConfig, rawModules) <- splitConfigAndModules reject task
+    config                <- addDefaults reject mConfig
     let exts = extensionsOf config
     ((moduleName', template), others) <-
       nameModules (reject . string) exts rawModules
@@ -613,12 +613,12 @@ parse reject' exts' m = case E.readExtensions m of
 
 rejectParse :: (Doc -> t) -> String -> E.SrcLoc -> String -> t
 rejectParse reject' m loc msg =
-  let (lpre, _) = splitAt (E.srcLine loc) $ lines m
-      lpre'     = takeEnd 3 lpre
+  let (lPre, _) = splitAt (E.srcLine loc) $ lines m
+      lPre'     = takeEnd 3 lPre
       tag       = replicate (E.srcColumn loc - 1) '.' ++ "^"
   in reject' $ vcat
        ["Syntax error (your solution is no Haskell program):",
-        bloc $ lpre' ++ [tag],
+        bloc $ lPre' ++ [tag],
         string msg]
 
 rejectMatch
