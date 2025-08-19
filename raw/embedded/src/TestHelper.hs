@@ -69,7 +69,7 @@ mustFail x msg =
   monadicIO $ run $ do
     resultOrError <- try (evaluate x)
     case resultOrError of
-      Left (_::SomeException) -> return () -- expected failure occured.
+      Left (_::SomeException) -> return () -- expected failure occurred.
       Right _                 -> error msg
 
 isDeeplyDefined :: NFData a => a -> IO Bool
@@ -90,7 +90,7 @@ tcWithTimeoutAndArgs :: Int -> IOTasks.Args -> IOrep () -> Specification -> Asse
 tcWithTimeoutAndArgs to args prog spec = tcCustomizedWithTimeoutAndArgs to args prog spec id
 
 tcCustomizedWithTimeoutAndArgs :: Int -> IOTasks.Args -> IOrep () -> Specification -> (String -> String) -> Assertion
-tcCustomizedWithTimeoutAndArgs to args prog spec transfom = tcTimeoutAndArgsHandleFailure to args prog spec (transfom . defaultErrorMessage args)
+tcCustomizedWithTimeoutAndArgs to args prog spec transform = tcTimeoutAndArgsHandleFailure to args prog spec (transform . defaultErrorMessage args)
 
 tcWithInputsOnFailure :: Int -> IOTasks.Args -> IOrep () -> Specification -> ([String] -> String) -> Assertion
 tcWithInputsOnFailure to args prog spec withInputs =  tcTimeoutAndArgsHandleFailure to args prog spec handleFailure

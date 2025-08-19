@@ -171,7 +171,7 @@ matchUndef _ = False
 
 {-|
 Stores src span locations in state.
-In conrast to 'matchSrcSpanInfo' it checks also arguments of constructors for
+In contrast to 'matchSrcSpanInfo' it checks also arguments of constructors for
 existing 'S.SrcSpanInfo'.
 (uses 'matchSrcSpanInfo')
 -}

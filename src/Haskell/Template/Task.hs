@@ -714,4 +714,4 @@ withNames exts mods =
 moduleName :: E.Module l -> String
 moduleName (E.Module _ (Just (E.ModuleHead _ (E.ModuleName _ n) _ _)) _ _ _) = n
 moduleName (E.Module _ Nothing _ _ _) = "Main"
-moduleName _                          = error "unsopported module type"
+moduleName _                          = error "unsupported module type"
