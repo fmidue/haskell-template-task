@@ -1,0 +1,17 @@
+autotool
+Bifunctor
+elems
+fmap
+fmidue
+foldl
+foldr
+fst
+ghc
+GHC
+ghci
+github
+Hspec
+mempty
+thd
+unlines
+yml
