@@ -1,0 +1,62 @@
+---
+name: Haskell CI
+
+on:
+  push:
+    branches: ["main", "workflows"]
+  pull_request:
+    branches: ["main"]
+
+permissions: read-all
+
+jobs:
+  build_and_test:
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+        plan:
+          - {build: stack}
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Install ${{ matrix.os }} Packages
+        uses: mstksg/get-package@v1
+        with:
+          apt-get: ${{ matrix.apt-get }}
+
+      - uses: actions/checkout@v4
+
+      - name: Cache Stack
+        id: cache-stack-unix
+        uses: actions/cache@v4
+        with:
+          path: '**/.stack'
+          key: ${{ matrix.os }}-${{ matrix.plan.build }}-stack-home-${{ hashFiles('**/stack.yaml') }}-${{ hashFiles('**/package.yaml') }}
+
+      - name: Setup stack
+        uses: haskell-actions/setup@v2
+        with:
+          enable-stack: true
+          stack-no-global: true
+
+      - name: Install dependencies
+        run: |
+          set -ex
+          stack --no-terminal --install-ghc build --test --bench --only-dependencies
+          cd raw/embedded
+          stack build --no-terminal --install-ghc build --test --bench --only-dependencies
+          set +ex
+        env:
+          BUILD: ${{ matrix.plan.build }}
+
+      - name: Build and test
+        run: |
+          set -ex
+          stack --no-terminal test --coverage --bench --no-run-benchmarks --haddock --no-haddock-deps
+          cd raw/embedded
+          stack --no-terminal test --coverage --bench --no-run-benchmarks --haddock --no-haddock-deps
+          set +ex
+        env:
+          BUILD: ${{ matrix.plan.build }}
