@@ -53,7 +53,7 @@ instance Monad M where
     case a' of
       Ok a'' -> runM (b a'')
       Fail loc -> return $ Fail loc
-      Continue -> return $ Continue
+      Continue -> return   Continue
 
 instance Functor M where
   fmap = liftM
