@@ -1,12 +1,17 @@
 deepseq
 Felgenhauer
+FSolution
 gfoldl
 gmap
 IOrep
+NPlusKPatterns
 Leijen
 lhs
 listify
+Programmierung
+PVar
 quickcheck
 rhs
+testables
 vcat
 werror

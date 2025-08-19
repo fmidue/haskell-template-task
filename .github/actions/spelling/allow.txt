@@ -2,6 +2,7 @@ autotool
 Bifunctor
 concat
 elems
+finalise
 fmap
 fmidue
 foldl
