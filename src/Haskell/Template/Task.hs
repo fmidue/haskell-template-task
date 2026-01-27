@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE Rank2Types #-}
@@ -81,6 +82,7 @@ import Test.HUnit                       (Counts (..))
 import Text.PrettyPrint.Leijen.Text
   (Doc, nest, text, vcat)
 import Text.Read                        (readMaybe)
+import Text.Regex.PCRE.Heavy            (re, sub)
 
 {-|
 Create and use a temporarily created directory by
@@ -556,7 +558,8 @@ checkResult
 checkResult reject result handleError mErrorLimit handleResult = case result of
   Right result' -> void $ handleResult result'
   Left (WontCompile msgs) -> void $ handleError $ string
-    $ intercalate "\n" $ amount $ map editFeedback $ filterWerrors msgs
+    $ intercalate "\n" $ amount
+      $ map (editFeedback . formatErrorLinks) $ filterWerrors msgs
   Left err -> void $ reject $
     vcat ["An unexpected error occurred.",
           "This is usually not caused by a fault within your solution.",
@@ -569,6 +572,16 @@ checkResult reject result handleError mErrorLimit handleResult = case result of
       -- issue filed at: https://github.com/haskell-hint/hint/issues/83
       [x | GhcError x <- xs
          , x /= "<no location info>: error: \nFailing due to -Werror."]
+    -- This fixes the broken formatting of links to the GHC error index
+    -- in a plaintext environment
+    formatErrorLinks = sub
+      [re|\[\]8;;(https://errors.haskell.org/messages/GHC-[0-9]*)\\GHC-[0-9]*\]8;;\\]|]
+      (\case {
+          -- only keep the bracketed, valid link and discard rest of the match
+          (link:_) -> "[" ++ link ++ "]";
+          []       -> []
+        }
+      )
 
 interpreter
   :: MonadInterpreter m
