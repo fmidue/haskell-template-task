@@ -575,7 +575,7 @@ checkResult reject result handleError mErrorLimit handleResult = case result of
     -- This fixes the broken formatting of links to the GHC error index
     -- in a plaintext environment
     formatErrorLinks = sub
-      [re|\[\x1b]8;;(https://errors.haskell.org/messages/GHC-[0-9]*)\x1b\\GHC-[0-9]*\x1b]8;;\x1b\\\]|]
+      [re|\[\x1b]8;;(https?://[a-zA-Z0-9.\-]+(/[a-zA-Z0-9\-]*)*/?)\x1b\\[a-zA-Z0-9\-]*\x1b]8;;\x1b\\\]|]
       (\case
           -- only keep the bracketed, valid link and discard rest of the match
           (link:_) -> "[" ++ link ++ "]";
