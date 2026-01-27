@@ -572,12 +572,11 @@ checkResult reject result handleError mErrorLimit handleResult = case result of
       -- issue filed at: https://github.com/haskell-hint/hint/issues/83
       [x | GhcError x <- xs
          , x /= "<no location info>: error: \nFailing due to -Werror."]
-    -- This fixes the broken formatting of links to the GHC error index
-    -- in a plaintext environment
+    -- This fixes the broken formatting of terminal hyperlinks in an error message
     formatErrorLinks = sub
       [re|\[\x1b]8;;(https?://[a-zA-Z0-9.\-]+(/[a-zA-Z0-9\-]*)*/?)\x1b\\[a-zA-Z0-9\-]*\x1b]8;;\x1b\\\]|]
       (\case
-          -- only keep the bracketed, valid link and discard rest of the match
+          -- only keep the first capture group (valid link) and discard rest of the match
           (link:_) -> "[" ++ link ++ "]";
           []       -> []
       )
