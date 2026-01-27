@@ -576,11 +576,10 @@ checkResult reject result handleError mErrorLimit handleResult = case result of
     -- in a plaintext environment
     formatErrorLinks = sub
       [re|\[\]8;;(https://errors.haskell.org/messages/GHC-[0-9]*)\\GHC-[0-9]*\]8;;\\]|]
-      (\case {
+      (\case
           -- only keep the bracketed, valid link and discard rest of the match
           (link:_) -> "[" ++ link ++ "]";
           []       -> []
-        }
       )
 
 interpreter
