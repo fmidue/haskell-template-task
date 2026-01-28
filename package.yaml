@@ -45,8 +45,8 @@ library:
 
 tests:
   haskell-template-task-test:
-    main:                Spec.hs
-    source-dirs:         test
+    main: Spec.hs
+    source-dirs: test
     ghc-options:
       - -threaded
       - -rtsopts
