@@ -27,7 +27,7 @@ jobs:
           fetch-depth: 0
 
       - name: Run Linter
-        uses: github/super-linter@v7
+        uses: super-linter/super-linter/slim@v8.3.2
         env:
           YAML_ERROR_ON_WARNING: true
           GITHUB_ACTIONS_COMMAND_ARGS: -shellcheck=
