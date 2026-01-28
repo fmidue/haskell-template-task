@@ -1,0 +1,23 @@
+---
+default: true
+extends: null
+
+# Unordered list indentation
+MD007:
+  # Spaces for indent
+  indent: 4
+  # Whether to indent the first level of the list
+  start_indented: false
+  # Spaces for first level indent (when start_indented is set)
+  start_indent: 2
+
+# Multiple consecutive blank lines
+MD012:
+  # Consecutive blank lines
+  maximum: 2
+
+# Line length
+MD013: false
+
+# Lists should be surrounded by blank lines
+MD032: false
