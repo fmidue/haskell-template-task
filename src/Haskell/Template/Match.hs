@@ -1,5 +1,9 @@
 -- Based on a version of
 -- (c) Bertram Felgenhauer, 2011
+
+{- HLINT ignore "Avoid lambda" -}
+{- HLINT ignore "Use camelCase" -}
+
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}

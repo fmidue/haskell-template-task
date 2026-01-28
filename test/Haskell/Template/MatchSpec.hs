@@ -137,8 +137,8 @@ getComment config template submission = do
   mSubmission <- parse errorP [] submission
   case test mTemplate mSubmission of
     Fail loc ->
-      let state = sequence
-            $ rejectMatch storeP config 0 template submission <$> loc
+      let state = mapM
+            (rejectMatch storeP config 0 template submission) loc
       in Right $ kindOfMatch <$> retrieve state
     Ok _     -> Right []
     Continue -> Left "This should never happen"
