@@ -559,7 +559,7 @@ checkResult reject result handleError mErrorLimit handleResult = case result of
   Right result' -> void $ handleResult result'
   Left (WontCompile msgs) -> void $ handleError $ string
     $ intercalate "\n" $ amount
-      $ map (editFeedback . formatErrorLinks) $ filterWerrors msgs
+      $ map (editFeedback . formatHyperlinks) $ filterWerrors msgs
   Left err -> void $ reject $
     vcat ["An unexpected error occurred.",
           "This is usually not caused by a fault within your solution.",
@@ -573,10 +573,19 @@ checkResult reject result handleError mErrorLimit handleResult = case result of
       [x | GhcError x <- xs
          , x /= "<no location info>: error: \nFailing due to -Werror."]
     -- This fixes the broken formatting of terminal hyperlinks in an error message
-    formatErrorLinks = sub
-      [re|\[\x1b]8;;(https?://[a-zA-Z0-9.\-]+(/[a-zA-Z0-9\-]*)*/?)\x1b\\[a-zA-Z0-9\-]*\x1b]8;;\x1b\\\]|]
+    formatHyperlinks = sub
+      [re|(?x)
+        \[
+        \x1b]8;;
+        (https?://[\w\.-]+(?:/[\w-]*)*/?)
+        \x1b\\
+        [\w-]*
+        \x1b]8;;
+        \x1b\\
+        \]
+      |]
       (\case
-          -- only keep the first capture group (valid link) and discard rest of the match
+          -- only keep the capture group (valid link) and discard rest of the match
           (link:_) -> "[" ++ link ++ "]";
           []       -> []
       )
