@@ -1,3 +1,4 @@
+---
 name: haskell-template-task-embedded
 ghc-options:
   -Wall
