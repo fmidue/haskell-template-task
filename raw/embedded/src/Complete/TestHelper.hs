@@ -1,5 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
-module TestHelper (
+module Complete.TestHelper (
   isDefined, isDeeplyDefined, mustFail,
   qcWithTimeout, qcWithTimeoutAndArgs, qcWithTimeoutAndRuns
   , qc, qc', qcWithArgs --DEPRECATED

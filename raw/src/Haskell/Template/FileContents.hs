@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS -fforce-recomp #-}
 module Haskell.Template.FileContents (
@@ -11,8 +12,14 @@ import TH.RelativePaths                 (pathRelativeToCabalPackage)
 
 testHelperContents :: String
 testHelperContents  =
-  $(do file     <- pathRelativeToCabalPackage
-         $ "embedded" </> "src" </> "TestHelper.hs"
+  $(do let filePath =
+#ifdef IOTASKS
+             "Complete"
+#else
+             "Minimal"
+#endif
+       file     <- pathRelativeToCabalPackage
+         $ "embedded" </> "src" </> filePath </> "TestHelper.hs"
        contents <- runIO $ readFile file
        stringE contents)
 

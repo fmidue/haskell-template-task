@@ -8,6 +8,11 @@ name:           haskell-template-task-raw
 version:        0.0.0.1
 build-type:     Simple
 
+flag iotasks
+  description: test
+  manual: True
+  default: True
+
 library
   exposed-modules:
       Haskell.Template.FileContents
@@ -22,3 +27,5 @@ library
     , template-haskell
     , th-utilities
   default-language: Haskell2010
+  if flag(iotasks)
+    cpp-options: -DIOTASKS

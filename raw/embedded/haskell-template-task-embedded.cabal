@@ -13,7 +13,8 @@ build-type:     Simple
 library
   other-modules:
       TestHarness
-      TestHelper
+      Complete.TestHelper
+      Minimal.TestHelper
   hs-source-dirs:
       src
   ghc-options: -Wall
