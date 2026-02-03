@@ -13,10 +13,10 @@ build-type:     Simple
 library
   other-modules:
       TestHarness
-      Complete.TestHelper
-      Minimal.TestHelper
+      TestHelper
   hs-source-dirs:
       src
+      Complete
   ghc-options: -Wall
   build-depends:
       HUnit

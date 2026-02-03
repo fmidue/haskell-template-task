@@ -9,7 +9,7 @@ version:        0.0.0.1
 build-type:     Simple
 
 flag iotasks
-  description: test
+  description: enables test helpers for IOTasks
   manual: True
   default: True
 

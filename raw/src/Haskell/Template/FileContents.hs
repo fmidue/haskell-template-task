@@ -19,7 +19,7 @@ testHelperContents  =
              "Minimal"
 #endif
        file     <- pathRelativeToCabalPackage
-         $ "embedded" </> "src" </> filePath </> "TestHelper.hs"
+         $ "embedded" </> filePath </> "TestHelper.hs"
        contents <- runIO $ readFile file
        stringE contents)
 

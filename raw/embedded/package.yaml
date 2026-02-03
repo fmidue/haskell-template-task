@@ -11,8 +11,9 @@ dependencies:
   - random
   - syb
 library:
-  source-dirs: src
+  source-dirs:
+    - src
+    - Complete
   other-modules:
     - TestHarness
-    - Complete.TestHelper
-    - Minimal.TestHelper
+    - TestHelper
