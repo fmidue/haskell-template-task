@@ -10,17 +10,20 @@ name:           haskell-template-task-embedded
 version:        0.0.0
 build-type:     Simple
 
+flag iotasks
+  description: enables test helpers for IOTasks
+  manual: True
+  default: True
+
 library
   other-modules:
       TestHarness
       TestHelper
   hs-source-dirs:
       src
-      Complete
   ghc-options: -Wall
   build-depends:
       HUnit
-    , IOTasks
     , QuickCheck
     , base
     , deepseq
@@ -28,3 +31,11 @@ library
     , random
     , syb
   default-language: Haskell2010
+  if flag(iotasks)
+    hs-source-dirs:
+        Complete
+    build-depends:
+        IOTasks
+  else
+    hs-source-dirs:
+        Minimal
