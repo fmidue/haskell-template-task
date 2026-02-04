@@ -24,9 +24,9 @@ when:
   - condition: flag(iotasks)
     then:
       source-dirs:
-        - Complete
+        - complete
       dependencies:
         - IOTasks
     else:
       source-dirs:
-        - Minimal
+        - minimal

@@ -33,9 +33,9 @@ library
   default-language: Haskell2010
   if flag(iotasks)
     hs-source-dirs:
-        Complete
+        complete
     build-depends:
         IOTasks
   else
     hs-source-dirs:
-        Minimal
+        minimal

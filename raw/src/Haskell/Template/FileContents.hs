@@ -14,9 +14,9 @@ testHelperContents :: String
 testHelperContents  =
   $(do let filePath =
 #ifdef IOTASKS
-             "Complete"
+             "complete"
 #else
-             "Minimal"
+             "minimal"
 #endif
        file     <- pathRelativeToCabalPackage
          $ "embedded" </> filePath </> "TestHelper.hs"
