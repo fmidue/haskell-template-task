@@ -10,6 +10,7 @@ flags:
 dependencies:
  - base >= 4.7 && < 5
  - filepath
+ - cpphs
  - template-haskell
  - th-utilities
 when:

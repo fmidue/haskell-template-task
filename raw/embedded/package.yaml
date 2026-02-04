@@ -22,11 +22,7 @@ library:
     - TestHelper
 when:
   - condition: flag(iotasks)
-    then:
-      source-dirs:
-        - complete
-      dependencies:
-        - IOTasks
-    else:
-      source-dirs:
-        - minimal
+    dependencies:
+      - IOTasks
+    cpp-options: -DIOTASKS
+

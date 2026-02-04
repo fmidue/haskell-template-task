@@ -6,21 +6,32 @@ module Haskell.Template.FileContents (
   testHelperContents,
   ) where
 
+import Language.Preprocessor.Cpphs (
+  BoolOptions(..),
+  CpphsOptions(..),
+  defaultBoolOptions,
+  defaultCpphsOptions,
+  runCpphs
+  )
 import Language.Haskell.TH              (runIO, stringE)
 import System.FilePath                  ((</>))
 import TH.RelativePaths                 (pathRelativeToCabalPackage)
 
 testHelperContents :: String
 testHelperContents  =
-  $(do let filePath =
+  $(do file     <- pathRelativeToCabalPackage
+         $ "embedded" </> "src" </> "TestHelper.hs"
+       contents <- runIO $ readFile file >>= runCpphs defaultCpphsOptions {
+         defines = [
 #ifdef IOTASKS
-             "complete"
+             ("IOTASKS", "")
 #else
-             "minimal"
+
 #endif
-       file     <- pathRelativeToCabalPackage
-         $ "embedded" </> filePath </> "TestHelper.hs"
-       contents <- runIO $ readFile file
+           ],
+         boolopts = defaultBoolOptions {locations = False}
+         }
+         ""
        stringE contents)
 
 testHarnessContents :: String

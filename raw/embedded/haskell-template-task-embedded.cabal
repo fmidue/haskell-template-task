@@ -32,10 +32,6 @@ library
     , syb
   default-language: Haskell2010
   if flag(iotasks)
-    hs-source-dirs:
-        complete
+    cpp-options: -DIOTASKS
     build-depends:
         IOTasks
-  else
-    hs-source-dirs:
-        minimal
