@@ -104,7 +104,7 @@ allowFailures limit testCases = do
       ]
   where
     collectResults = fmap (groupIntoTwoLists . concat)
-                   . mapM (\(l, action) -> either (\(e :: SomeException) -> [(l,Just e)]) (const [(l,Nothing)]) <$> try action)
+      . mapM (\(l, action) -> either (\(e :: SomeException) -> [(l,Just e)]) (const [(l,Nothing)]) <$> try action)
     groupIntoTwoLists :: [(a,Maybe b)] -> ([a],[(a,b)])
     groupIntoTwoLists = foldr (\(a,mb) (ns,js) -> maybe (a:ns,js) (\b -> (ns,(a,b):js)) mb) ([],[])
 

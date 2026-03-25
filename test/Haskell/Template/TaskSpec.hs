@@ -128,8 +128,8 @@ spec = do
       test :: [Test]
       test = [
         "'r' does #{negateString}use 'reverse'?" ~:
-          syntaxCheck $ \\modul ->
-            contains (ident "reverse") (findTopLevelDeclsOf "r" modul) @?= #{withReverse}
+          syntaxCheck $ \\code ->
+            contains (ident "reverse") (findTopLevelDeclsOf "r" code) @?= #{withReverse}
         ]
       |]
       where
