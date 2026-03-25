@@ -11,6 +11,7 @@ Leijen
 lhs
 listify
 NPlus
+PCRE
 perkid
 Programmierung
 PVar

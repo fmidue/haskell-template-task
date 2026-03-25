@@ -15,6 +15,7 @@ github
 hlint
 Hspec
 HUnit
+hyperlinks
 mempty
 mplus
 msum
