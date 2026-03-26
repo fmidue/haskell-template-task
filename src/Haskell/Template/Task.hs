@@ -363,42 +363,47 @@ whileOpen h =
 
 grade
   :: MonadIO m
-  => (m () -> IO b)
+  => (forall a. m a -> (a -> m ()) -> (a -> m ()) -> IO (b, Maybe b))
   -> (forall c . Doc -> m c)
   -> (Doc -> m ())
   -> FilePath
   -> String
   -> String
-  -> IO b
+  -> IO (b, Maybe b)
 grade eval reject inform tmp task submission =
-  withTempDirectory tmp "Template" $ \ dirname -> eval $ do
-    when ("System.IO.Unsafe" `isInfixOf` submission)
-      $ void $ reject "wants to use System.IO.Unsafe"
-    when ("unsafePerformIO"  `isInfixOf` submission)
-      $ void $ reject "wants to use unsafePerformIO"
-    (mConfig, rawModules) <- splitConfigAndModules reject task
-    config                <- addDefaults reject mConfig
-    let exts = extensionsOf config
-    ((moduleName', template), others) <-
-      nameModules (reject . string) exts rawModules
-    files <- liftIO $ ((moduleName', submission) : others)
-      `forM` \(mName, contents) -> do
-        let fname = dirname </> mName <.> "hs"
-        strictWriteFile fname contents
-        return fname
-    let   existingModules = map takeBaseName
-            $ filter ((".hs" ==) . takeExtension)
-            $ filter (`notElem` [".",".."]) files
-          modules = ["Test"] `union` existingModules
-          solutionFile = dirname </> (moduleName' <.> "hs")
-    liftIO $ do
-      unless ("Test" `elem` existingModules) $
-        strictWriteFile (dirname </> "Test" <.> "hs") $ testModule moduleName'
-      strictWriteFile (dirname </> "TestHelper" <.> "hs") testHelperContents
-      strictWriteFile (dirname </> "TestHarness" <.> "hs")
-        $ testHarnessFor solutionFile
-    do
+  withTempDirectory tmp "Template" $ \ dirname -> do
+    let
+      prepare = do
+        when ("System.IO.Unsafe" `isInfixOf` submission)
+          $ void $ reject "wants to use System.IO.Unsafe"
+        when ("unsafePerformIO"  `isInfixOf` submission)
+          $ void $ reject "wants to use unsafePerformIO"
+        (mConfig, rawModules) <- splitConfigAndModules reject task
+        config                <- addDefaults reject mConfig
+        let exts = extensionsOf config
+        ((moduleName', template), others) <-
+          nameModules (reject . string) exts rawModules
+        files <- liftIO $ ((moduleName', submission) : others)
+          `forM` \(mName, contents) -> do
+            let fname = dirname </> mName <.> "hs"
+            strictWriteFile fname contents
+            return fname
+        let   existingModules = map takeBaseName
+                $ filter ((".hs" ==) . takeExtension)
+                $ filter (`notElem` [".",".."]) files
+              modules = ["Test"] `union` existingModules
+              solutionFile = dirname </> (moduleName' <.> "hs")
+        liftIO $ do
+          unless ("Test" `elem` existingModules) $
+            strictWriteFile (dirname </> "Test" <.> "hs") $ testModule moduleName'
+          strictWriteFile (dirname </> "TestHelper" <.> "hs") testHelperContents
+          strictWriteFile (dirname </> "TestHarness" <.> "hs")
+            $ testHarnessFor solutionFile
+
         let noTest = delete "Test" modules
+        pure (config, exts, template, modules, noTest, solutionFile)
+
+      syntax (config, exts, template, modules, noTest, solutionFile) = do
         compilation <- liftIO $ runInterpreter (compiler dirname config noTest)
         checkResult reject compilation reject Nothing $ const $ return ()
         when (runIdentity $ allowModifying config) $ do
@@ -408,10 +413,14 @@ grade eval reject inform tmp task submission =
         compileWithArgsAndCheck dirname reject undefined config noTest True
         void $ getHlintFeedback rejectWithHint config dirname solutionFile True
         matchTemplate reject config 2 exts template submission
+
+      semantics (config, _, _, modules, noTest, solutionFile) = do
         result      <- liftIO $ runInterpreter (interpreter dirname config modules)
         checkResult reject result reject Nothing $ handleCounts reject inform
         compileWithArgsAndCheck dirname reject inform config noTest False
         void $ getHlintFeedback inform config dirname solutionFile False
+
+    eval prepare syntax semantics
   where
     testHarnessFor file =
       let quoted xs = '"' : xs ++ "\""

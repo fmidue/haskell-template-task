@@ -14,7 +14,7 @@ import Control.Monad.Catch (
   MonadThrow (..),
   )
 import Control.Monad.IO.Class           (liftIO)
-import Control.Monad.Trans.Writer       (execWriterT, tell)
+import Control.Monad.Trans.Writer       (execWriterT, runWriterT, tell)
 import Data.List                        (intercalate, isPrefixOf)
 import Data.List.Extra                  (split)
 import Data.Maybe                       (fromJust)
@@ -165,7 +165,19 @@ gradeIO task submission = do
   tmp <- getTemporaryDirectory
   withTempDirectory tmp "Grade-test" $ \dir -> do
     setCurrentDirectory dir
-    grade execWriterT (throwM . CustomException) (tell . show) dir task submission
+    let eval prepare syntax semantics = do
+          (params,setupResult) <- runWriterT prepare
+          syntaxResult <- execWriterT $ syntax params
+          semanticsResult <- execWriterT $ semantics params
+          pure (setupResult ++ syntaxResult, Just semanticsResult)
+    (syntax,mSemantics) <- grade
+      eval
+      (throwM . CustomException)
+      (tell . show)
+      dir
+      task
+      submission
+    pure $ syntax ++ fromJust mSemantics
 
 hlintIO :: SolutionConfig -> String -> Bool -> IO [Either String String]
 hlintIO config content asError = do
