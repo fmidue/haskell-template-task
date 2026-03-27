@@ -404,20 +404,31 @@ grade eval reject inform tmp task submission =
         pure (config, exts, template, modules, noTest, solutionFile)
 
       syntax (config, exts, template, modules, noTest, solutionFile) = do
+        -- Reject if submission does not compile with provided hidden modules,
+        -- but without Test module.
         compilation <- liftIO $ runInterpreter (compiler dirname config noTest)
         checkResult reject compilation reject Nothing $ const $ return ()
+        -- Reject if submission does not compile with provided hidden modules.
+        -- This only runs when allowModifying is set to True in the config
+        -- and displays a custom message telling students not to change type signatures.
         when (runIdentity $ allowModifying config) $ do
           compilationWithTests <- liftIO $ runInterpreter $
             compiler dirname config modules
           checkResult reject compilationWithTests signatureError Nothing $ const $ return ()
+        -- Reject if GHC warnings configured as errors are triggered by solution.
         compileWithArgsAndCheck dirname reject undefined config noTest True
+        -- Reject if HLint warnings configured as errors are triggered by solution.
         void $ getHlintFeedback rejectWithHint config dirname solutionFile True
+        -- Reject on task template violations according to settings (modifying, adding, deleting).
         matchTemplate reject config 2 exts template submission
 
       semantics (config, _, _, modules, noTest, solutionFile) = do
+        -- Reject if test suite fails for submission.
         result      <- liftIO $ runInterpreter (interpreter dirname config modules)
         checkResult reject result reject Nothing $ handleCounts reject inform
+        -- Displays GHC warnings configured as non-errors triggered by submission.
         compileWithArgsAndCheck dirname reject inform config noTest False
+        -- Displays HLint suggestions configured as non-errors triggered by submission.
         void $ getHlintFeedback inform config dirname solutionFile False
 
     eval prepare syntax semantics
