@@ -371,39 +371,39 @@ grade
   -> String
   -> IO (b, Maybe b)
 grade eval reject inform tmp task submission =
-  withTempDirectory tmp "Template" $ \ dirname -> do
-    let
-      prepare = do
-        when ("System.IO.Unsafe" `isInfixOf` submission)
-          $ void $ reject "wants to use System.IO.Unsafe"
-        when ("unsafePerformIO"  `isInfixOf` submission)
-          $ void $ reject "wants to use unsafePerformIO"
-        (mConfig, rawModules) <- splitConfigAndModules reject task
-        config                <- addDefaults reject mConfig
-        let exts = extensionsOf config
-        ((moduleName', template), others) <-
-          nameModules (reject . string) exts rawModules
-        files <- liftIO $ ((moduleName', submission) : others)
-          `forM` \(mName, contents) -> do
-            let fname = dirname </> mName <.> "hs"
-            strictWriteFile fname contents
-            return fname
-        let   existingModules = map takeBaseName
-                $ filter ((".hs" ==) . takeExtension)
-                $ filter (`notElem` [".",".."]) files
-              modules = ["Test"] `union` existingModules
-              solutionFile = dirname </> (moduleName' <.> "hs")
-        liftIO $ do
-          unless ("Test" `elem` existingModules) $
-            strictWriteFile (dirname </> "Test" <.> "hs") $ testModule moduleName'
-          strictWriteFile (dirname </> "TestHelper" <.> "hs") testHelperContents
-          strictWriteFile (dirname </> "TestHarness" <.> "hs")
-            $ testHarnessFor solutionFile
+ withTempDirectory tmp "Template" $ \ dirname -> do
+  let
+   prepare = do
+    when ("System.IO.Unsafe" `isInfixOf` submission)
+      $ void $ reject "wants to use System.IO.Unsafe"
+    when ("unsafePerformIO"  `isInfixOf` submission)
+      $ void $ reject "wants to use unsafePerformIO"
+    (mConfig, rawModules) <- splitConfigAndModules reject task
+    config                <- addDefaults reject mConfig
+    let exts = extensionsOf config
+    ((moduleName', template), others) <-
+      nameModules (reject . string) exts rawModules
+    files <- liftIO $ ((moduleName', submission) : others)
+      `forM` \(mName, contents) -> do
+        let fname = dirname </> mName <.> "hs"
+        strictWriteFile fname contents
+        return fname
+    let   existingModules = map takeBaseName
+            $ filter ((".hs" ==) . takeExtension)
+            $ filter (`notElem` [".",".."]) files
+          modules = ["Test"] `union` existingModules
+          solutionFile = dirname </> (moduleName' <.> "hs")
+    liftIO $ do
+      unless ("Test" `elem` existingModules) $
+        strictWriteFile (dirname </> "Test" <.> "hs") $ testModule moduleName'
+      strictWriteFile (dirname </> "TestHelper" <.> "hs") testHelperContents
+      strictWriteFile (dirname </> "TestHarness" <.> "hs")
+        $ testHarnessFor solutionFile
 
-        let noTest = delete "Test" modules
-        pure (config, exts, template, modules, noTest, solutionFile)
+    let noTest = delete "Test" modules
+    pure (config, exts, template, modules, noTest, solutionFile)
 
-      syntax (config, exts, template, modules, noTest, solutionFile) = do
+   syntax (config, exts, template, modules, noTest, solutionFile) = do
         -- Reject if submission does not compile with provided hidden modules,
         -- but without Test module.
         compilation <- liftIO $ runInterpreter (compiler dirname config noTest)
@@ -422,7 +422,7 @@ grade eval reject inform tmp task submission =
         -- Reject on task template violations according to settings (modifying, adding, deleting).
         matchTemplate reject config 2 exts template submission
 
-      semantics (config, _, _, modules, noTest, solutionFile) = do
+   semantics (config, _, _, modules, noTest, solutionFile) = do
         -- Reject if test suite fails for submission.
         result      <- liftIO $ runInterpreter (interpreter dirname config modules)
         checkResult reject result reject Nothing $ handleCounts reject inform
@@ -431,8 +431,8 @@ grade eval reject inform tmp task submission =
         -- Displays HLint suggestions configured as non-errors triggered by submission.
         void $ getHlintFeedback inform config dirname solutionFile False
 
-    eval prepare syntax semantics
-  where
+  eval prepare syntax semantics
+ where
     testHarnessFor file =
       let quoted xs = '"' : xs ++ "\""
       in replace (quoted "Solution.hs") (quoted file) testHarnessContents
