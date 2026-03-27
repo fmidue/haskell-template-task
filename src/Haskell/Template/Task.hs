@@ -411,14 +411,14 @@ grade eval reject inform tmp task submission =
             compiler dirname config modules
           checkResult reject compilationWithTests signatureError Nothing $ const $ return ()
         compileWithArgsAndCheck dirname reject undefined config noTest True
-        matchTemplate reject config 2 exts template submission
         void $ getHlintFeedback rejectWithHint config dirname solutionFile True
-        void $ getHlintFeedback inform config dirname solutionFile False
+        matchTemplate reject config 2 exts template submission
 
-      semantics (config, _, _, modules, noTest, _) = do
+      semantics (config, _, _, modules, noTest, solutionFile) = do
         result      <- liftIO $ runInterpreter (interpreter dirname config modules)
         checkResult reject result reject Nothing $ handleCounts reject inform
         compileWithArgsAndCheck dirname reject inform config noTest False
+        void $ getHlintFeedback inform config dirname solutionFile False
 
     eval prepare syntax semantics
   where
