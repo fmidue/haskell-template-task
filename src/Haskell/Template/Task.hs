@@ -378,14 +378,29 @@ whileOpen :: IO.Handle -> IO ()
 whileOpen h =
   IO.hIsClosed h >>= flip unless (whileOpen h)
 
+{-|
+Generate separate syntax and possible semantics feedback in the context of an evaluation Monad.
+-}
 grade
   :: MonadIO m
   => (m (m ()) -> IO (b, Maybe b))
+  {- ^
+    evaluation function that constructs the feedback from nested monadic computations.
+    The function's argument executes the file setup and constructs syntax feedback,
+    then returns the unevaluated semantics computation.
+    it is expected that the caller implements an efficient mechanism
+    to prevent computing the semantics feedback (denoted by `Nothing`) in case of failure during the syntax feedback.
+  -}
   -> (forall c . Doc -> m c)
+  -- ^ fail and display a message
   -> (Doc -> m ())
+  -- ^ continue and display a message
   -> FilePath
+  -- ^ parent directory to use for file operations
   -> String
+  -- ^ the task
   -> String
+  -- ^ the submission
   -> IO (b, Maybe b)
 grade eval reject inform tmp task submission =
   withTempDirectory tmp "Template" $ \ dirname -> eval $ do
