@@ -363,7 +363,7 @@ whileOpen h =
 
 grade
   :: MonadIO m
-  => (forall a. m a -> (a -> m ()) -> (a -> m ()) -> IO (b, Maybe b))
+  => (m (m ()) -> IO (b, Maybe b))
   -> (forall c . Doc -> m c)
   -> (Doc -> m ())
   -> FilePath
@@ -445,7 +445,10 @@ grade eval reject inform tmp task submission =
         void $ getHlintFeedback inform config dirname solutionFile False
       ]
 
-  eval prepare syntax semantics
+  eval $ do
+    params <- prepare
+    syntax params
+    return (semantics params)
  where
     testHarnessFor file =
       let quoted xs = '"' : xs ++ "\""

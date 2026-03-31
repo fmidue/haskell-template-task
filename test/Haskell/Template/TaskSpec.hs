@@ -165,11 +165,10 @@ gradeIO task submission = do
   tmp <- getTemporaryDirectory
   withTempDirectory tmp "Grade-test" $ \dir -> do
     setCurrentDirectory dir
-    let eval prepare syntax semantics = do
-          (params,setupResult) <- runWriterT prepare
-          syntaxResult <- execWriterT $ syntax params
-          semanticsResult <- execWriterT $ semantics params
-          pure (setupResult ++ syntaxResult, Just semanticsResult)
+    let eval phases = do
+          (semanticsPhase, setupAndSyntaxResults) <- runWriterT phases
+          semanticsResult <- execWriterT semanticsPhase
+          pure (setupAndSyntaxResults, Just semanticsResult)
     (syntax,mSemantics) <- grade
       eval
       (throwM . CustomException)
