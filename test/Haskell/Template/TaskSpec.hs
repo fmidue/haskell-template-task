@@ -16,7 +16,7 @@ import Control.Monad.Catch (
   MonadThrow (..),
   )
 import Control.Monad.IO.Class           (liftIO)
-import Control.Monad.Trans.Writer       (execWriterT, runWriterT, tell)
+import Control.Monad.Trans.Writer       (execWriterT, tell)
 import Data.List                        (intercalate, isPrefixOf)
 import Data.List.Extra                  (split)
 import Data.Maybe                       (fromJust)
