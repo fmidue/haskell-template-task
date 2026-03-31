@@ -126,8 +126,10 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \# configLanguageExtensions    - this sets LanguageExtensions for hlint as well
 \# configModules               - DEPRECATED (will be ignored)
 \# syntaxCutoff                - determines the last step in the syntax phase (later steps are considered semantics)
-\#                               possible values (and also the order of steps): Compilation, GhcErrors, HlintErrors, TemplateMatch, TestSuite
-\#                               default on omission is TemplateMatch
+\#                               possible values (and also the order of steps):
+\#                                 Compilation, GhcErrors, HlintErrors, TemplateMatch, TestSuite
+\#                               default on omission is TemplateMatch; steps after TestSuite are:
+\#                                 GhcWarnings, HlintSuggestions
 ----------
 module Solution where
 import Prelude
