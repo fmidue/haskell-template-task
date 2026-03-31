@@ -1,4 +1,5 @@
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TupleSections #-}
 module Haskell.Template.TaskSpec where
 
 import qualified Data.ByteString.Char8            as BS (unpack)
@@ -8,6 +9,7 @@ import qualified Text.PrettyPrint.Leijen.Text     as PP
 import Haskell.Template.Task
 
 import Control.Arrow                    ((+++))
+import Control.Monad                    (join)
 import Control.Monad.Catch (
   Exception,
   MonadCatch (..),
@@ -165,18 +167,15 @@ gradeIO task submission = do
   tmp <- getTemporaryDirectory
   withTempDirectory tmp "Grade-test" $ \dir -> do
     setCurrentDirectory dir
-    let eval phases = do
-          (semanticsPhase, setupAndSyntaxResults) <- runWriterT phases
-          semanticsResult <- execWriterT semanticsPhase
-          pure (setupAndSyntaxResults, Just semanticsResult)
-    (syntax,mSemantics) <- grade
+    let eval = fmap (, Nothing) . execWriterT . join
+    (output, _) <- grade
       eval
       (throwM . CustomException)
       (tell . show)
       dir
       task
       submission
-    pure $ syntax ++ fromJust mSemantics
+    pure output
 
 hlintIO :: SolutionConfig -> String -> Bool -> IO [Either String String]
 hlintIO config content asError = do
