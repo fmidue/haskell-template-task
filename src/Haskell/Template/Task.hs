@@ -125,7 +125,7 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \# configHlintSuggestions      - hlint hints to provide as suggestions
 \# configLanguageExtensions    - this sets LanguageExtensions for hlint as well
 \# configModules               - DEPRECATED (will be ignored)
-\# syntaxCutoff                - determines the last step in the syntax phase (everything afterwards is considered semantics)
+\# syntaxCutoff                - determines the last step in the syntax phase (later steps are considered semantics)
 \#                               possible values: Compilation, GhcErrors, HlintErrors, TemplateMatch, TestSuite
 \#                               default on omission is TemplateMatch
 ----------
