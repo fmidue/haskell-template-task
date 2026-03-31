@@ -125,6 +125,9 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \# configHlintSuggestions      - hlint hints to provide as suggestions
 \# configLanguageExtensions    - this sets LanguageExtensions for hlint as well
 \# configModules               - DEPRECATED (will be ignored)
+\# syntaxCutoff                - determines the last step in the syntax phase (everything afterwards is considered semantics)
+\#                               possible values: Compilation, GhcErrors, HlintErrors, TemplateMatch, TestSuite
+\#                               default on omission is TemplateMatch
 ----------
 module Solution where
 import Prelude
@@ -188,6 +191,14 @@ Also available are the following modules:
       with the option to allow a fixed number of tests to fail.)
  -}|]
 
+data FeedbackPhase
+  = Compilation
+  | GhcErrors
+  | HlintErrors
+  | TemplateMatch
+  | TestSuite
+  deriving (Enum, Generic, Show, FromJSON, ToJSON)
+
 data FSolutionConfig m = SolutionConfig {
     allowAdding                 :: m Bool,
     allowModifying              :: m Bool,
@@ -202,7 +213,8 @@ data FSolutionConfig m = SolutionConfig {
     configHlintRules            :: m [String],
     configHlintSuggestions      :: m [String],
     configLanguageExtensions    :: m [String],
-    configModules               :: m [String]
+    configModules               :: m [String],
+    syntaxCutoff                :: m FeedbackPhase
   } deriving Generic
 {-# DEPRECATED configModules "config Modules will be removed" #-}
 
@@ -231,7 +243,8 @@ defaultSolutionConfig = SolutionConfig {
     configHlintRules            = Just [],
     configHlintSuggestions      = Just [],
     configLanguageExtensions    = Just ["NPlusKPatterns","ScopedTypeVariables"],
-    configModules               = Nothing
+    configModules               = Nothing,
+    syntaxCutoff                = Just TemplateMatch
   }
 
 toSolutionConfigOpt :: SolutionConfig -> SolutionConfigOpt
@@ -250,6 +263,7 @@ toSolutionConfigOpt SolutionConfig {..} = runIdentity $ SolutionConfig
   <*> fmap Just configHlintSuggestions
   <*> fmap Just configLanguageExtensions
   <*> fmap Just configModules
+  <*> fmap Just syntaxCutoff
 
 finaliseConfigs :: [SolutionConfigOpt] -> Maybe SolutionConfig
 finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
@@ -270,6 +284,7 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
       <*> fmap Identity configHlintSuggestions
       <*> fmap Identity configLanguageExtensions
       <*> fmap Identity configModules
+      <*> fmap Identity syntaxCutoff
     combineConfigs x y = SolutionConfig {
         allowAdding                 = allowAdding                 x <|> allowAdding                 y,
         allowModifying              = allowModifying              x <|> allowModifying              y,
@@ -284,7 +299,8 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
         configHlintRules            = configHlintRules            x <|> configHlintRules            y,
         configHlintSuggestions      = configHlintSuggestions      x <|> configHlintSuggestions      y,
         configLanguageExtensions    = configLanguageExtensions    x <|> configLanguageExtensions    y,
-        configModules               = Just []
+        configModules               = Just [],
+        syntaxCutoff                = syntaxCutoff                x <|> syntaxCutoff                y
       }
     emptyConfig = SolutionConfig {
         allowAdding                 = Nothing,
@@ -300,7 +316,8 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
         configHlintRules            = Nothing,
         configHlintSuggestions      = Nothing,
         configLanguageExtensions    = Nothing,
-        configModules               = Nothing
+        configModules               = Nothing,
+        syntaxCutoff                = Nothing
       }
 
 string :: String -> Doc
@@ -371,9 +388,7 @@ grade
   -> String
   -> IO (b, Maybe b)
 grade eval reject inform tmp task submission =
- withTempDirectory tmp "Template" $ \ dirname -> do
-  let
-   prepare = do
+  withTempDirectory tmp "Template" $ \ dirname -> eval $ do
     when ("System.IO.Unsafe" `isInfixOf` submission)
       $ void $ reject "wants to use System.IO.Unsafe"
     when ("unsafePerformIO"  `isInfixOf` submission)
@@ -401,17 +416,16 @@ grade eval reject inform tmp task submission =
         $ testHarnessFor solutionFile
 
     let noTest = delete "Test" modules
-    pure (config, exts, template, modules, noTest, solutionFile)
 
-   syntax (config, exts, template, modules, noTest, solutionFile) =
-     sequence_
+    let
+     (syntax, semantics) = splitAt (fromEnum (syntaxCutoff config) + 1)
       [
         -- Reject if submission does not compile with provided hidden modules,
         -- but without Test module.
        do
         compilation <- liftIO $ runInterpreter (compiler dirname config noTest)
         checkResult reject compilation reject Nothing $ const $ return ()
-      ,
+
         -- Reject if submission does not compile with provided hidden modules.
         -- This only runs when allowModifying is set to True in the config
         -- and displays a custom message telling students not to change type signatures.
@@ -428,11 +442,7 @@ grade eval reject inform tmp task submission =
       ,
         -- Reject on task template violations according to settings (modifying, adding, deleting).
         matchTemplate reject config 2 exts template submission
-      ]
-
-   semantics (config, _, _, modules, noTest, solutionFile) =
-     sequence_
-      [
+      ,
         -- Reject if test suite fails for submission.
        do
         result      <- liftIO $ runInterpreter (interpreter dirname config modules)
@@ -444,11 +454,8 @@ grade eval reject inform tmp task submission =
         -- Displays HLint suggestions configured as non-errors triggered by submission.
         void $ getHlintFeedback inform config dirname solutionFile False
       ]
-
-  eval $ do
-    params <- prepare
-    syntax params
-    return (semantics params)
+    sequence_ syntax
+    return $ sequence_ semantics
  where
     testHarnessFor file =
       let quoted xs = '"' : xs ++ "\""
