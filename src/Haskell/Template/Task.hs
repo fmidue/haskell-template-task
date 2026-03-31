@@ -126,7 +126,7 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \# configLanguageExtensions    - this sets LanguageExtensions for hlint as well
 \# configModules               - DEPRECATED (will be ignored)
 \# syntaxCutoff                - determines the last step in the syntax phase (later steps are considered semantics)
-\#                               possible values: Compilation, GhcErrors, HlintErrors, TemplateMatch, TestSuite
+\#                               possible values (and also the order of steps): Compilation, GhcErrors, HlintErrors, TemplateMatch, TestSuite
 \#                               default on omission is TemplateMatch
 ----------
 module Solution where
@@ -388,7 +388,7 @@ grade
     evaluation function that constructs the feedback from nested monadic computations.
     The function's argument executes the file setup and constructs syntax feedback,
     then returns the unevaluated semantics computation.
-    it is expected that the caller implements an efficient mechanism
+    It is expected that the caller implements an efficient mechanism
     to prevent computing the semantics feedback (denoted by `Nothing`) in case of failure during the syntax feedback.
   -}
   -> (forall c . Doc -> m c)
