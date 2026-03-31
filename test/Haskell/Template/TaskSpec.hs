@@ -167,7 +167,7 @@ gradeIO task submission = do
   tmp <- getTemporaryDirectory
   withTempDirectory tmp "Grade-test" $ \dir -> do
     setCurrentDirectory dir
-    let eval = fmap (, Nothing) . execWriterT . join
+    let eval = fmap (, undefined) . execWriterT . join
     (output, _) <- grade
       eval
       (throwM . CustomException)
