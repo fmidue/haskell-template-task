@@ -437,9 +437,9 @@ grade eval reject inform tmp task submission =
     let
      (syntax, semantics) = splitAt (fromEnum (syntaxCutoff config) + 1)
       [
+       do
         -- Reject if submission does not compile with provided hidden modules,
         -- but without Test module.
-       do
         compilation <- liftIO $ runInterpreter (compiler dirname config noTest)
         checkResult reject compilation reject Nothing $ const $ return ()
 
@@ -465,9 +465,10 @@ grade eval reject inform tmp task submission =
         result      <- liftIO $ runInterpreter (interpreter dirname config modules)
         checkResult reject result reject Nothing $ handleCounts reject inform
       ,
+       do
         -- Displays GHC warnings configured as non-errors triggered by submission.
         compileWithArgsAndCheck dirname reject inform config noTest False
-      ,
+
         -- Displays HLint suggestions configured as non-errors triggered by submission.
         void $ getHlintFeedback inform config dirname solutionFile False
       ]
