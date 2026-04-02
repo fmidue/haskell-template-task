@@ -128,7 +128,7 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \# syntaxCutoff                - determines the last step in the syntax phase (later steps are considered semantics)
 \#                               possible values (and also the order of steps):
 \#                                 Compilation, GhcErrors, HlintErrors, TemplateMatch, TestSuite
-\#                               default on omission is TemplateMatch; steps after TestSuite are:
+\#                               default on omission is TemplateMatch; steps after TestSuite are (in this order):
 \#                                 GhcWarnings, HlintSuggestions
 ----------
 module Solution where
