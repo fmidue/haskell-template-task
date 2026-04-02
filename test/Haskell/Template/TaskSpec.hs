@@ -167,15 +167,13 @@ gradeIO task submission = do
   tmp <- getTemporaryDirectory
   withTempDirectory tmp "Grade-test" $ \dir -> do
     setCurrentDirectory dir
-    let eval = fmap (, undefined) . execWriterT . join
-    (output, _) <- grade
-      eval
+    grade
+      (execWriterT . join)
       (throwM . CustomException)
       (tell . show)
       dir
       task
       submission
-    pure output
 
 hlintIO :: SolutionConfig -> String -> Bool -> IO [Either String String]
 hlintIO config content asError = do

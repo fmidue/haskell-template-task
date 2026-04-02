@@ -381,17 +381,18 @@ whileOpen h =
   IO.hIsClosed h >>= flip unless (whileOpen h)
 
 {-|
-Generate separate syntax and possible semantics feedback in the context of an evaluation Monad.
+Generate consecutive syntax and possible semantics feedback in the context of an evaluation Monad.
+
+This Monad is expected to provide a mechanism to prematurely end the evaluation
+in case of failure.
 -}
 grade
   :: MonadIO m
-  => (m (m ()) -> IO (b, Maybe b))
+  => (m (m ()) -> IO b)
   {- ^
-    evaluation function that constructs the feedback from nested monadic computations.
+    Evaluation function that constructs the feedback from nested monadic computations.
     The function's argument executes the file setup and constructs syntax feedback,
     then returns the unevaluated semantics computation.
-    It is expected that the caller implements an efficient mechanism
-    to prevent computing the semantics feedback (denoted by `Nothing`) in case of failure during the syntax feedback.
   -}
   -> (forall c . Doc -> m c)
   -- ^ fail and display a message
@@ -403,7 +404,7 @@ grade
   -- ^ the task
   -> String
   -- ^ the submission
-  -> IO (b, Maybe b)
+  -> IO b
 grade eval reject inform tmp task submission =
   withTempDirectory tmp "Template" $ \ dirname -> eval $ do
     when ("System.IO.Unsafe" `isInfixOf` submission)
