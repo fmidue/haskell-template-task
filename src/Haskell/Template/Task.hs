@@ -395,9 +395,9 @@ grade
     then returns the unevaluated semantics computation.
   -}
   -> (forall c . Doc -> m c)
-  -- ^ fail and display a message
+  -- ^ display a message and fail
   -> (Doc -> m ())
-  -- ^ continue and display a message
+  -- ^ display a message and continue
   -> FilePath
   -- ^ parent directory to use for file operations
   -> String
