@@ -26,7 +26,6 @@ module Haskell.Template.Task (
   unsafeTemplateSegment,
   ) where
 
-import qualified Control.Exception.Base           as MC
 import qualified Data.ByteString.Char8            as BS
 import qualified Language.Haskell.Exts            as E
 import qualified Language.Haskell.Exts.Parser     as P
@@ -65,11 +64,6 @@ import Language.Haskell.Interpreter
 import Language.Haskell.Interpreter.Unsafe
   (unsafeRunInterpreterWithArgs)
 import Numeric.Natural                  (Natural)
-import System.Directory (
-  doesDirectoryExist,
-  removePathForcibly,
-  makeAbsolute,
-  )
 import System.FilePath (
   (<.>),
   (</>),
@@ -77,32 +71,11 @@ import System.FilePath (
   takeBaseName,
   takeExtension,
   )
-import System.IO.Temp                   (createTempDirectory)
 import Test.HUnit                       (Counts (..))
 import Text.PrettyPrint.Leijen.Text
   (Doc, nest, text, vcat)
 import Text.Read                        (readMaybe)
 import Text.Regex.PCRE.Heavy            (re, sub)
-
-{-|
-Create and use a temporarily created directory by
-changing into the directory after creation and leaving it before its deletion.
-Returning to the former directory and deleting the temporary directory
-happen even if the provided action throws an Exception.
--}
-withTempDirectory :: FilePath -> String -> (FilePath -> IO a) -> IO a
-withTempDirectory targetDir template process =
-  MC.bracket
-    (liftIO $ createTempDirectory targetDir template)
-    (liftIO . removePathForcibly)
-    (\x -> untilM (doesDirectoryExist x) $ makeAbsolute x >>= process)
-  where
-    untilM :: IO Bool -> IO a -> IO a
-    untilM f g = do
-      ready <- f
-      if ready
-        then g
-        else untilM f g
 
 encode :: ToJSON a => a -> BS.ByteString
 encode = encodePretty $ setConfCompare compare defConfig
@@ -388,12 +361,10 @@ in case of failure.
 -}
 grade
   :: MonadIO m
-  => (m (m ()) -> IO b)
-  {- ^
-    Evaluation function that constructs the feedback from nested monadic computations.
-    The function's argument executes the file setup and constructs syntax feedback,
-    then returns the unevaluated semantics computation.
-  -}
+  => (m () -> m ())
+  -- ^ Evaluation function for the syntax phase
+  -> (m () -> m ())
+  -- ^ Evaluation function for the semantics phase
   -> (forall c . Doc -> m c)
   -- ^ display a message and fail
   -> (Doc -> m ())
@@ -404,9 +375,8 @@ grade
   -- ^ the task
   -> String
   -- ^ the submission
-  -> IO b
-grade eval reject inform tmp task submission =
-  withTempDirectory tmp "Template" $ \ dirname -> eval $ do
+  -> m ()
+grade withSyntax withSemantics reject inform dirname task submission = do
     when ("System.IO.Unsafe" `isInfixOf` submission)
       $ void $ reject "wants to use System.IO.Unsafe"
     when ("unsafePerformIO"  `isInfixOf` submission)
@@ -473,8 +443,8 @@ grade eval reject inform tmp task submission =
         -- Displays HLint suggestions configured as non-errors triggered by submission.
         void $ getHlintFeedback inform config dirname solutionFile False
       ]
-    sequence_ syntax
-    return $ sequence_ semantics
+    withSyntax $ sequence_ syntax
+    withSemantics $ sequence_ semantics
  where
     testHarnessFor file =
       let quoted xs = '"' : xs ++ "\""

@@ -167,8 +167,9 @@ gradeIO task submission = do
   tmp <- getTemporaryDirectory
   withTempDirectory tmp "Grade-test" $ \dir -> do
     setCurrentDirectory dir
-    grade
-      (execWriterT . join)
+    execWriterT $ grade
+      id
+      id
       (throwM . CustomException)
       (tell . show)
       dir
