@@ -1,5 +1,4 @@
 {-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE TupleSections #-}
 module Haskell.Template.TaskSpec where
 
 import qualified Data.ByteString.Char8            as BS (unpack)
