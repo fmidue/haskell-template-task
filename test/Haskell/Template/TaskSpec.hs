@@ -9,7 +9,6 @@ import qualified Text.PrettyPrint.Leijen.Text     as PP
 import Haskell.Template.Task
 
 import Control.Arrow                    ((+++))
-import Control.Monad                    (join)
 import Control.Monad.Catch (
   Exception,
   MonadCatch (..),
