@@ -24,7 +24,7 @@ module Haskell.Template.Task (
   rejectMatch,
   toSolutionConfigOpt,
   unsafeTemplateSegment,
-  withTempDirectory,
+  withTempDirectoryConcurrently,
   ) where
 
 import qualified Control.Exception.Base           as MC
@@ -91,8 +91,8 @@ changing into the directory after creation and leaving it before its deletion.
 Returning to the former directory and deleting the temporary directory
 happen even if the provided action throws an Exception.
 -}
-withTempDirectory :: FilePath -> String -> (FilePath -> IO a) -> IO a
-withTempDirectory targetDir template process =
+withTempDirectoryConcurrently :: FilePath -> String -> (FilePath -> IO a) -> IO a
+withTempDirectoryConcurrently targetDir template process =
   MC.bracket
     (liftIO $ createTempDirectory targetDir template)
     (liftIO . removePathForcibly)
