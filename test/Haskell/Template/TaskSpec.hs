@@ -23,6 +23,7 @@ import Data.Yaml                        (encode)
 import System.Directory
   (getTemporaryDirectory, setCurrentDirectory)
 import System.FilePath                  ((</>))
+import System.IO.Temp                   (withTempDirectory)
 import Test.Hspec
 
 newtype CustomException = CustomException PP.Doc
