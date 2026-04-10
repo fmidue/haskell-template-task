@@ -333,16 +333,8 @@ check
   -> String
   -> m ()
 check reject inform i = do
-  when ("System.IO.Unsafe" `isInfixOf` i)
-    $ reject "wants to use System.IO.Unsafe"
-  when ("unsafePerformIO"  `isInfixOf` i)
-    $ reject "wants to use unsafePerformIO"
-  (mConfig, modules) <- splitConfigAndModules reject i
-  inform $ string $ "Parsed the following setting options:\n" ++ show mConfig
-  config <- addDefaults reject mConfig
-  inform $ string $ "Completed configuration to:\n" ++ show config
-  let exts = extensionsOf config
-  ((m,s), ms) <- nameModules (reject . string) exts modules
+  checkUnsafe reject i
+  (_, exts, (m,s), ms) <- processConfig reject inform i
   checkUniqueness (m : map fst ms)
   inform $ string $ "Parsing template module " <> m
   void $ parse reject exts s
@@ -405,15 +397,9 @@ grade
   -- ^ the submission
   -> m ()
 grade withSyntax withSemantics reject inform dirname task submission = do
-    when ("System.IO.Unsafe" `isInfixOf` submission)
-      $ withSyntax $ reject "wants to use System.IO.Unsafe"
-    when ("unsafePerformIO"  `isInfixOf` submission)
-      $ withSyntax $ reject "wants to use unsafePerformIO"
-    (mConfig, rawModules) <- splitConfigAndModules reject task
-    config                <- addDefaults reject mConfig
-    let exts = extensionsOf config
-    ((moduleName', template), others) <-
-      nameModules (reject . string) exts rawModules
+    checkUnsafe (withSyntax . reject) submission
+    (config, exts, (moduleName', template), others) <-
+      processConfig reject (const $ pure ()) task
     files <- liftIO $ ((moduleName', submission) : others)
       `forM` \(mName, contents) -> do
         let fname = dirname </> mName <.> "hs"
@@ -796,3 +782,28 @@ moduleName :: E.Module l -> String
 moduleName (E.Module _ (Just (E.ModuleHead _ (E.ModuleName _ n) _ _)) _ _ _) = n
 moduleName (E.Module _ Nothing _ _ _) = "Main"
 moduleName _                          = error "unsupported module type"
+
+processConfig
+  :: Monad m
+  => (forall a . Doc -> m a)
+  -- ^ display a message and fail
+  -> (Doc -> m ())
+  -- ^ display a message and continue
+  -> String
+  -- ^ raw configuration
+  -> m (FSolutionConfig Identity, [E.Extension], (String,String), [(String,String)])
+processConfig reject inform rawConfig = do
+  (mConfig, modules) <- splitConfigAndModules reject rawConfig
+  inform $ string $ "Parsed the following setting options:\n" ++ show mConfig
+  config <- addDefaults reject mConfig
+  inform $ string $ "Completed configuration to:\n" ++ show config
+  let exts = extensionsOf config
+  ((m,s), ms) <- nameModules (reject . string) exts modules
+  return (config, exts, (m,s), ms)
+
+checkUnsafe :: Monad m => (Doc -> m ()) -> String -> m ()
+checkUnsafe reject rawFile =  do
+  when ("System.IO.Unsafe" `isInfixOf` rawFile)
+    $ reject "wants to use System.IO.Unsafe"
+  when ("unsafePerformIO"  `isInfixOf` rawFile)
+    $ reject "wants to use unsafePerformIO"
