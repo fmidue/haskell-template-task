@@ -398,8 +398,10 @@ grade
   -> m ()
 grade withSyntax withSemantics reject inform dirname task submission = do
     checkUnsafe (withSyntax . reject) submission
-    (config, exts, (moduleName', template), others) <-
-      processConfig reject (const $ pure ()) task
+    (config, exts, (moduleName', template), others) <- processConfig
+      (rejectWithMessage reject $ string informTutorMessage)
+      (const $ pure ())
+      task
     files <- liftIO $ ((moduleName', submission) : others)
       `forM` \(mName, contents) -> do
         let fname = dirname </> mName <.> "hs"
@@ -467,7 +469,7 @@ grade withSyntax withSemantics reject inform dirname task submission = do
     testModule s = [SI.i|module Test (test) where
 import qualified #{s} (test)
 test = #{s}.test|]
-    rejectWithHint = reject . vcat . (: singleton rejectHint)
+    rejectWithHint = rejectWithMessage reject rejectHint
 
     signatureError = const $ rejectWithHint $ string [SI.iii|
       Your code is not compatible with the test suite.
@@ -556,7 +558,7 @@ compileWithArgsAndCheck dirname reject inform config modules asError = unless (n
       then (configGhcErrors,   rejectWithHint)
       else (configGhcWarnings, inform)
     howMany = runIdentity $ configGhcLimit config
-    rejectWithHint = reject . vcat . (: singleton rejectHint)
+    rejectWithHint = rejectWithMessage reject rejectHint
 
 matchTemplate
   :: Monad m
@@ -573,10 +575,10 @@ matchTemplate reject config context exts template submission = do
   case test mTemplate mSubmission of
     Fail loc -> mapM_ (rejectMatch rejectWithHint config context template submission) loc
       where
-        rejectWithHint = reject . vcat . (: singleton rejectHint)
+        rejectWithHint = rejectWithMessage reject rejectHint
     Ok _     -> return ()
     Continue -> void $ reject [SI.i|Haskell.Template.Central.matchTemplate:
-Please inform a tutor about this issue providing your solution and this message.|]
+#{informTutorMessage}|]
 
 deriving instance Typeable Counts
 
@@ -807,3 +809,10 @@ checkUnsafe reject rawFile =  do
     $ reject "wants to use System.IO.Unsafe"
   when ("unsafePerformIO"  `isInfixOf` rawFile)
     $ reject "wants to use unsafePerformIO"
+
+informTutorMessage :: String
+informTutorMessage =
+  [SI.i|Please inform a tutor about this issue providing your solution and this message.|]
+
+rejectWithMessage :: (Doc -> m a) -> Doc -> Doc -> m a
+rejectWithMessage reject m = reject . vcat . (: singleton m)
