@@ -406,9 +406,9 @@ grade
   -> m ()
 grade withSyntax withSemantics reject inform dirname task submission = do
     when ("System.IO.Unsafe" `isInfixOf` submission)
-      $ void $ reject "wants to use System.IO.Unsafe"
+      $ withSyntax $ reject "wants to use System.IO.Unsafe"
     when ("unsafePerformIO"  `isInfixOf` submission)
-      $ void $ reject "wants to use unsafePerformIO"
+      $ withSyntax $ reject "wants to use unsafePerformIO"
     (mConfig, rawModules) <- splitConfigAndModules reject task
     config                <- addDefaults reject mConfig
     let exts = extensionsOf config
