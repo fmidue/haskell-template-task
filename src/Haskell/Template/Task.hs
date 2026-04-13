@@ -577,7 +577,7 @@ matchTemplate reject config context exts template submission = do
       where
         rejectWithHint = rejectWithMessage reject rejectHint
     Ok _     -> return ()
-    Continue -> void $ reject [SI.i|Haskell.Template.Central.matchTemplate:
+    Continue -> reject [SI.i|Haskell.Template.Central.matchTemplate:
 #{informTutorMessage}|]
 
 deriving instance Typeable Counts
@@ -609,7 +609,7 @@ checkResult reject result handleError mErrorLimit handleResult = case result of
   Left (WontCompile msgs) -> handleError $ string
     $ intercalate "\n" $ amount
       $ map (editFeedback . formatHyperlinks) $ filterWerrors msgs
-  Left err -> void $ reject $
+  Left err -> reject $
     vcat ["An unexpected error occurred.",
           "This is usually not caused by a fault within your solution.",
           "Please contact your lecturers, providing the following error message:",
@@ -701,17 +701,17 @@ rejectMatch
   -> m ()
 rejectMatch reject config context i b l = case l of
   SrcSpanInfoPair w sp1 sp2 ->
-    unless (allowedOperation w allowModifying) $ void $ reject $ vcat
+    unless (allowedOperation w allowModifying) $ reject $ vcat
       ["Your solution does not fit the template:" , "",
        "Template:"   , bloc $ highlight_ssi sp1 context i,
        "Submission:" , bloc $ highlight_ssi sp2 context b]
   SrcSpanInfo w OnlyTemplate sp ->
-    unless (allowedOperation w allowRemoving) $ void $ reject $ vcat
+    unless (allowedOperation w allowRemoving) $ reject $ vcat
       ["Missing within your submission:",
        "Template:",
        bloc $ highlight_ssi sp context i]
   SrcSpanInfo w OnlySubmission sp ->
-    unless (allowedOperation w allowAdding) $ void $ reject $ vcat
+    unless (allowedOperation w allowAdding) $ reject $ vcat
       ["Only within your submission (but not within the template):",
        bloc $ highlight_ssi sp context b]
   where
