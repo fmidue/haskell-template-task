@@ -121,8 +121,8 @@ pretty = unpack . PP.displayT . PP.renderPretty 1.0 100
 errorP :: PP.Doc -> Either String b
 errorP = Left . pretty
 
-storeP :: PP.Doc -> State [String] a
-storeP = (error "this is not evaluated" <$) . modify . (:) . pretty
+storeP :: PP.Doc -> State [String] ()
+storeP = modify . (:) . pretty
 
 retrieve :: State [a] b -> [a]
 retrieve = reverse . flip execState []
@@ -138,7 +138,14 @@ getComment config template submission = do
   case test mTemplate mSubmission of
     Fail loc ->
       let state = mapM
-            (rejectMatch storeP config 0 template submission) loc
+            (rejectMatch
+              ((error "this is not evaluated" <$) . storeP)
+              config
+              0
+              template
+              submission
+            )
+            loc
       in Right $ kindOfMatch <$> retrieve state
     Ok _     -> Right []
     Continue -> Left "This should never happen"
