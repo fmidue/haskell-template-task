@@ -602,10 +602,10 @@ checkResult
   -> Either InterpreterError a
   -> (Doc -> m ())
   -> Maybe Natural
-  -> (a -> m d)
+  -> (a -> m ())
   -> m ()
 checkResult reject result handleError mErrorLimit handleResult = case result of
-  Right result' -> void $ handleResult result'
+  Right result' -> handleResult result'
   Left (WontCompile msgs) -> handleError $ string
     $ intercalate "\n" $ amount
       $ map (editFeedback . formatHyperlinks) $ filterWerrors msgs
