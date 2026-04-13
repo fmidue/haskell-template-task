@@ -328,7 +328,7 @@ string = text . pack
 
 check
   :: Monad m
-  => (forall a . Doc -> m a)
+  => (forall a. Doc -> m a)
   -> (Doc -> m ())
   -> String
   -> m ()
@@ -562,7 +562,7 @@ compileWithArgsAndCheck dirname reject inform config modules asError = unless (n
 
 matchTemplate
   :: Monad m
-  => (forall a . Doc -> m a)
+  => (forall a. Doc -> m a)
   -> SolutionConfig
   -> Int
   -> [E.Extension]
@@ -584,7 +584,7 @@ deriving instance Typeable Counts
 
 handleCounts
   :: Monad m
-  => (forall a . Doc -> m a)
+  => (forall a. Doc -> m a)
   -> (Doc -> m ())
   -> (Counts, String -> String)
   -> m ()
@@ -666,7 +666,7 @@ prepareInterpreter dirname config modules = do
 
 parse
   :: Monad m
-  => (forall a . Doc -> m a)
+  => (forall a. Doc -> m a)
   -> [E.Extension]
   -> String
   -> m (E.Module E.SrcSpanInfo)
@@ -692,7 +692,7 @@ rejectParse reject' m loc msg =
 
 rejectMatch
   :: Applicative m
-  => (forall a . Doc -> m a)
+  => (forall a. Doc -> m a)
   -> SolutionConfig
   -> Int
   -> String
@@ -726,7 +726,7 @@ bloc codeLines =
 
 splitConfigAndModules
   :: Monad m
-  => (forall a . Doc -> m a)
+  => (forall a. Doc -> m a)
   -> String -> m (SolutionConfigOpt, [String])
 splitConfigAndModules reject configAndModules =
   either (reject . string . ("Error while parsing config:\n" <>) . show)
@@ -765,7 +765,7 @@ unsafeTemplateSegment task = either id id $ do
 
 nameModules
   :: Monad m
-  => (forall a . String -> m a)
+  => (forall a. String -> m a)
   -> [E.Extension]
   -> [String]
   -> m ((String, String), [(String, String)])
@@ -787,7 +787,7 @@ moduleName _                          = error "unsupported module type"
 
 processConfig
   :: Monad m
-  => (forall a . Doc -> m a)
+  => (forall a. Doc -> m a)
   -- ^ display a message and fail
   -> (Doc -> m ())
   -- ^ display a message and continue
@@ -803,7 +803,7 @@ processConfig reject inform rawConfig = do
   ((m,s), ms) <- nameModules (reject . string) exts modules
   return (completedConfig, exts, (m,s), ms)
 
-checkUnsafe :: Monad m => (forall a . Doc -> m a) -> String -> m ()
+checkUnsafe :: Monad m => (forall a. Doc -> m a) -> String -> m ()
 checkUnsafe reject rawFile =  do
   when ("System.IO.Unsafe" `isInfixOf` rawFile)
     $ reject "wants to use System.IO.Unsafe"
@@ -814,5 +814,5 @@ informTutorMessage :: String
 informTutorMessage =
   [SI.i|Please inform a tutor about this issue providing your solution and this message.|]
 
-rejectWithMessage :: (forall a . Doc -> m a) -> Doc -> Doc -> m b
+rejectWithMessage :: (forall a. Doc -> m a) -> Doc -> Doc -> m b
 rejectWithMessage reject m = reject . vcat . (: singleton m)
