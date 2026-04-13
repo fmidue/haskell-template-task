@@ -758,7 +758,7 @@ splitBy p = dropOdd . groupBy (\l r -> not (p l) && not (p r))
 
 unsafeTemplateSegment :: String -> String
 unsafeTemplateSegment task = either id id $ do
-  let (config,modules) = fromMaybe (defaultSolutionConfig, []) $
+  let (config, modules) = fromMaybe (defaultSolutionConfig, []) $
         splitConfigAndModules (const Nothing) task
       exts = maybe [] extensionsOf $ addDefaults (const Nothing) config
   snd . fst <$> nameModules Left exts modules
