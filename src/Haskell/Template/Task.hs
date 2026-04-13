@@ -798,7 +798,7 @@ processConfig reject inform rawConfig = do
   (config, modules) <- splitConfigAndModules reject rawConfig
   inform $ string $ "Parsed the following setting options:\n" ++ show config
   completedConfig <- addDefaults reject config
-  inform $ string $ "Completed configuration to:\n" ++ show config
+  inform $ string $ "Completed configuration to:\n" ++ show completedConfig
   let exts = extensionsOf completedConfig
   ((m,s), ms) <- nameModules (reject . string) exts modules
   return (completedConfig, exts, (m,s), ms)
