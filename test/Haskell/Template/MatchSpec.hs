@@ -121,8 +121,8 @@ pretty = unpack . PP.displayT . PP.renderPretty 1.0 100
 errorP :: PP.Doc -> Either String b
 errorP = Left . pretty
 
-storeP :: PP.Doc -> State [String] ()
-storeP = modify . (:) . pretty
+storeP :: PP.Doc -> State [String] a
+storeP = (error "this is not evaluated" <$) . modify . (:) . pretty
 
 retrieve :: State [a] b -> [a]
 retrieve = reverse . flip execState []

@@ -42,6 +42,7 @@ import Control.Applicative              ((<|>))
 import Control.Monad                    (forM, msum, unless, void, when)
 import Control.Monad.IO.Class           (MonadIO)
 import Data.Char                        (isUpper)
+import Data.Either.Extra                (fromEither)
 import Data.Functor.Identity            (Identity (..))
 import Data.List
   (delete, elemIndex, groupBy, intercalate, isInfixOf, isPrefixOf,
@@ -381,9 +382,9 @@ in case of failure.
 -}
 grade
   :: MonadIO m
-  => (m () -> m ())
+  => (forall a . m a -> m a)
   -- ^ Evaluation function for the syntax phase
-  -> (m () -> m ())
+  -> (forall a . m a -> m a)
   -- ^ Evaluation function for the semantics phase
   -> (forall c . Doc -> m c)
   -- ^ display a message and fail
@@ -540,7 +541,7 @@ hlintConfig rules = unlines ["- " ++ r | r <- rules]
 compileWithArgsAndCheck
   :: MonadIO m
   => FilePath
-  -> (Doc -> m a)
+  -> (forall b . Doc -> m b)
   -> (Doc -> m a)
   -> SolutionConfig
   -> [String]
@@ -562,7 +563,7 @@ compileWithArgsAndCheck dirname reject inform config modules asError = unless (n
 
 matchTemplate
   :: Monad m
-  => (Doc -> m (E.Module E.SrcSpanInfo))
+  => (forall a . Doc -> m a)
   -> SolutionConfig
   -> Int
   -> [E.Extension]
@@ -584,7 +585,7 @@ deriving instance Typeable Counts
 
 handleCounts
   :: Monad m
-  => (Doc -> m ())
+  => (forall a . Doc -> m a)
   -> (Doc -> m ())
   -> (Counts, String -> String)
   -> m ()
@@ -598,7 +599,7 @@ handleCounts reject inform result = case result of
 
 checkResult
   :: Monad m
-  => (Doc -> m b)
+  => (forall b . Doc -> m b)
   -> Either InterpreterError a
   -> (Doc -> m c)
   -> Maybe Natural
@@ -666,7 +667,7 @@ prepareInterpreter dirname config modules = do
 
 parse
   :: Monad m
-  => (Doc -> m (E.Module E.SrcSpanInfo))
+  => (forall a . Doc -> m a)
   -> [E.Extension]
   -> String
   -> m (E.Module E.SrcSpanInfo)
@@ -692,7 +693,7 @@ rejectParse reject' m loc msg =
 
 rejectMatch
   :: Applicative m
-  => (Doc -> m a)
+  => (forall a . Doc -> m a)
   -> SolutionConfig
   -> Int
   -> String
@@ -726,7 +727,7 @@ bloc codeLines =
 
 splitConfigAndModules
   :: Monad m
-  => (Doc -> m (SolutionConfigOpt, [String]))
+  => (forall a . Doc -> m a)
   -> String -> m (SolutionConfigOpt, [String])
 splitConfigAndModules reject configAndModules =
   either (reject . string . ("Error while parsing config:\n" <>) . show)
@@ -737,7 +738,7 @@ splitConfigAndModules reject configAndModules =
     eConfig :: Either ParseException SolutionConfigOpt
     eConfig = decodeEither' $ BS.pack configJson
 
-addDefaults :: Monad m => (Doc -> m SolutionConfig) -> SolutionConfigOpt -> m SolutionConfig
+addDefaults :: Monad m => (forall a. Doc -> m a) -> SolutionConfigOpt -> m SolutionConfig
 addDefaults reject f = maybe
   (reject "There is a required configuration parameter missing")
   return
@@ -758,14 +759,14 @@ splitBy p = dropOdd . groupBy (\l r -> not (p l) && not (p r))
 
 unsafeTemplateSegment :: String -> String
 unsafeTemplateSegment task = either id id $ do
-  let Just (mConfig, modules) =
-        splitConfigAndModules (const $ Just (defaultSolutionConfig, [])) task
-      exts = maybe [] extensionsOf $ addDefaults (const Nothing) mConfig
+  let (config,modules) = fromEither $
+        splitConfigAndModules (const $ Left (defaultSolutionConfig, [])) task
+      exts = maybe [] extensionsOf $ addDefaults (const Nothing) config
   snd . fst <$> nameModules Left exts modules
 
 nameModules
   :: Monad m
-  => (String -> m ((String, String), [(String, String)]))
+  => (forall a . String -> m a)
   -> [E.Extension]
   -> [String]
   -> m ((String, String), [(String, String)])
@@ -803,7 +804,7 @@ processConfig reject inform rawConfig = do
   ((m,s), ms) <- nameModules (reject . string) exts modules
   return (config, exts, (m,s), ms)
 
-checkUnsafe :: Monad m => (Doc -> m ()) -> String -> m ()
+checkUnsafe :: Monad m => (forall a . Doc -> m a) -> String -> m ()
 checkUnsafe reject rawFile =  do
   when ("System.IO.Unsafe" `isInfixOf` rawFile)
     $ reject "wants to use System.IO.Unsafe"
@@ -814,5 +815,5 @@ informTutorMessage :: String
 informTutorMessage =
   [SI.i|Please inform a tutor about this issue providing your solution and this message.|]
 
-rejectWithMessage :: (Doc -> m a) -> Doc -> Doc -> m a
+rejectWithMessage :: (forall a . Doc -> m a) -> Doc -> Doc -> m b
 rejectWithMessage reject m = reject . vcat . (: singleton m)
