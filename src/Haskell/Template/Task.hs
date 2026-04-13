@@ -86,10 +86,10 @@ import Text.Read                        (readMaybe)
 import Text.Regex.PCRE.Heavy            (re, sub)
 
 {-|
-Create and use a temporarily created directory by
-changing into the directory after creation and leaving it before its deletion.
-Returning to the former directory and deleting the temporary directory
-happen even if the provided action throws an Exception.
+Create and use a temporary directory, passing its absolute path to the
+provided action.
+Deleting the temporary directory happens even if the provided action throws
+an Exception.
 -}
 withTempDirectoryConcurrently :: FilePath -> String -> (FilePath -> IO a) -> IO a
 withTempDirectoryConcurrently targetDir template process =
