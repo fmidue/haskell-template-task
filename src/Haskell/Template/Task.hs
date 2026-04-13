@@ -42,7 +42,6 @@ import Control.Applicative              ((<|>))
 import Control.Monad                    (forM, msum, unless, void, when)
 import Control.Monad.IO.Class           (MonadIO)
 import Data.Char                        (isUpper)
-import Data.Either.Extra                (fromEither)
 import Data.Functor.Identity            (Identity (..))
 import Data.List
   (delete, elemIndex, groupBy, intercalate, isInfixOf, isPrefixOf,
@@ -759,8 +758,8 @@ splitBy p = dropOdd . groupBy (\l r -> not (p l) && not (p r))
 
 unsafeTemplateSegment :: String -> String
 unsafeTemplateSegment task = either id id $ do
-  let (config,modules) = fromEither $
-        splitConfigAndModules (const $ Left (defaultSolutionConfig, [])) task
+  let (config,modules) = fromMaybe (defaultSolutionConfig, []) $
+        splitConfigAndModules (const Nothing) task
       exts = maybe [] extensionsOf $ addDefaults (const Nothing) config
   snd . fst <$> nameModules Left exts modules
 
