@@ -795,13 +795,13 @@ processConfig
   -- ^ raw configuration
   -> m (FSolutionConfig Identity, [E.Extension], (String,String), [(String,String)])
 processConfig reject inform rawConfig = do
-  (mConfig, modules) <- splitConfigAndModules reject rawConfig
-  inform $ string $ "Parsed the following setting options:\n" ++ show mConfig
-  config <- addDefaults reject mConfig
+  (config, modules) <- splitConfigAndModules reject rawConfig
+  inform $ string $ "Parsed the following setting options:\n" ++ show config
+  completedConfig <- addDefaults reject config
   inform $ string $ "Completed configuration to:\n" ++ show config
-  let exts = extensionsOf config
+  let exts = extensionsOf completedConfig
   ((m,s), ms) <- nameModules (reject . string) exts modules
-  return (config, exts, (m,s), ms)
+  return (completedConfig, exts, (m,s), ms)
 
 checkUnsafe :: Monad m => (forall a . Doc -> m a) -> String -> m ()
 checkUnsafe reject rawFile =  do
