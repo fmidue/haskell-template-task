@@ -385,7 +385,7 @@ grade
   -- ^ Evaluation function for the syntax phase
   -> (m () -> m ())
   -- ^ Evaluation function for the semantics phase
-  -> (forall c . Doc -> m c)
+  -> (forall c. Doc -> m c)
   -- ^ display a message and fail
   -> (Doc -> m ())
   -- ^ display a message and continue
@@ -540,7 +540,7 @@ hlintConfig rules = unlines ["- " ++ r | r <- rules]
 compileWithArgsAndCheck
   :: MonadIO m
   => FilePath
-  -> (forall b . Doc -> m b)
+  -> (forall b. Doc -> m b)
   -> (Doc -> m ())
   -> SolutionConfig
   -> [String]
@@ -598,7 +598,7 @@ handleCounts reject inform result = case result of
 
 checkResult
   :: Monad m
-  => (forall b . Doc -> m b)
+  => (forall b. Doc -> m b)
   -> Either InterpreterError a
   -> (Doc -> m ())
   -> Maybe Natural
