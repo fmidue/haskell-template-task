@@ -138,7 +138,14 @@ getComment config template submission = do
   case test mTemplate mSubmission of
     Fail loc ->
       let state = mapM
-            (rejectMatch storeP config 0 template submission) loc
+            (rejectMatch
+              ((error "this is not evaluated" <$) . storeP)
+              config
+              0
+              template
+              submission
+            )
+            loc
       in Right $ kindOfMatch <$> retrieve state
     Ok _     -> Right []
     Continue -> Left "This should never happen"

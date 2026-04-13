@@ -165,7 +165,14 @@ gradeIO task submission = do
   tmp <- getTemporaryDirectory
   withTempDirectory tmp "Grade-test" $ \dir -> do
     setCurrentDirectory dir
-    grade execWriterT (throwM . CustomException) (tell . show) dir task submission
+    execWriterT $ grade
+      id
+      id
+      (throwM . CustomException)
+      (tell . show)
+      dir
+      task
+      submission
 
 hlintIO :: SolutionConfig -> String -> Bool -> IO [Either String String]
 hlintIO config content asError = do
