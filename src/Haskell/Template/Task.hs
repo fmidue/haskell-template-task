@@ -382,9 +382,9 @@ in case of failure.
 -}
 grade
   :: MonadIO m
-  => (forall a . m a -> m a)
+  => (m () -> m ())
   -- ^ Evaluation function for the syntax phase
-  -> (forall a . m a -> m a)
+  -> (m () -> m ())
   -- ^ Evaluation function for the semantics phase
   -> (forall c . Doc -> m c)
   -- ^ display a message and fail
@@ -398,7 +398,7 @@ grade
   -- ^ the submission
   -> m ()
 grade withSyntax withSemantics reject inform dirname task submission = do
-    checkUnsafe (withSyntax . reject) submission
+    withSyntax $ checkUnsafe reject submission
     (config, exts, (moduleName', template), others) <- processConfig
       (rejectWithMessage reject $ string informTutorMessage)
       (const $ pure ())
@@ -542,7 +542,7 @@ compileWithArgsAndCheck
   :: MonadIO m
   => FilePath
   -> (forall b . Doc -> m b)
-  -> (Doc -> m a)
+  -> (Doc -> m ())
   -> SolutionConfig
   -> [String]
   -> Bool
@@ -601,13 +601,13 @@ checkResult
   :: Monad m
   => (forall b . Doc -> m b)
   -> Either InterpreterError a
-  -> (Doc -> m c)
+  -> (Doc -> m ())
   -> Maybe Natural
   -> (a -> m d)
   -> m ()
 checkResult reject result handleError mErrorLimit handleResult = case result of
   Right result' -> void $ handleResult result'
-  Left (WontCompile msgs) -> void $ handleError $ string
+  Left (WontCompile msgs) -> handleError $ string
     $ intercalate "\n" $ amount
       $ map (editFeedback . formatHyperlinks) $ filterWerrors msgs
   Left err -> void $ reject $
