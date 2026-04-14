@@ -170,6 +170,13 @@ test =
 module SampleSolution where
 import Prelude
 
+{-
+This optional module may provide a sample solution.
+It is currently optional to do so, but strongly encouraged,
+as the sample will be validated the same way a student's submission would,
+thus preventing a broken configuration or impossible task.
+-}
+
 r :: [a] -> [a]
 r = reverse
 
