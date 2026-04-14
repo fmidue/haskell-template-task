@@ -2,17 +2,27 @@
 name: haskell-template-task-embedded
 ghc-options:
   -Wall
+flags:
+  iotasks:
+    description: enables test helpers for IOTasks
+    manual: True
+    default: True
 dependencies:
   - base
   - deepseq
   - haskell-src-exts
   - HUnit
-  - IOTasks
   - QuickCheck
   - random
   - syb
 library:
-  source-dirs: src
+  source-dirs:
+    - src
   other-modules:
     - TestHarness
     - TestHelper
+when:
+  - condition: flag(iotasks)
+    dependencies:
+      - IOTasks
+    cpp-options: -DIOTASKS

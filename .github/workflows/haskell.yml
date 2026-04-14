@@ -57,9 +57,11 @@ jobs:
       - name: Build and test
         run: |
           set -ex
-          stack --no-terminal test --coverage --bench --no-run-benchmarks --haddock --no-haddock-deps
+          stack --no-terminal test --coverage --haddock --no-haddock-deps
+          stack --no-terminal test --coverage --haddock --no-haddock-deps --flag haskell-template-task-raw:-iotasks
           cd raw/embedded
-          stack --no-terminal test --coverage --bench --no-run-benchmarks --haddock --no-haddock-deps
+          stack --no-terminal test --coverage --haddock --no-haddock-deps
+          stack --no-terminal test --coverage --haddock --no-haddock-deps --flag haskell-template-task-embedded:-iotasks
           set +ex
         env:
           BUILD: ${{ matrix.plan.build }}

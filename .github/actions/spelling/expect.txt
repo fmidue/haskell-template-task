@@ -1,3 +1,5 @@
+boolopts
+Cpphs
 ekat
 exts
 deepseq
@@ -5,7 +7,9 @@ Felgenhauer
 FSolution
 gfoldl
 gmap
+ifdef
 IOrep
+IOTASKS
 KPatterns
 Leijen
 lhs
