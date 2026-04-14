@@ -133,12 +133,19 @@ getComment
   -> String
   -> Either String [MatchKind [String]]
 getComment config template submission = do
-  mtemplate  <- parse errorP [] template
-  msubmission <- parse errorP [] submission
-  case test mtemplate msubmission of
+  mTemplate  <- parse errorP [] template
+  mSubmission <- parse errorP [] submission
+  case test mTemplate mSubmission of
     Fail loc ->
-      let state = sequence
-            $ rejectMatch storeP config 0 template submission <$> loc
+      let state = mapM
+            (rejectMatch
+              ((error "this is not evaluated" <$) . storeP)
+              config
+              0
+              template
+              submission
+            )
+            loc
       in Right $ kindOfMatch <$> retrieve state
     Ok _     -> Right []
     Continue -> Left "This should never happen"

@@ -1,18 +1,19 @@
-name:                haskell-template-task-raw
-version:             0.0.0.1
+---
+name: haskell-template-task-raw
+version: 0.0.0.1
 ghc-options:
- - -Wall
+  - -Wall
 flags:
   iotasks:
     description: enables test helpers for IOTasks
     manual: True
     default: True
 dependencies:
- - base >= 4.7 && < 5
- - filepath
- - cpphs
- - template-haskell
- - th-utilities
+  - base >= 4.7 && < 5
+  - filepath
+  - cpphs
+  - template-haskell
+  - th-utilities
 when:
   - condition: flag(iotasks)
     cpp-options: -DIOTASKS

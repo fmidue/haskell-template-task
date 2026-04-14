@@ -24,6 +24,7 @@ module Haskell.Template.Task (
   rejectMatch,
   toSolutionConfigOpt,
   unsafeTemplateSegment,
+  withTempDirectoryConcurrently,
   ) where
 
 import qualified Control.Exception.Base           as MC
@@ -85,13 +86,13 @@ import Text.Read                        (readMaybe)
 import Text.Regex.PCRE.Heavy            (re, sub)
 
 {-|
-Create and use a temporarily created directory by
-changing into the directory after creation and leaving it before its deletion.
-Returning to the former directory and deleting the temporary directory
-happen even if the provided action throws an Exception.
+Create and use a temporary directory, passing its absolute path to the
+provided action.
+Deleting the temporary directory happens even if the provided action throws
+an Exception.
 -}
-withTempDirectory :: FilePath -> String -> (FilePath -> IO a) -> IO a
-withTempDirectory targetDir template process =
+withTempDirectoryConcurrently :: FilePath -> String -> (FilePath -> IO a) -> IO a
+withTempDirectoryConcurrently targetDir template process =
   MC.bracket
     (liftIO $ createTempDirectory targetDir template)
     (liftIO . removePathForcibly)
@@ -125,6 +126,11 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \# configHlintSuggestions      - hlint hints to provide as suggestions
 \# configLanguageExtensions    - this sets LanguageExtensions for hlint as well
 \# configModules               - DEPRECATED (will be ignored)
+\# syntaxCutoff                - determines the last step in the syntax phase (later steps are considered semantics)
+\#                               possible values (and also the order of steps):
+\#                                 Compilation, GhcErrors, HlintErrors, TemplateMatch, TestSuite
+\#                               default on omission is TemplateMatch; steps after TestSuite are (in this order):
+\#                                 GhcWarnings, HlintSuggestions
 ----------
 module Solution where
 import Prelude
@@ -188,6 +194,14 @@ Also available are the following modules:
       with the option to allow a fixed number of tests to fail.)
  -}|]
 
+data FeedbackPhase
+  = Compilation
+  | GhcErrors
+  | HlintErrors
+  | TemplateMatch
+  | TestSuite
+  deriving (Enum, Generic, Show, FromJSON, ToJSON)
+
 data FSolutionConfig m = SolutionConfig {
     allowAdding                 :: m Bool,
     allowModifying              :: m Bool,
@@ -202,7 +216,8 @@ data FSolutionConfig m = SolutionConfig {
     configHlintRules            :: m [String],
     configHlintSuggestions      :: m [String],
     configLanguageExtensions    :: m [String],
-    configModules               :: m [String]
+    configModules               :: m [String],
+    syntaxCutoff                :: m FeedbackPhase
   } deriving Generic
 {-# DEPRECATED configModules "config Modules will be removed" #-}
 
@@ -231,7 +246,8 @@ defaultSolutionConfig = SolutionConfig {
     configHlintRules            = Just [],
     configHlintSuggestions      = Just [],
     configLanguageExtensions    = Just ["NPlusKPatterns","ScopedTypeVariables"],
-    configModules               = Nothing
+    configModules               = Nothing,
+    syntaxCutoff                = Just TemplateMatch
   }
 
 toSolutionConfigOpt :: SolutionConfig -> SolutionConfigOpt
@@ -250,6 +266,7 @@ toSolutionConfigOpt SolutionConfig {..} = runIdentity $ SolutionConfig
   <*> fmap Just configHlintSuggestions
   <*> fmap Just configLanguageExtensions
   <*> fmap Just configModules
+  <*> fmap Just syntaxCutoff
 
 finaliseConfigs :: [SolutionConfigOpt] -> Maybe SolutionConfig
 finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
@@ -270,6 +287,7 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
       <*> fmap Identity configHlintSuggestions
       <*> fmap Identity configLanguageExtensions
       <*> fmap Identity configModules
+      <*> fmap Identity syntaxCutoff
     combineConfigs x y = SolutionConfig {
         allowAdding                 = allowAdding                 x <|> allowAdding                 y,
         allowModifying              = allowModifying              x <|> allowModifying              y,
@@ -284,7 +302,8 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
         configHlintRules            = configHlintRules            x <|> configHlintRules            y,
         configHlintSuggestions      = configHlintSuggestions      x <|> configHlintSuggestions      y,
         configLanguageExtensions    = configLanguageExtensions    x <|> configLanguageExtensions    y,
-        configModules               = Just []
+        configModules               = Just [],
+        syntaxCutoff                = syntaxCutoff                x <|> syntaxCutoff                y
       }
     emptyConfig = SolutionConfig {
         allowAdding                 = Nothing,
@@ -300,7 +319,8 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
         configHlintRules            = Nothing,
         configHlintSuggestions      = Nothing,
         configLanguageExtensions    = Nothing,
-        configModules               = Nothing
+        configModules               = Nothing,
+        syntaxCutoff                = Nothing
       }
 
 string :: String -> Doc
@@ -308,21 +328,13 @@ string = text . pack
 
 check
   :: Monad m
-  => (forall a . Doc -> m a)
+  => (forall a. Doc -> m a)
   -> (Doc -> m ())
   -> String
   -> m ()
 check reject inform i = do
-  when ("System.IO.Unsafe" `isInfixOf` i)
-    $ reject "wants to use System.IO.Unsafe"
-  when ("unsafePerformIO"  `isInfixOf` i)
-    $ reject "wants to use unsafePerformIO"
-  (mconfig, modules) <- splitConfigAndModules reject i
-  inform $ string $ "Parsed the following setting options:\n" ++ show mconfig
-  config <- addDefaults reject mconfig
-  inform $ string $ "Completed configuration to:\n" ++ show config
-  let exts = extensionsOf config
-  ((m,s), ms) <- nameModules (reject . string) exts modules
+  checkUnsafe reject i
+  (_, exts, (m,s), ms) <- processConfig reject inform i
   checkUniqueness (m : map fst ms)
   inform $ string $ "Parsing template module " <> m
   void $ parse reject exts s
@@ -361,29 +373,38 @@ whileOpen :: IO.Handle -> IO ()
 whileOpen h =
   IO.hIsClosed h >>= flip unless (whileOpen h)
 
+{-|
+Generate consecutive syntax and possible semantics feedback in the context of an evaluation Monad.
+
+This Monad is expected to provide a mechanism to prematurely end the evaluation
+in case of failure.
+-}
 grade
   :: MonadIO m
-  => (m () -> IO b)
-  -> (forall c . Doc -> m c)
+  => (m () -> m ())
+  -- ^ Evaluation function for the syntax phase
+  -> (m () -> m ())
+  -- ^ Evaluation function for the semantics phase
+  -> (forall c. Doc -> m c)
+  -- ^ display a message and fail
   -> (Doc -> m ())
+  -- ^ display a message and continue
   -> FilePath
+  -- ^ parent directory to use for file operations
   -> String
+  -- ^ the task
   -> String
-  -> IO b
-grade eval reject inform tmp task submission =
-  withTempDirectory tmp "Template" $ \ dirname -> eval $ do
-    when ("System.IO.Unsafe" `isInfixOf` submission)
-      $ void $ reject "wants to use System.IO.Unsafe"
-    when ("unsafePerformIO"  `isInfixOf` submission)
-      $ void $ reject "wants to use unsafePerformIO"
-    (mconfig, rawModules) <- splitConfigAndModules reject task
-    config                <- addDefaults reject mconfig
-    let exts = extensionsOf config
-    ((moduleName', template), others) <-
-      nameModules (reject . string) exts rawModules
+  -- ^ the submission
+  -> m ()
+grade withSyntax withSemantics reject inform dirname task submission = do
+    withSyntax $ checkUnsafe reject submission
+    (config, exts, (moduleName', template), others) <- processConfig
+      (rejectWithMessage reject $ string informTutorMessage)
+      (const $ pure ())
+      task
     files <- liftIO $ ((moduleName', submission) : others)
-      `forM` \(mname, contents) -> do
-        let fname = dirname </> mname <.> "hs"
+      `forM` \(mName, contents) -> do
+        let fname = dirname </> mName <.> "hs"
         strictWriteFile fname contents
         return fname
     let   existingModules = map takeBaseName
@@ -397,22 +418,50 @@ grade eval reject inform tmp task submission =
       strictWriteFile (dirname </> "TestHelper" <.> "hs") testHelperContents
       strictWriteFile (dirname </> "TestHarness" <.> "hs")
         $ testHarnessFor solutionFile
-    do
-        let noTest = delete "Test" modules
+
+    let noTest = delete "Test" modules
+
+    let
+     (syntax, semantics) = splitAt (fromEnum (syntaxCutoff config) + 1)
+      [
+       do
+        -- Reject if submission does not compile with provided hidden modules,
+        -- but without Test module.
         compilation <- liftIO $ runInterpreter (compiler dirname config noTest)
         checkResult reject compilation reject Nothing $ const $ return ()
+
+        -- Reject if submission does not compile with provided hidden modules.
+        -- This only runs when allowModifying is set to True in the config
+        -- and displays a custom message telling students not to change type signatures.
         when (runIdentity $ allowModifying config) $ do
           compilationWithTests <- liftIO $ runInterpreter $
             compiler dirname config modules
           checkResult reject compilationWithTests signatureError Nothing $ const $ return ()
+      ,
+        -- Reject if GHC warnings configured as errors are triggered by solution.
         compileWithArgsAndCheck dirname reject undefined config noTest True
+      ,
+        -- Reject if HLint warnings configured as errors are triggered by solution.
         void $ getHlintFeedback rejectWithHint config dirname solutionFile True
+      ,
+        -- Reject on task template violations according to settings (modifying, adding, deleting).
         matchTemplate reject config 2 exts template submission
+      ,
+        -- Reject if test suite fails for submission.
+       do
         result      <- liftIO $ runInterpreter (interpreter dirname config modules)
         checkResult reject result reject Nothing $ handleCounts reject inform
+      ,
+       do
+        -- Displays GHC warnings configured as non-errors triggered by submission.
         compileWithArgsAndCheck dirname reject inform config noTest False
+
+        -- Displays HLint suggestions configured as non-errors triggered by submission.
         void $ getHlintFeedback inform config dirname solutionFile False
-  where
+      ]
+    withSyntax $ sequence_ syntax
+    withSemantics $ sequence_ semantics
+ where
     testHarnessFor file =
       let quoted xs = '"' : xs ++ "\""
       in replace (quoted "Solution.hs") (quoted file) testHarnessContents
@@ -420,7 +469,7 @@ grade eval reject inform tmp task submission =
     testModule s = [SI.i|module Test (test) where
 import qualified #{s} (test)
 test = #{s}.test|]
-    rejectWithHint = reject . vcat . (: singleton rejectHint)
+    rejectWithHint = rejectWithMessage reject rejectHint
 
     signatureError = const $ rejectWithHint $ string [SI.iii|
       Your code is not compatible with the test suite.
@@ -491,8 +540,8 @@ hlintConfig rules = unlines ["- " ++ r | r <- rules]
 compileWithArgsAndCheck
   :: MonadIO m
   => FilePath
-  -> (Doc -> m a)
-  -> (Doc -> m a)
+  -> (forall b. Doc -> m b)
+  -> (Doc -> m ())
   -> SolutionConfig
   -> [String]
   -> Bool
@@ -509,11 +558,11 @@ compileWithArgsAndCheck dirname reject inform config modules asError = unless (n
       then (configGhcErrors,   rejectWithHint)
       else (configGhcWarnings, inform)
     howMany = runIdentity $ configGhcLimit config
-    rejectWithHint = reject . vcat . (: singleton rejectHint)
+    rejectWithHint = rejectWithMessage reject rejectHint
 
 matchTemplate
   :: Monad m
-  => (Doc -> m (E.Module E.SrcSpanInfo))
+  => (forall a. Doc -> m a)
   -> SolutionConfig
   -> Int
   -> [E.Extension]
@@ -521,46 +570,48 @@ matchTemplate
   -> String
   -> m ()
 matchTemplate reject config context exts template submission = do
-  mtemplate  <- parse reject exts template
-  msubmission <- parse reject exts submission
-  case test mtemplate msubmission of
+  mTemplate  <- parse reject exts template
+  mSubmission <- parse reject exts submission
+  case test mTemplate mSubmission of
     Fail loc -> mapM_ (rejectMatch rejectWithHint config context template submission) loc
       where
-        rejectWithHint = reject . vcat . (: singleton rejectHint)
+        rejectWithHint = rejectWithMessage reject rejectHint
     Ok _     -> return ()
-    Continue -> void $ reject [SI.i|Haskell.Template.Central.matchTemplate:
-Please inform a tutor about this issue providing your solution and this message.|]
+    Continue -> reject [SI.i|Haskell.Template.Central.matchTemplate:
+#{informTutorMessage}|]
 
 deriving instance Typeable Counts
 
 handleCounts
-  :: Monad m
-  => (Doc -> m ())
+  :: MonadIO m
+  => (forall a. Doc -> m a)
   -> (Doc -> m ())
-  -> (Counts, String -> String)
+  -> IO (Counts, String -> String)
   -> m ()
-handleCounts reject inform result = case result of
-  (Counts {errors=a,failures=0} ,f) | a /= 0 -> do
-    inform "Some error occurred before fully testing the solution:"
-    reject (string (f ""))
-    -- e.g. quickcheck timeout errors
-  (Counts {errors=0, failures=0},_) -> return ()
-  (_                            ,f) -> reject (string (f ""))
+handleCounts reject inform runResult = do
+  result <- liftIO runResult
+  case result of
+    (Counts {errors=x, failures=0}, f) | x /= 0 -> do
+      inform "Some error occurred before fully testing the solution:"
+      reject (string (f ""))
+      -- e.g. quickcheck timeout errors
+    (Counts {errors=0, failures=0}, _) -> pure ()
+    (_                            , f) -> reject (string (f ""))
 
 checkResult
   :: Monad m
-  => (Doc -> m b)
+  => (forall b. Doc -> m b)
   -> Either InterpreterError a
-  -> (Doc -> m c)
+  -> (Doc -> m ())
   -> Maybe Natural
-  -> (a -> m d)
+  -> (a -> m ())
   -> m ()
 checkResult reject result handleError mErrorLimit handleResult = case result of
-  Right result' -> void $ handleResult result'
-  Left (WontCompile msgs) -> void $ handleError $ string
+  Right result' -> handleResult result'
+  Left (WontCompile msgs) -> handleError $ string
     $ intercalate "\n" $ amount
       $ map (editFeedback . formatHyperlinks) $ filterWerrors msgs
-  Left err -> void $ reject $
+  Left err -> reject $
     vcat ["An unexpected error occurred.",
           "This is usually not caused by a fault within your solution.",
           "Please contact your lecturers, providing the following error message:",
@@ -595,10 +646,10 @@ interpreter
   => FilePath
   -> SolutionConfig
   -> [String]
-  -> m (Counts, ShowS)
+  -> m (IO (Counts, ShowS))
 interpreter dirname config modules = do
   prepareInterpreter dirname config modules
-  interpret "TestHarness.run Test.test" (as :: (Counts, ShowS))
+  interpret "TestHarness.run Test.test" (as :: IO (Counts, ShowS))
 
 compiler :: MonadInterpreter m => FilePath -> SolutionConfig -> [String] -> m Bool
 compiler dirname config modules = do
@@ -617,33 +668,33 @@ prepareInterpreter dirname config modules = do
 
 parse
   :: Monad m
-  => (Doc -> m (E.Module E.SrcSpanInfo))
+  => (forall a. Doc -> m a)
   -> [E.Extension]
   -> String
   -> m (E.Module E.SrcSpanInfo)
 parse reject' exts' m = case E.readExtensions m of
   Nothing -> reject' "cannot parse LANGUAGE pragmas at top of file"
   Just (_, exts) ->
-    let pamo = P.defaultParseMode
-               { P.extensions = exts ++ exts' }
-    in case P.parseModuleWithMode pamo m of
+    let parseMode = P.defaultParseMode
+                    { P.extensions = exts ++ exts' }
+    in case P.parseModuleWithMode parseMode m of
          P.ParseOk a -> return a
          P.ParseFailed loc msg ->
            rejectParse reject' m loc msg
 
 rejectParse :: (Doc -> t) -> String -> E.SrcLoc -> String -> t
 rejectParse reject' m loc msg =
-  let (lpre, _) = splitAt (E.srcLine loc) $ lines m
-      lpre'     = takeEnd 3 lpre
+  let (lPre, _) = splitAt (E.srcLine loc) $ lines m
+      lPre'     = takeEnd 3 lPre
       tag       = replicate (E.srcColumn loc - 1) '.' ++ "^"
   in reject' $ vcat
        ["Syntax error (your solution is no Haskell program):",
-        bloc $ lpre' ++ [tag],
+        bloc $ lPre' ++ [tag],
         string msg]
 
 rejectMatch
   :: Applicative m
-  => (Doc -> m a)
+  => (forall a. Doc -> m a)
   -> SolutionConfig
   -> Int
   -> String
@@ -652,17 +703,17 @@ rejectMatch
   -> m ()
 rejectMatch reject config context i b l = case l of
   SrcSpanInfoPair w sp1 sp2 ->
-    unless (allowedOperation w allowModifying) $ void $ reject $ vcat
+    unless (allowedOperation w allowModifying) $ reject $ vcat
       ["Your solution does not fit the template:" , "",
        "Template:"   , bloc $ highlight_ssi sp1 context i,
        "Submission:" , bloc $ highlight_ssi sp2 context b]
   SrcSpanInfo w OnlyTemplate sp ->
-    unless (allowedOperation w allowRemoving) $ void $ reject $ vcat
+    unless (allowedOperation w allowRemoving) $ reject $ vcat
       ["Missing within your submission:",
        "Template:",
        bloc $ highlight_ssi sp context i]
   SrcSpanInfo w OnlySubmission sp ->
-    unless (allowedOperation w allowAdding) $ void $ reject $ vcat
+    unless (allowedOperation w allowAdding) $ reject $ vcat
       ["Only within your submission (but not within the template):",
        bloc $ highlight_ssi sp context b]
   where
@@ -677,7 +728,7 @@ bloc codeLines =
 
 splitConfigAndModules
   :: Monad m
-  => (Doc -> m (SolutionConfigOpt, [String]))
+  => (forall a. Doc -> m a)
   -> String -> m (SolutionConfigOpt, [String])
 splitConfigAndModules reject configAndModules =
   either (reject . string . ("Error while parsing config:\n" <>) . show)
@@ -688,7 +739,7 @@ splitConfigAndModules reject configAndModules =
     eConfig :: Either ParseException SolutionConfigOpt
     eConfig = decodeEither' $ BS.pack configJson
 
-addDefaults :: Monad m => (Doc -> m SolutionConfig) -> SolutionConfigOpt -> m SolutionConfig
+addDefaults :: Monad m => (forall a. Doc -> m a) -> SolutionConfigOpt -> m SolutionConfig
 addDefaults reject f = maybe
   (reject "There is a required configuration parameter missing")
   return
@@ -709,14 +760,14 @@ splitBy p = dropOdd . groupBy (\l r -> not (p l) && not (p r))
 
 unsafeTemplateSegment :: String -> String
 unsafeTemplateSegment task = either id id $ do
-  let Just (mconfig, modules) =
-        splitConfigAndModules (const $ Just (defaultSolutionConfig, [])) task
-      exts = maybe [] extensionsOf $ addDefaults (const Nothing) mconfig
+  let (config, modules) = fromMaybe (defaultSolutionConfig, []) $
+        splitConfigAndModules (const Nothing) task
+      exts = maybe [] extensionsOf $ addDefaults (const Nothing) config
   snd . fst <$> nameModules Left exts modules
 
 nameModules
   :: Monad m
-  => (String -> m ((String, String), [(String, String)]))
+  => (forall a. String -> m a)
   -> [E.Extension]
   -> [String]
   -> m ((String, String), [(String, String)])
@@ -734,4 +785,36 @@ withNames exts mods =
 moduleName :: E.Module l -> String
 moduleName (E.Module _ (Just (E.ModuleHead _ (E.ModuleName _ n) _ _)) _ _ _) = n
 moduleName (E.Module _ Nothing _ _ _) = "Main"
-moduleName _                          = error "unsopported module type"
+moduleName _                          = error "unsupported module type"
+
+processConfig
+  :: Monad m
+  => (forall a. Doc -> m a)
+  -- ^ display a message and fail
+  -> (Doc -> m ())
+  -- ^ display a message and continue
+  -> String
+  -- ^ raw configuration
+  -> m (FSolutionConfig Identity, [E.Extension], (String,String), [(String,String)])
+processConfig reject inform rawConfig = do
+  (config, modules) <- splitConfigAndModules reject rawConfig
+  inform $ string $ "Parsed the following setting options:\n" ++ show config
+  completedConfig <- addDefaults reject config
+  inform $ string $ "Completed configuration to:\n" ++ show completedConfig
+  let exts = extensionsOf completedConfig
+  ((m,s), ms) <- nameModules (reject . string) exts modules
+  return (completedConfig, exts, (m,s), ms)
+
+checkUnsafe :: Monad m => (forall a. Doc -> m a) -> String -> m ()
+checkUnsafe reject rawFile =  do
+  when ("System.IO.Unsafe" `isInfixOf` rawFile)
+    $ reject "wants to use System.IO.Unsafe"
+  when ("unsafePerformIO"  `isInfixOf` rawFile)
+    $ reject "wants to use unsafePerformIO"
+
+informTutorMessage :: String
+informTutorMessage =
+  [SI.i|Please inform a tutor about this issue providing your solution and this message.|]
+
+rejectWithMessage :: (forall a. Doc -> m a) -> Doc -> Doc -> m b
+rejectWithMessage reject m = reject . vcat . (: singleton m)

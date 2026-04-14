@@ -84,7 +84,7 @@ mustFail x msg =
   monadicIO $ run $ do
     resultOrError <- try (evaluate x)
     case resultOrError of
-      Left (_::SomeException) -> return () -- expected failure occured.
+      Left (_::SomeException) -> return () -- expected failure occurred.
       Right _                 -> error msg
 
 isDeeplyDefined :: NFData a => a -> IO Bool
@@ -106,7 +106,8 @@ tcWithTimeoutAndArgs :: Int -> IOTasks.Args -> IOrep () -> Specification -> Asse
 tcWithTimeoutAndArgs to args prog spec = tcCustomizedWithTimeoutAndArgs to args prog spec id
 
 tcCustomizedWithTimeoutAndArgs :: Int -> IOTasks.Args -> IOrep () -> Specification -> (String -> String) -> Assertion
-tcCustomizedWithTimeoutAndArgs to args prog spec transfom = tcTimeoutAndArgsHandleFailure to args prog spec (transfom . defaultErrorMessage args)
+tcCustomizedWithTimeoutAndArgs to args prog spec transform =
+  tcTimeoutAndArgsHandleFailure to args prog spec (transform . defaultErrorMessage args)
 
 tcWithInputsOnFailure :: Int -> IOTasks.Args -> IOrep () -> Specification -> ([String] -> String) -> Assertion
 tcWithInputsOnFailure to args prog spec withInputs =  tcTimeoutAndArgsHandleFailure to args prog spec handleFailure
@@ -117,12 +118,19 @@ tcWithInputsOnFailure to args prog spec withInputs =  tcTimeoutAndArgsHandleFail
 defaultErrorMessage :: IOTasks.Args -> IOTasks.Outcome -> String
 defaultErrorMessage args = show . printOutcomeWith (feedbackStyle args)
 
-tcTimeoutAndArgsHandleFailure :: Int -> IOTasks.Args -> IOrep () -> Specification -> (IOTasks.Outcome -> String) -> Assertion
+tcTimeoutAndArgsHandleFailure
+  :: Int
+  -> IOTasks.Args
+  -> IOrep ()
+  -> Specification
+  -> (IOTasks.Outcome -> String)
+  -> Assertion
 tcTimeoutAndArgsHandleFailure to args prog spec withFailure = do
   outcome <- System.timeout to $ taskCheckWithOutcome args{ terminalOutput = False } prog spec
   case outcome of
     Just (IOTasks.Outcome IOTasks.Success{} _) -> return ()
-    Just (IOTasks.Outcome IOTasks.GaveUp _) -> assertFailure "Gave up on testing. This is usually not caused by a fault within your solution. Please contact your lecturers"
+    Just (IOTasks.Outcome IOTasks.GaveUp _) -> assertFailure
+      "Gave up on testing. This is usually not caused by a fault within your solution. Please contact your lecturers"
     Just o@(IOTasks.Outcome IOTasks.Failure{} _) -> assertFailure $ withFailure o
     Nothing -> assertFailure "Failure: Timeout"
 #endif
