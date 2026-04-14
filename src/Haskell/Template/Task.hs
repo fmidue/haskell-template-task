@@ -39,7 +39,7 @@ import Haskell.Template.Match
   (Location (..), Result (..), What (..), Where (..), highlight_ssi, test)
 
 import Control.Applicative              ((<|>))
-import Control.Monad                    (forM, msum, unless, void, when)
+import Control.Monad                    (forM, forM_, msum, unless, void, when)
 import Control.Monad.IO.Class           (MonadIO)
 import Data.Char                        (isUpper)
 import Data.Functor.Identity            (Identity (..))
@@ -166,6 +166,13 @@ test =
      qc 5000 $ \\(xs :: [Int]) ->
        Solution.r xs == Prelude.reverse xs
   ]
+----------
+module SampleSolution where
+import Prelude
+
+r :: [a] -> [a]
+r = reverse
+
 ----------
 module SomeHiddenModule where
 import Prelude
@@ -327,18 +334,26 @@ string :: String -> Doc
 string = text . pack
 
 check
-  :: Monad m
+  :: MonadIO m
   => (forall a. Doc -> m a)
   -> (Doc -> m ())
+  -> FilePath
   -> String
   -> m ()
-check reject inform i = do
+check reject inform path i = do
   checkUnsafe reject i
-  (_, exts, (m,s), ms) <- processConfig reject inform i
+  (config, exts, (m,s), ms) <- processConfig reject inform i
   checkUniqueness (m : map fst ms)
   inform $ string $ "Parsing template module " <> m
   void $ parse reject exts s
   void $ parseModule exts `mapM` ms
+  let mSampleSolution = lookup "SampleSolution" ms
+  -- This step is currently optional and will not run if no sample solution is provided
+  forM_ mSampleSolution $ \sampleSolution -> do
+    let others = delete ("SampleSolution", sampleSolution) ms
+    let content = replace "module SampleSolution" ("module " ++ m) sampleSolution
+    (modules, solutionFile) <- writeModules (m, content) others path
+    sequence_ $ testPhases reject inform s solutionFile modules config exts content path
   where
     parseModule exts (m, s) = do
       inform $ string $ "Parsing module " <> m
@@ -402,79 +417,12 @@ grade withSyntax withSemantics reject inform dirname task submission = do
       (rejectWithMessage reject $ string informTutorMessage)
       (const $ pure ())
       task
-    files <- liftIO $ ((moduleName', submission) : others)
-      `forM` \(mName, contents) -> do
-        let fname = dirname </> mName <.> "hs"
-        strictWriteFile fname contents
-        return fname
-    let   existingModules = map takeBaseName
-            $ filter ((".hs" ==) . takeExtension)
-            $ filter (`notElem` [".",".."]) files
-          modules = ["Test"] `union` existingModules
-          solutionFile = dirname </> (moduleName' <.> "hs")
-    liftIO $ do
-      unless ("Test" `elem` existingModules) $
-        strictWriteFile (dirname </> "Test" <.> "hs") $ testModule moduleName'
-      strictWriteFile (dirname </> "TestHelper" <.> "hs") testHelperContents
-      strictWriteFile (dirname </> "TestHarness" <.> "hs")
-        $ testHarnessFor solutionFile
-
-    let noTest = delete "Test" modules
-
+    (modules, solutionFile) <- writeModules (moduleName', submission) others dirname
     let
      (syntax, semantics) = splitAt (fromEnum (syntaxCutoff config) + 1)
-      [
-       do
-        -- Reject if submission does not compile with provided hidden modules,
-        -- but without Test module.
-        compilation <- liftIO $ runInterpreter (compiler dirname config noTest)
-        checkResult reject compilation reject Nothing $ const $ return ()
-
-        -- Reject if submission does not compile with provided hidden modules.
-        -- This only runs when allowModifying is set to True in the config
-        -- and displays a custom message telling students not to change type signatures.
-        when (runIdentity $ allowModifying config) $ do
-          compilationWithTests <- liftIO $ runInterpreter $
-            compiler dirname config modules
-          checkResult reject compilationWithTests signatureError Nothing $ const $ return ()
-      ,
-        -- Reject if GHC warnings configured as errors are triggered by solution.
-        compileWithArgsAndCheck dirname reject undefined config noTest True
-      ,
-        -- Reject if HLint warnings configured as errors are triggered by solution.
-        void $ getHlintFeedback rejectWithHint config dirname solutionFile True
-      ,
-        -- Reject on task template violations according to settings (modifying, adding, deleting).
-        matchTemplate reject config 2 exts template submission
-      ,
-        -- Reject if test suite fails for submission.
-       do
-        result      <- liftIO $ runInterpreter (interpreter dirname config modules)
-        checkResult reject result reject Nothing $ handleCounts reject inform
-      ,
-       do
-        -- Displays GHC warnings configured as non-errors triggered by submission.
-        compileWithArgsAndCheck dirname reject inform config noTest False
-
-        -- Displays HLint suggestions configured as non-errors triggered by submission.
-        void $ getHlintFeedback inform config dirname solutionFile False
-      ]
+      $ testPhases reject inform template solutionFile modules config exts submission dirname
     withSyntax $ sequence_ syntax
     withSemantics $ sequence_ semantics
- where
-    testHarnessFor file =
-      let quoted xs = '"' : xs ++ "\""
-      in replace (quoted "Solution.hs") (quoted file) testHarnessContents
-    testModule :: String -> String
-    testModule s = [SI.i|module Test (test) where
-import qualified #{s} (test)
-test = #{s}.test|]
-    rejectWithHint = rejectWithMessage reject rejectHint
-
-    signatureError = const $ rejectWithHint $ string [SI.iii|
-      Your code is not compatible with the test suite.
-      Please do not change type signatures in the given code template.
-      |]
 
 rejectHint :: Doc
 rejectHint = [SI.iii'E|
@@ -818,3 +766,95 @@ informTutorMessage =
 
 rejectWithMessage :: (forall a. Doc -> m a) -> Doc -> Doc -> m b
 rejectWithMessage reject m = reject . vcat . (: singleton m)
+
+writeModules
+  :: MonadIO m
+  => (FilePath, String)
+  -> [(FilePath, String)]
+  -> [Char]
+  -> m ([String], String)
+writeModules (moduleName', submission) others dirname = do
+  files <- liftIO $ ((moduleName', submission) : others)
+    `forM` \(mName, contents) -> do
+    let fname = dirname </> mName <.> "hs"
+    strictWriteFile fname contents
+    return fname
+  let existingModules = map takeBaseName
+        $ filter ((".hs" ==) . takeExtension)
+        $ filter (`notElem` [".",".."]) files
+      modules = ["Test"] `union` existingModules
+      solutionFile = dirname </> (moduleName' <.> "hs")
+  liftIO $ do
+    unless ("Test" `elem` existingModules) $
+      strictWriteFile (dirname </> "Test" <.> "hs") $ testModule moduleName'
+    strictWriteFile (dirname </> "TestHelper" <.> "hs") testHelperContents
+    strictWriteFile (dirname </> "TestHarness" <.> "hs")
+      $ testHarnessFor solutionFile
+  pure (modules, solutionFile)
+  where
+    testHarnessFor file =
+      let quoted xs = '"' : xs ++ "\""
+      in replace (quoted "Solution.hs") (quoted file) testHarnessContents
+    testModule :: String -> String
+    testModule s = [SI.i|module Test (test) where
+import qualified #{s} (test)
+test = #{s}.test|]
+
+testPhases
+  :: MonadIO m
+  => (forall a. Doc -> m a)
+  -> (Doc -> m ())
+  -> String
+  -> String
+  -> [String]
+  -> SolutionConfig
+  -> [E.Extension]
+  -> String
+  -> FilePath
+  -> [m ()]
+testPhases reject inform template solutionFile modules config exts submission dirname =
+  [
+    do
+    -- Reject if submission does not compile with provided hidden modules,
+    -- but without Test module.
+    compilation <- liftIO $ runInterpreter (compiler dirname config noTest)
+    checkResult reject compilation reject Nothing $ const $ return ()
+
+    -- Reject if submission does not compile with provided hidden modules.
+    -- This only runs when allowModifying is set to True in the config
+    -- and displays a custom message telling students not to change type signatures.
+    when (runIdentity $ allowModifying config) $ do
+      compilationWithTests <- liftIO $ runInterpreter $
+        compiler dirname config modules
+      checkResult reject compilationWithTests signatureError Nothing $ const $ return ()
+  ,
+    -- Reject if GHC warnings configured as errors are triggered by solution.
+    compileWithArgsAndCheck dirname reject undefined config noTest True
+  ,
+    -- Reject if HLint warnings configured as errors are triggered by solution.
+    void $ getHlintFeedback rejectWithHint config dirname solutionFile True
+  ,
+    -- Reject on task template violations according to settings (modifying, adding, deleting).
+    matchTemplate reject config 2 exts template submission
+  ,
+    -- Reject if test suite fails for submission.
+    do
+    result      <- liftIO $ runInterpreter (interpreter dirname config modules)
+    checkResult reject result reject Nothing $ handleCounts reject inform
+  ,
+    do
+    -- Displays GHC warnings configured as non-errors triggered by submission.
+    compileWithArgsAndCheck dirname reject inform config noTest False
+
+    -- Displays HLint suggestions configured as non-errors triggered by submission.
+    void $ getHlintFeedback inform config dirname solutionFile False
+  ]
+  where
+    noTest = delete "Test" modules
+
+    rejectWithHint = rejectWithMessage reject rejectHint
+
+    signatureError = const $ rejectWithHint $ string [SI.iii|
+      Your code is not compatible with the test suite.
+      Please do not change type signatures in the given code template.
+      |]
