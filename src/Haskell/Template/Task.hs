@@ -456,13 +456,13 @@ grade withSyntax withSemantics reject inform dirname task submission = do
     withSyntax $ sequence_ syntax
     let mSampleSolution = lookup "SampleSolution" others
     whenJust mSampleSolution $ \sampleSolution -> do
+      let sampleSolution' = replace "SampleSolution" moduleName' sampleSolution
       whenJust (runIdentity $ messageOnCloningSampleSolution config) $ \message -> do
-        let sampleSolution' = replace "SampleSolution" moduleName' sampleSolution
         matchTemplate (Differ $ string message) reject config 2 exts sampleSolution' submission
       when (runIdentity $ provideSampleSolution config) $ do
         inform $ vcat
           [ "This is a valid solution for the task:"
-          , string sampleSolution
+          , string sampleSolution'
           , "-------------------------"
           , linebreak
           ]
