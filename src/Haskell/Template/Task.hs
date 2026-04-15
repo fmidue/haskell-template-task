@@ -11,6 +11,7 @@
 module Haskell.Template.Task (
   FSolutionConfig (..),
   SolutionConfig,
+  TemplateMatchExpectation (..),
   check,
   defaultCode,
   defaultSolutionConfig,

@@ -31,7 +31,7 @@ spec :: Spec
 spec =
   describe "template match" $ do
     it "accepts identical code" $
-      matchTemplate errorP withAdding 0 [] modUndefined modUndefined
+      matchTemplate Same errorP withAdding 0 [] modUndefined modUndefined
       `shouldBe` Right ()
     it "accepts identical code without comment" $
       getComment withAdding modUndefined modUndefined
@@ -62,7 +62,7 @@ spec =
       getComment withAdding modUndefinedParameter modGuardsParameter
       `shouldBe` Right []
     it "rejects code where parts beside undefined are changed" $
-      matchTemplate errorP withAdding 0 [] mod42 mod43 `shouldSatisfy` isLeft
+      matchTemplate Same errorP withAdding 0 [] mod42 mod43 `shouldSatisfy` isLeft
     it "marks not matching parts within functions" $
       getComment withAdding mod42 mod43
       `shouldBe` Right [Mismatch ["foo = 42"
