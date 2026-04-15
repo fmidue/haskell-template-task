@@ -50,7 +50,7 @@ import Data.List
    )
 import Data.List.Extra
   (genericTake, nubOrd, replace, takeEnd, takeWhileEnd)
-import Data.Maybe                       (fromMaybe)
+import Data.Maybe                       (fromJust, fromMaybe)
 import Data.Text.Lazy                   (pack)
 import Data.Typeable                    (Typeable)
 import Data.Yaml
@@ -81,7 +81,7 @@ import System.FilePath (
 import System.IO.Temp                   (createTempDirectory)
 import Test.HUnit                       (Counts (..))
 import Text.PrettyPrint.Leijen.Text
-  (Doc, nest, text, vcat)
+  (Doc, linebreak, nest, text, vcat)
 import Text.Read                        (readMaybe)
 import Text.Regex.PCRE.Heavy            (re, sub)
 
@@ -131,6 +131,7 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \#                                 Compilation, GhcErrors, HlintErrors, TemplateMatch, TestSuite
 \#                               default on omission is TemplateMatch; steps after TestSuite are (in this order):
 \#                                 GhcWarnings, HlintSuggestions
+\# provideSampleSolution       - display provided sample solution to students after semantics feedback
 ----------
 module Solution where
 import Prelude
@@ -231,7 +232,8 @@ data FSolutionConfig m = SolutionConfig {
     configHlintSuggestions      :: m [String],
     configLanguageExtensions    :: m [String],
     configModules               :: m [String],
-    syntaxCutoff                :: m FeedbackPhase
+    syntaxCutoff                :: m FeedbackPhase,
+    provideSampleSolution       :: m Bool
   } deriving Generic
 {-# DEPRECATED configModules "config Modules will be removed" #-}
 
@@ -261,7 +263,8 @@ defaultSolutionConfig = SolutionConfig {
     configHlintSuggestions      = Just [],
     configLanguageExtensions    = Just ["NPlusKPatterns","ScopedTypeVariables"],
     configModules               = Nothing,
-    syntaxCutoff                = Just TemplateMatch
+    syntaxCutoff                = Just TemplateMatch,
+    provideSampleSolution       = Just False
   }
 
 toSolutionConfigOpt :: SolutionConfig -> SolutionConfigOpt
@@ -281,6 +284,7 @@ toSolutionConfigOpt SolutionConfig {..} = runIdentity $ SolutionConfig
   <*> fmap Just configLanguageExtensions
   <*> fmap Just configModules
   <*> fmap Just syntaxCutoff
+  <*> fmap Just provideSampleSolution
 
 finaliseConfigs :: [SolutionConfigOpt] -> Maybe SolutionConfig
 finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
@@ -302,6 +306,7 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
       <*> fmap Identity configLanguageExtensions
       <*> fmap Identity configModules
       <*> fmap Identity syntaxCutoff
+      <*> fmap Identity provideSampleSolution
     combineConfigs x y = SolutionConfig {
         allowAdding                 = allowAdding                 x <|> allowAdding                 y,
         allowModifying              = allowModifying              x <|> allowModifying              y,
@@ -317,7 +322,8 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
         configHlintSuggestions      = configHlintSuggestions      x <|> configHlintSuggestions      y,
         configLanguageExtensions    = configLanguageExtensions    x <|> configLanguageExtensions    y,
         configModules               = Just [],
-        syntaxCutoff                = syntaxCutoff                x <|> syntaxCutoff                y
+        syntaxCutoff                = syntaxCutoff                x <|> syntaxCutoff                y,
+        provideSampleSolution       = provideSampleSolution       x <|> provideSampleSolution       y
       }
     emptyConfig = SolutionConfig {
         allowAdding                 = Nothing,
@@ -334,7 +340,8 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
         configHlintSuggestions      = Nothing,
         configLanguageExtensions    = Nothing,
         configModules               = Nothing,
-        syntaxCutoff                = Nothing
+        syntaxCutoff                = Nothing,
+        provideSampleSolution       = Nothing
       }
 
 string :: String -> Doc
@@ -356,11 +363,15 @@ check reject inform path i = do
   void $ parseModule exts `mapM` ms
   let mSampleSolution = lookup "SampleSolution" ms
   -- This step is currently optional and will not run if no sample solution is provided
-  forM_ mSampleSolution $ \sampleSolution -> do
-    let others = delete ("SampleSolution", sampleSolution) ms
-    let content = replace "module SampleSolution" ("module " ++ m) sampleSolution
-    (modules, solutionFile) <- writeModules (m, content) others path
-    sequence_ $ testPhases reject inform s solutionFile modules config exts content path
+  case mSampleSolution of
+    Nothing ->
+      when (runIdentity $ provideSampleSolution config) $
+        reject "'provideSampleSolution' is set, but there is no sample solution in the config."
+    Just sampleSolution -> do
+      let others = delete ("SampleSolution", sampleSolution) ms
+      let content = replace "module SampleSolution" ("module " ++ m) sampleSolution
+      (modules, solutionFile) <- writeModules (m, content) others path
+      sequence_ $ testPhases reject inform s solutionFile modules config exts content path
   where
     parseModule exts (m, s) = do
       inform $ string $ "Parsing module " <> m
@@ -429,6 +440,15 @@ grade withSyntax withSemantics reject inform dirname task submission = do
      (syntax, semantics) = splitAt (fromEnum (syntaxCutoff config) + 1)
       $ testPhases reject inform template solutionFile modules config exts submission dirname
     withSyntax $ sequence_ syntax
+    when (runIdentity $ provideSampleSolution config) $ do
+      -- if provideSampleSolution is True then a 'SampleSolution' module must exist.
+      let sampleSolution = fromJust $ lookup "SampleSolution" others
+      inform $ vcat
+        [ "This is a valid solution for the task:"
+        , string sampleSolution
+        , "-------------------------"
+        , linebreak
+        ]
     withSemantics $ sequence_ semantics
 
 rejectHint :: Doc
