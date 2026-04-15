@@ -238,9 +238,9 @@ data FSolutionConfig m = SolutionConfig {
     configHlintSuggestions      :: m [String],
     configLanguageExtensions    :: m [String],
     configModules               :: m [String],
-    syntaxCutoff                :: m FeedbackPhase,
     provideSampleSolution       :: m Bool,
-    messageOnCloningSampleSolution :: m (Maybe String)
+    messageOnCloningSampleSolution :: m (Maybe String),
+    syntaxCutoff                :: m FeedbackPhase
   } deriving Generic
 {-# DEPRECATED configModules "config Modules will be removed" #-}
 
@@ -270,9 +270,9 @@ defaultSolutionConfig = SolutionConfig {
     configHlintSuggestions      = Just [],
     configLanguageExtensions    = Just ["NPlusKPatterns","ScopedTypeVariables"],
     configModules               = Nothing,
-    syntaxCutoff                = Just TemplateMatch,
     provideSampleSolution       = Just False,
-    messageOnCloningSampleSolution = Just Nothing
+    messageOnCloningSampleSolution = Just Nothing,
+    syntaxCutoff                = Just TemplateMatch
   }
 
 toSolutionConfigOpt :: SolutionConfig -> SolutionConfigOpt
@@ -291,9 +291,9 @@ toSolutionConfigOpt SolutionConfig {..} = runIdentity $ SolutionConfig
   <*> fmap Just configHlintSuggestions
   <*> fmap Just configLanguageExtensions
   <*> fmap Just configModules
-  <*> fmap Just syntaxCutoff
   <*> fmap Just provideSampleSolution
   <*> fmap Just messageOnCloningSampleSolution
+  <*> fmap Just syntaxCutoff
 
 finaliseConfigs :: [SolutionConfigOpt] -> Maybe SolutionConfig
 finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
@@ -314,9 +314,9 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
       <*> fmap Identity configHlintSuggestions
       <*> fmap Identity configLanguageExtensions
       <*> fmap Identity configModules
-      <*> fmap Identity syntaxCutoff
       <*> fmap Identity provideSampleSolution
       <*> fmap Identity messageOnCloningSampleSolution
+      <*> fmap Identity syntaxCutoff
     combineConfigs x y = SolutionConfig {
         allowAdding                 = allowAdding                 x <|> allowAdding                 y,
         allowModifying              = allowModifying              x <|> allowModifying              y,
@@ -332,9 +332,9 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
         configHlintSuggestions      = configHlintSuggestions      x <|> configHlintSuggestions      y,
         configLanguageExtensions    = configLanguageExtensions    x <|> configLanguageExtensions    y,
         configModules               = Just [],
-        syntaxCutoff                = syntaxCutoff                x <|> syntaxCutoff                y,
         provideSampleSolution       = provideSampleSolution       x <|> provideSampleSolution       y,
-        messageOnCloningSampleSolution = messageOnCloningSampleSolution x <|> messageOnCloningSampleSolution y
+        messageOnCloningSampleSolution = messageOnCloningSampleSolution x <|> messageOnCloningSampleSolution y,
+        syntaxCutoff                = syntaxCutoff                x <|> syntaxCutoff                y
       }
     emptyConfig = SolutionConfig {
         allowAdding                 = Nothing,
@@ -351,9 +351,9 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
         configHlintSuggestions      = Nothing,
         configLanguageExtensions    = Nothing,
         configModules               = Nothing,
-        syntaxCutoff                = Nothing,
         provideSampleSolution       = Nothing,
-        messageOnCloningSampleSolution = Nothing
+        messageOnCloningSampleSolution = Nothing,
+        syntaxCutoff                = Nothing
       }
 
 string :: String -> Doc
@@ -885,9 +885,9 @@ testPhases reject inform template solutionFile modules config exts submission di
     -- Reject on task template violations according to settings (modifying, adding, deleting).
     matchTemplate Same reject config 2 exts template submission
   ,
-    -- Reject if test suite fails for submission.
     do
-    result      <- liftIO $ runInterpreter (interpreter dirname config modules)
+    -- Reject if test suite fails for submission.
+    result <- liftIO $ runInterpreter (interpreter dirname config modules)
     checkResult reject result reject Nothing $ handleCounts reject inform
   ,
     do
