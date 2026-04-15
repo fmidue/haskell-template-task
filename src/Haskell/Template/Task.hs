@@ -39,7 +39,8 @@ import Haskell.Template.Match
   (Location (..), Result (..), What (..), Where (..), highlight_ssi, test)
 
 import Control.Applicative              ((<|>))
-import Control.Monad                    (forM, forM_, msum, unless, void, when)
+import Control.Monad                    (forM, msum, unless, void, when)
+import Control.Monad.Extra              (whenJust)
 import Control.Monad.IO.Class           (MonadIO)
 import Data.Char                        (isUpper)
 import Data.Functor.Identity            (Identity (..))
@@ -50,7 +51,7 @@ import Data.List
    )
 import Data.List.Extra
   (genericTake, nubOrd, replace, takeEnd, takeWhileEnd)
-import Data.Maybe                       (fromJust, fromMaybe)
+import Data.Maybe                       (fromMaybe)
 import Data.Text.Lazy                   (pack)
 import Data.Typeable                    (Typeable)
 import Data.Yaml
@@ -132,6 +133,8 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \#                               default on omission is TemplateMatch; steps after TestSuite are (in this order):
 \#                                 GhcWarnings, HlintSuggestions
 \# provideSampleSolution       - display provided sample solution to students after semantics feedback
+\# messageOnCloningSampleSolution - compare provided sample solution with submission and reject with
+\#                                  this message as feedback if they are identical
 ----------
 module Solution where
 import Prelude
@@ -217,6 +220,8 @@ data FeedbackPhase
   | TestSuite
   deriving (Enum, Generic, Show, FromJSON, ToJSON)
 
+data TemplateMatchExpectation = Same | Differ Doc
+
 data FSolutionConfig m = SolutionConfig {
     allowAdding                 :: m Bool,
     allowModifying              :: m Bool,
@@ -233,7 +238,8 @@ data FSolutionConfig m = SolutionConfig {
     configLanguageExtensions    :: m [String],
     configModules               :: m [String],
     syntaxCutoff                :: m FeedbackPhase,
-    provideSampleSolution       :: m Bool
+    provideSampleSolution       :: m Bool,
+    messageOnCloningSampleSolution :: m (Maybe String)
   } deriving Generic
 {-# DEPRECATED configModules "config Modules will be removed" #-}
 
@@ -264,7 +270,8 @@ defaultSolutionConfig = SolutionConfig {
     configLanguageExtensions    = Just ["NPlusKPatterns","ScopedTypeVariables"],
     configModules               = Nothing,
     syntaxCutoff                = Just TemplateMatch,
-    provideSampleSolution       = Just False
+    provideSampleSolution       = Just False,
+    messageOnCloningSampleSolution = Just Nothing
   }
 
 toSolutionConfigOpt :: SolutionConfig -> SolutionConfigOpt
@@ -285,6 +292,7 @@ toSolutionConfigOpt SolutionConfig {..} = runIdentity $ SolutionConfig
   <*> fmap Just configModules
   <*> fmap Just syntaxCutoff
   <*> fmap Just provideSampleSolution
+  <*> fmap Just messageOnCloningSampleSolution
 
 finaliseConfigs :: [SolutionConfigOpt] -> Maybe SolutionConfig
 finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
@@ -307,6 +315,7 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
       <*> fmap Identity configModules
       <*> fmap Identity syntaxCutoff
       <*> fmap Identity provideSampleSolution
+      <*> fmap Identity messageOnCloningSampleSolution
     combineConfigs x y = SolutionConfig {
         allowAdding                 = allowAdding                 x <|> allowAdding                 y,
         allowModifying              = allowModifying              x <|> allowModifying              y,
@@ -323,7 +332,8 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
         configLanguageExtensions    = configLanguageExtensions    x <|> configLanguageExtensions    y,
         configModules               = Just [],
         syntaxCutoff                = syntaxCutoff                x <|> syntaxCutoff                y,
-        provideSampleSolution       = provideSampleSolution       x <|> provideSampleSolution       y
+        provideSampleSolution       = provideSampleSolution       x <|> provideSampleSolution       y,
+        messageOnCloningSampleSolution = messageOnCloningSampleSolution x <|> messageOnCloningSampleSolution y
       }
     emptyConfig = SolutionConfig {
         allowAdding                 = Nothing,
@@ -341,7 +351,8 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
         configLanguageExtensions    = Nothing,
         configModules               = Nothing,
         syntaxCutoff                = Nothing,
-        provideSampleSolution       = Nothing
+        provideSampleSolution       = Nothing,
+        messageOnCloningSampleSolution = Nothing
       }
 
 string :: String -> Doc
@@ -364,9 +375,11 @@ check reject inform path i = do
   let mSampleSolution = lookup "SampleSolution" ms
   -- This step is currently optional and will not run if no sample solution is provided
   case mSampleSolution of
-    Nothing ->
+    Nothing -> do
       when (runIdentity $ provideSampleSolution config) $
         reject "'provideSampleSolution' is set, but there is no sample solution in the config."
+      whenJust (runIdentity $ messageOnCloningSampleSolution config) $ const $
+        reject "'messageOnCloningSampleSolution' is set, but there is no sample solution in the config."
     Just sampleSolution -> do
       let others = delete ("SampleSolution", sampleSolution) ms
       let content = replace "module SampleSolution" ("module " ++ m) sampleSolution
@@ -440,15 +453,18 @@ grade withSyntax withSemantics reject inform dirname task submission = do
      (syntax, semantics) = splitAt (fromEnum (syntaxCutoff config) + 1)
       $ testPhases reject inform template solutionFile modules config exts submission dirname
     withSyntax $ sequence_ syntax
-    when (runIdentity $ provideSampleSolution config) $ do
-      -- if provideSampleSolution is True then a 'SampleSolution' module must exist.
-      let sampleSolution = fromJust $ lookup "SampleSolution" others
-      inform $ vcat
-        [ "This is a valid solution for the task:"
-        , string sampleSolution
-        , "-------------------------"
-        , linebreak
-        ]
+    let mSampleSolution = lookup "SampleSolution" others
+    whenJust mSampleSolution $ \sampleSolution -> do
+      whenJust (runIdentity $ messageOnCloningSampleSolution config) $ \message -> do
+        let sampleSolution' = replace "SampleSolution" moduleName' sampleSolution
+        matchTemplate (Differ $ string message) reject config 2 exts sampleSolution' submission
+      when (runIdentity $ provideSampleSolution config) $ do
+        inform $ vcat
+          [ "This is a valid solution for the task:"
+          , string sampleSolution
+          , "-------------------------"
+          , linebreak
+          ]
     withSemantics $ sequence_ semantics
 
 rejectHint :: Doc
@@ -537,23 +553,27 @@ compileWithArgsAndCheck dirname reject inform config modules asError = unless (n
 
 matchTemplate
   :: Monad m
-  => (forall a. Doc -> m a)
+  => TemplateMatchExpectation
+  -> (forall a. Doc -> m a)
   -> SolutionConfig
   -> Int
   -> [E.Extension]
   -> String
   -> String
   -> m ()
-matchTemplate reject config context exts template submission = do
+matchTemplate expectation reject config context exts template submission = do
   mTemplate  <- parse reject exts template
   mSubmission <- parse reject exts submission
   case test mTemplate mSubmission of
-    Fail loc -> mapM_ (rejectMatch rejectWithHint config context template submission) loc
-      where
-        rejectWithHint = rejectWithMessage reject rejectHint
-    Ok _     -> return ()
+    Fail loc -> onMismatch loc
+    Ok _     -> onMatch
     Continue -> reject [SI.i|Haskell.Template.Central.matchTemplate:
 #{informTutorMessage}|]
+  where
+    rejectWithHint = rejectWithMessage reject rejectHint
+    (onMismatch, onMatch) = case expectation of
+      Same       -> (mapM_ (rejectMatch rejectWithHint config context template submission), return ())
+      Differ msg -> (const $ return (), reject msg)
 
 deriving instance Typeable Counts
 
@@ -862,7 +882,7 @@ testPhases reject inform template solutionFile modules config exts submission di
     void $ getHlintFeedback rejectWithHint config dirname solutionFile True
   ,
     -- Reject on task template violations according to settings (modifying, adding, deleting).
-    matchTemplate reject config 2 exts template submission
+    matchTemplate Same reject config 2 exts template submission
   ,
     -- Reject if test suite fails for submission.
     do
