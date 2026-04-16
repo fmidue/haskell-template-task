@@ -135,7 +135,7 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \#                                 GhcWarnings, HlintSuggestions
 \# provideSampleSolution       - display provided sample solution to students after semantics feedback
 \# messageOnCloningSampleSolution - compare provided sample solution with submission and reject with
-\#                                  this message as feedback if they are identical
+\#                                  this message as feedback if the submission contains the sample solution
 ----------
 module Solution where
 import Prelude
