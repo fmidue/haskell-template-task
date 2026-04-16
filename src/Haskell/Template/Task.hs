@@ -382,7 +382,7 @@ check reject inform path i = do
       whenJust (runIdentity $ messageOnCloningSampleSolution config) $ const $
         reject "'messageOnCloningSampleSolution' is set, but there is no sample solution in the config."
     Just sampleSolution -> do
-      let others = delete ("SampleSolution", sampleSolution) ms
+      let others = filter ((/="SampleSolution") . fst) ms
       let content = replace "module SampleSolution" ("module " ++ m) sampleSolution
       (modules, solutionFile) <- writeModules (m, content) others path
       sequence_ $ testPhases reject inform s solutionFile modules config exts content path
