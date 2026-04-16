@@ -221,7 +221,7 @@ data FeedbackPhase
   | TestSuite
   deriving (Enum, Generic, Show, FromJSON, ToJSON)
 
-data TemplateMatchExpectation = Same | Differ Doc
+data TemplateMatchExpectation = Same | DifferOrElse Doc
 
 data FSolutionConfig m = SolutionConfig {
     allowAdding                 :: m Bool,
@@ -458,7 +458,7 @@ grade withSyntax withSemantics reject inform dirname task submission = do
     withSemantics $ whenJust mSampleSolution $ \sampleSolution -> do
       let sampleSolution' = replace "SampleSolution" moduleName' sampleSolution
       whenJust (runIdentity $ messageOnCloningSampleSolution config) $ \message -> do
-        matchTemplate (Differ $ string message) reject config 2 exts sampleSolution' submission
+        matchTemplate (DifferOrElse $ string message) reject config 2 exts sampleSolution' submission
       when (runIdentity $ provideSampleSolution config) $ do
         inform $ vcat
           [ "This is a valid solution for the task:"
@@ -573,8 +573,14 @@ matchTemplate expectation reject config context exts template submission = do
   where
     rejectWithHint = rejectWithMessage reject rejectHint
     (onMismatch, onMatch) = case expectation of
-      Same       -> (mapM_ (rejectMatch rejectWithHint config context template submission), return ())
-      Differ msg -> (const $ return (), reject msg)
+      Same ->
+        ( mapM_ (rejectMatch rejectWithHint config context template submission)
+        , return ()
+        )
+      DifferOrElse msg ->
+        ( const $ return ()
+        , reject msg
+        )
 
 deriving instance Typeable Counts
 
