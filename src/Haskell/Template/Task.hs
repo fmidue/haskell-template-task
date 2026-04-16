@@ -455,7 +455,7 @@ grade withSyntax withSemantics reject inform dirname task submission = do
       $ testPhases reject inform template solutionFile modules config exts submission dirname
     withSyntax $ sequence_ syntax
     let mSampleSolution = lookup "SampleSolution" others
-    whenJust mSampleSolution $ \sampleSolution -> do
+    withSemantics $ whenJust mSampleSolution $ \sampleSolution -> do
       let sampleSolution' = replace "SampleSolution" moduleName' sampleSolution
       whenJust (runIdentity $ messageOnCloningSampleSolution config) $ \message -> do
         matchTemplate (Differ $ string message) reject config 2 exts sampleSolution' submission
