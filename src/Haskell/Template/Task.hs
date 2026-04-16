@@ -578,7 +578,10 @@ matchTemplate expectation reject config context exts template submission = do
         , return ()
         )
       DifferOrElse msg ->
-        ( const $ return ()
+        ( flip when (reject msg) . all (\case
+            SrcSpanInfo _ OnlySubmission _ -> True
+            _                              -> False
+          )
         , reject msg
         )
 
