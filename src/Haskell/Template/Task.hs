@@ -122,7 +122,7 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \#                               into the CodeWorld runner
 \# addCodeWorldPartialRenderButton - adds a button to transfer student visible
 \#                                   code into the CodeWorld runner with
-\#                                   previews enabled
+\#                                   preview for code containing 'undefined'
 \# configGhcLimit              - caps amount of GHC warnings/errors to display
 \# configGhcErrors             - GHC warnings to enforce
 \# configGhcWarnings           - GHC warnings to provide as hints
