@@ -13,7 +13,6 @@ IOTASKS
 KPatterns
 Leijen
 lhs
-linebreak
 listify
 NPlus
 PCRE

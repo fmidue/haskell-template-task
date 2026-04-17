@@ -20,6 +20,7 @@ module Haskell.Template.Task (
   getHlintFeedback,
   grade,
   matchTemplate,
+  maybeSampleSolution,
   parse,
   rejectHint,
   rejectMatch,
@@ -83,7 +84,7 @@ import System.FilePath (
 import System.IO.Temp                   (createTempDirectory)
 import Test.HUnit                       (Counts (..))
 import Text.PrettyPrint.Leijen.Text
-  (Doc, linebreak, nest, text, vcat)
+  (Doc, nest, text, vcat)
 import Text.Read                        (readMaybe)
 import Text.Regex.PCRE.Heavy            (re, sub)
 
@@ -392,6 +393,20 @@ check reject inform path i = do
       parse reject exts s
     checkUniqueness xs = when (nubOrd xs /= xs) $ reject "duplicate module name"
 
+{- |
+Extract the sample solution if one was provided and 'provideSampleSolution' is enabled.
+-}
+maybeSampleSolution :: String -> Maybe Doc
+maybeSampleSolution task = do
+  (config, modules) <- splitConfigAndModules abort task
+  void $ provideSampleSolution config
+  exts <- extensionsOf <$> addDefaults abort config
+  ((taskName,_), otherModules) <- nameModules abort exts modules
+  sampleSolution <- lookup "SampleSolution" otherModules
+  pure $ string $ replace "SampleSolution" taskName sampleSolution
+  where
+    abort = const Nothing
+
 {-|
 Extract the value of the `addCodeWorldButton` option.
 Defaults to `False` if not specified.
@@ -459,13 +474,6 @@ grade withSyntax withSemantics reject inform dirname task submission = do
       let sampleSolution' = replace "SampleSolution" moduleName' sampleSolution
       whenJust (runIdentity $ messageOnCloningSampleSolution config) $ \message -> do
         matchTemplate (DifferOrElse $ string message) reject config 2 exts sampleSolution' submission
-      when (runIdentity $ provideSampleSolution config) $ do
-        inform $ vcat
-          [ "This is a valid solution for the task:"
-          , string sampleSolution'
-          , "-------------------------"
-          , linebreak
-          ]
     withSemantics $ sequence_ semantics
 
 rejectHint :: Doc
