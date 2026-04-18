@@ -41,7 +41,7 @@ import Haskell.Template.Match
   (Location (..), Result (..), What (..), Where (..), highlight_ssi, test)
 
 import Control.Applicative              ((<|>))
-import Control.Monad                    (forM, msum, unless, void, when)
+import Control.Monad                    (forM, guard, msum, unless, void, when)
 import Control.Monad.Extra              (whenJust)
 import Control.Monad.IO.Class           (MonadIO)
 import Data.Char                        (isUpper)
@@ -399,7 +399,7 @@ Extract the sample solution if one was provided and 'provideSampleSolution' is e
 maybeSampleSolution :: String -> Maybe Doc
 maybeSampleSolution task = do
   (config, modules) <- splitConfigAndModules abort task
-  void $ provideSampleSolution config
+  guard =<< provideSampleSolution config
   exts <- extensionsOf <$> addDefaults abort config
   ((taskName,_), otherModules) <- nameModules abort exts modules
   sampleSolution <- lookup "SampleSolution" otherModules
