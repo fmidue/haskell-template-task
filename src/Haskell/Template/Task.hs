@@ -11,7 +11,6 @@
 module Haskell.Template.Task (
   FSolutionConfig (..),
   SolutionConfig,
-  TemplateMatchExpectation (..),
   check,
   defaultCode,
   defaultSolutionConfig,
@@ -135,8 +134,9 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \#                               default on omission is TemplateMatch; steps after TestSuite are (in this order):
 \#                                 GhcWarnings, HlintSuggestions
 \# provideSampleSolution       - display provided sample solution to students after semantics feedback
-\# messageOnCloningSampleSolution - compare provided sample solution with submission and reject with
+\# messageOnCloningSampleSolution - compare provided sample solution with submission and output
 \#                                  this message as feedback if the submission contains the sample solution
+\#                                  (provideSampleSolution will be ignored if the submission is a clone)
 ----------
 module Solution where
 import Prelude
@@ -221,8 +221,6 @@ data FeedbackPhase
   | TemplateMatch
   | TestSuite
   deriving (Enum, Generic, Show, FromJSON, ToJSON)
-
-data TemplateMatchExpectation = Same | DifferOrElse Doc
 
 data FSolutionConfig m = SolutionConfig {
     allowAdding                 :: m Bool,
@@ -457,7 +455,7 @@ grade
   -- ^ the task
   -> String
   -- ^ the submission
-  -> m ()
+  -> m Bool
 grade withSyntax withSemantics reject inform dirname task submission = do
     withSyntax $ checkUnsafe reject submission
     (config, exts, (moduleName', template), others) <- processConfig
@@ -469,12 +467,18 @@ grade withSyntax withSemantics reject inform dirname task submission = do
      (syntax, semantics) = splitAt (fromEnum (syntaxCutoff config) + 1)
       $ testPhases reject inform template solutionFile modules config exts submission dirname
     withSyntax $ sequence_ syntax
-    let mSampleSolution = lookup "SampleSolution" others
-    withSemantics $ whenJust mSampleSolution $ \sampleSolution -> do
-      let sampleSolution' = replace "SampleSolution" moduleName' sampleSolution
-      whenJust (runIdentity $ messageOnCloningSampleSolution config) $ \message -> do
-        matchTemplate (DifferOrElse $ string message) reject config 2 exts sampleSolution' submission
     withSemantics $ sequence_ semantics
+    case
+      (,) <$> lookup "SampleSolution" others
+          <*> runIdentity (messageOnCloningSampleSolution config)
+      of
+        Nothing                       -> pure False
+        Just (sampleSolution,message) -> catchSampleSolutionClone
+          reject
+          (inform $ string message)
+          exts
+          (replace "SampleSolution" moduleName' sampleSolution)
+          submission
 
 rejectHint :: Doc
 rejectHint = [SI.iii'E|
@@ -562,36 +566,52 @@ compileWithArgsAndCheck dirname reject inform config modules asError = unless (n
 
 matchTemplate
   :: Monad m
-  => TemplateMatchExpectation
-  -> (forall a. Doc -> m a)
+  => (forall a. Doc -> m a)
   -> SolutionConfig
   -> Int
   -> [E.Extension]
   -> String
   -> String
   -> m ()
-matchTemplate expectation reject config context exts template submission = do
-  mTemplate  <- parse reject exts template
-  mSubmission <- parse reject exts submission
-  case test mTemplate mSubmission of
-    Fail loc -> onMismatch loc
-    Ok _     -> onMatch
+matchTemplate reject config context exts template submission =
+  runMatchTestOn reject exts template submission $ \case
+    Fail loc -> mapM_ (rejectMatch rejectWithHint config context template submission) loc
+      where
+        rejectWithHint = rejectWithMessage reject rejectHint
+    _        -> return ()
+
+catchSampleSolutionClone
+  :: Monad m
+  => (forall a. Doc -> m a)
+  -> m ()
+  -> [E.Extension]
+  -> String
+  -> String
+  -> m Bool
+catchSampleSolutionClone reject displayMessage exts sample submission =
+  runMatchTestOn reject exts sample submission $ \case
+    Fail loc | any missingOrDifferent loc
+      -> pure False
+    _ -> displayMessage >> pure True
+  where
+    missingOrDifferent (SrcSpanInfo _ OnlySubmission _) = False
+    missingOrDifferent _                                = True
+
+runMatchTestOn
+  :: Monad m
+  => (forall a. Doc -> m a)
+  -> [E.Extension]
+  -> String
+  -> String
+  -> (Result [Location] -> m b)
+  -> m b
+runMatchTestOn reject exts rawTemplate rawSubmission whatToDo = do
+  template  <- parse reject exts rawTemplate
+  submission <- parse reject exts rawSubmission
+  case test template submission of
     Continue -> reject [SI.i|Haskell.Template.Central.matchTemplate:
 #{informTutorMessage}|]
-  where
-    rejectWithHint = rejectWithMessage reject rejectHint
-    (onMismatch, onMatch) = case expectation of
-      Same ->
-        ( mapM_ (rejectMatch rejectWithHint config context template submission)
-        , return ()
-        )
-      DifferOrElse msg ->
-        ( flip when (reject msg) . all (\case
-            SrcSpanInfo _ OnlySubmission _ -> True
-            _                              -> False
-          )
-        , reject msg
-        )
+    otherResult   -> whatToDo otherResult
 
 deriving instance Typeable Counts
 
@@ -900,7 +920,7 @@ testPhases reject inform template solutionFile modules config exts submission di
     void $ getHlintFeedback rejectWithHint config dirname solutionFile True
   ,
     -- Reject on task template violations according to settings (modifying, adding, deleting).
-    matchTemplate Same reject config 2 exts template submission
+    matchTemplate reject config 2 exts template submission
   ,
     do
     -- Reject if test suite fails for submission.
