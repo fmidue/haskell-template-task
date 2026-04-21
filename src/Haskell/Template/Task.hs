@@ -578,7 +578,7 @@ matchTemplate reject config context exts template submission =
     Fail loc -> mapM_ (rejectMatch rejectWithHint config context template submission) loc
       where
         rejectWithHint = rejectWithMessage reject rejectHint
-    _        -> return ()
+    Ok _     -> return ()
 
 catchSampleSolutionClone
   :: Monad m
@@ -611,7 +611,7 @@ runMatchTestOn reject exts rawTemplate rawSubmission whatToDo = do
   case test template submission of
     Continue -> reject [SI.i|Haskell.Template.Central.matchTemplate:
 #{informTutorMessage}|]
-    otherResult   -> whatToDo otherResult
+    otherResult -> whatToDo otherResult
 
 deriving instance Typeable Counts
 
