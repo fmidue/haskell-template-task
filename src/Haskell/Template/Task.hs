@@ -444,7 +444,7 @@ It will only be `True` if the submission contains a clone of the sample solution
 the task was also configured to add a custom message on clones via 'messageOnCloningSampleSolution'.
 Otherwise, the value will always be `False`.
 This can be used by the caller to conditionally add the sample solution
-after the grading is already completed with `maybeSampleSolution`.
+after the grading is already completed, with `maybeSampleSolution`.
 -}
 grade
   :: MonadIO m
