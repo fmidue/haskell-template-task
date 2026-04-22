@@ -19,6 +19,7 @@ module Haskell.Template.Task (
   getHlintFeedback,
   grade,
   matchTemplate,
+  maybeSampleSolution,
   parse,
   rejectHint,
   rejectMatch,
@@ -39,7 +40,8 @@ import Haskell.Template.Match
   (Location (..), Result (..), What (..), Where (..), highlight_ssi, test)
 
 import Control.Applicative              ((<|>))
-import Control.Monad                    (forM, msum, unless, void, when)
+import Control.Monad                    (forM, guard, msum, unless, void, when)
+import Control.Monad.Extra              (whenJust)
 import Control.Monad.IO.Class           (MonadIO)
 import Data.Char                        (isUpper)
 import Data.Functor.Identity            (Identity (..))
@@ -131,6 +133,10 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \#                                 Compilation, GhcErrors, HlintErrors, TemplateMatch, TestSuite
 \#                               default on omission is TemplateMatch; steps after TestSuite are (in this order):
 \#                                 GhcWarnings, HlintSuggestions
+\# provideSampleSolution       - display provided sample solution to students after semantics feedback
+\# messageOnCloningSampleSolution - compare provided sample solution with submission and output
+\#                                  this message as feedback if the submission contains the sample solution
+\#                                  (provideSampleSolution will be ignored if the submission is a clone)
 ----------
 module Solution where
 import Prelude
@@ -166,6 +172,20 @@ test =
      qc 5000 $ \\(xs :: [Int]) ->
        Solution.r xs == Prelude.reverse xs
   ]
+----------
+module SampleSolution where
+import Prelude
+
+{-
+This module may provide a sample solution.
+Including it is currently optional, but strongly encouraged,
+as the sample will be validated the same way a student's submission would,
+thus preventing a broken configuration or impossible task.
+-}
+
+r :: [a] -> [a]
+r = reverse
+
 ----------
 module SomeHiddenModule where
 import Prelude
@@ -217,6 +237,8 @@ data FSolutionConfig m = SolutionConfig {
     configHlintSuggestions      :: m [String],
     configLanguageExtensions    :: m [String],
     configModules               :: m [String],
+    provideSampleSolution       :: m Bool,
+    messageOnCloningSampleSolution :: m (Maybe String),
     syntaxCutoff                :: m FeedbackPhase
   } deriving Generic
 {-# DEPRECATED configModules "config Modules will be removed" #-}
@@ -247,6 +269,8 @@ defaultSolutionConfig = SolutionConfig {
     configHlintSuggestions      = Just [],
     configLanguageExtensions    = Just ["NPlusKPatterns","ScopedTypeVariables"],
     configModules               = Nothing,
+    provideSampleSolution       = Just False,
+    messageOnCloningSampleSolution = Just Nothing,
     syntaxCutoff                = Just TemplateMatch
   }
 
@@ -266,6 +290,8 @@ toSolutionConfigOpt SolutionConfig {..} = runIdentity $ SolutionConfig
   <*> fmap Just configHlintSuggestions
   <*> fmap Just configLanguageExtensions
   <*> fmap Just configModules
+  <*> fmap Just provideSampleSolution
+  <*> fmap Just messageOnCloningSampleSolution
   <*> fmap Just syntaxCutoff
 
 finaliseConfigs :: [SolutionConfigOpt] -> Maybe SolutionConfig
@@ -287,6 +313,8 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
       <*> fmap Identity configHlintSuggestions
       <*> fmap Identity configLanguageExtensions
       <*> fmap Identity configModules
+      <*> fmap Identity provideSampleSolution
+      <*> fmap Identity messageOnCloningSampleSolution
       <*> fmap Identity syntaxCutoff
     combineConfigs x y = SolutionConfig {
         allowAdding                 = allowAdding                 x <|> allowAdding                 y,
@@ -303,6 +331,8 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
         configHlintSuggestions      = configHlintSuggestions      x <|> configHlintSuggestions      y,
         configLanguageExtensions    = configLanguageExtensions    x <|> configLanguageExtensions    y,
         configModules               = Just [],
+        provideSampleSolution       = provideSampleSolution       x <|> provideSampleSolution       y,
+        messageOnCloningSampleSolution = messageOnCloningSampleSolution x <|> messageOnCloningSampleSolution y,
         syntaxCutoff                = syntaxCutoff                x <|> syntaxCutoff                y
       }
     emptyConfig = SolutionConfig {
@@ -320,6 +350,8 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
         configHlintSuggestions      = Nothing,
         configLanguageExtensions    = Nothing,
         configModules               = Nothing,
+        provideSampleSolution       = Nothing,
+        messageOnCloningSampleSolution = Nothing,
         syntaxCutoff                = Nothing
       }
 
@@ -327,23 +359,51 @@ string :: String -> Doc
 string = text . pack
 
 check
-  :: Monad m
+  :: MonadIO m
   => (forall a. Doc -> m a)
   -> (Doc -> m ())
+  -> FilePath
   -> String
   -> m ()
-check reject inform i = do
+check reject inform path i = do
   checkUnsafe reject i
-  (_, exts, (m,s), ms) <- processConfig reject inform i
+  (config, exts, (m,s), ms) <- processConfig reject inform i
   checkUniqueness (m : map fst ms)
   inform $ string $ "Parsing template module " <> m
   void $ parse reject exts s
   void $ parseModule exts `mapM` ms
+  let mSampleSolution = lookup "SampleSolution" ms
+  -- This step is currently optional and will not run if no sample solution is provided
+  case mSampleSolution of
+    Nothing -> do
+      when (runIdentity $ provideSampleSolution config) $
+        reject "'provideSampleSolution' is set, but there is no sample solution in the config."
+      whenJust (runIdentity $ messageOnCloningSampleSolution config) $ const $
+        reject "'messageOnCloningSampleSolution' is set, but there is no sample solution in the config."
+    Just sampleSolution -> do
+      let others = filter ((/="SampleSolution") . fst) ms
+      let content = replace "module SampleSolution" ("module " ++ m) sampleSolution
+      (modules, solutionFile) <- writeModules (m, content) others path
+      sequence_ $ testPhases reject inform s solutionFile modules config exts content path
   where
     parseModule exts (m, s) = do
       inform $ string $ "Parsing module " <> m
       parse reject exts s
     checkUniqueness xs = when (nubOrd xs /= xs) $ reject "duplicate module name"
+
+{- |
+Extract the sample solution if one was provided and 'provideSampleSolution' is enabled.
+-}
+maybeSampleSolution :: String -> Maybe Doc
+maybeSampleSolution task = do
+  (config, modules) <- splitConfigAndModules abort task
+  guard =<< provideSampleSolution config
+  exts <- extensionsOf <$> addDefaults abort config
+  ((taskName,_), otherModules) <- nameModules abort exts modules
+  sampleSolution <- lookup "SampleSolution" otherModules
+  pure $ string $ replace "SampleSolution" taskName sampleSolution
+  where
+    abort = const Nothing
 
 {-|
 Extract the value of the `addCodeWorldButton` option.
@@ -378,6 +438,13 @@ Generate consecutive syntax and possible semantics feedback in the context of an
 
 This Monad is expected to provide a mechanism to prematurely end the evaluation
 in case of failure.
+
+This function returns an encapsulated Bool value if all tests pass.
+It will only be `True` if the submission contains a clone of the sample solution and
+the task was also configured to add a custom message on clones via 'messageOnCloningSampleSolution'.
+Otherwise, the value will always be `False`.
+This can be used by the caller to conditionally add the sample solution
+after the grading is already completed, with `maybeSampleSolution`.
 -}
 grade
   :: MonadIO m
@@ -395,86 +462,31 @@ grade
   -- ^ the task
   -> String
   -- ^ the submission
-  -> m ()
+  -> m Bool
+  -- ^ whether the conditions outlined in the description apply or not
 grade withSyntax withSemantics reject inform dirname task submission = do
     withSyntax $ checkUnsafe reject submission
     (config, exts, (moduleName', template), others) <- processConfig
       (rejectWithMessage reject $ string informTutorMessage)
       (const $ pure ())
       task
-    files <- liftIO $ ((moduleName', submission) : others)
-      `forM` \(mName, contents) -> do
-        let fname = dirname </> mName <.> "hs"
-        strictWriteFile fname contents
-        return fname
-    let   existingModules = map takeBaseName
-            $ filter ((".hs" ==) . takeExtension)
-            $ filter (`notElem` [".",".."]) files
-          modules = ["Test"] `union` existingModules
-          solutionFile = dirname </> (moduleName' <.> "hs")
-    liftIO $ do
-      unless ("Test" `elem` existingModules) $
-        strictWriteFile (dirname </> "Test" <.> "hs") $ testModule moduleName'
-      strictWriteFile (dirname </> "TestHelper" <.> "hs") testHelperContents
-      strictWriteFile (dirname </> "TestHarness" <.> "hs")
-        $ testHarnessFor solutionFile
-
-    let noTest = delete "Test" modules
-
+    (modules, solutionFile) <- writeModules (moduleName', submission) others dirname
     let
      (syntax, semantics) = splitAt (fromEnum (syntaxCutoff config) + 1)
-      [
-       do
-        -- Reject if submission does not compile with provided hidden modules,
-        -- but without Test module.
-        compilation <- liftIO $ runInterpreter (compiler dirname config noTest)
-        checkResult reject compilation reject Nothing $ const $ return ()
-
-        -- Reject if submission does not compile with provided hidden modules.
-        -- This only runs when allowModifying is set to True in the config
-        -- and displays a custom message telling students not to change type signatures.
-        when (runIdentity $ allowModifying config) $ do
-          compilationWithTests <- liftIO $ runInterpreter $
-            compiler dirname config modules
-          checkResult reject compilationWithTests signatureError Nothing $ const $ return ()
-      ,
-        -- Reject if GHC warnings configured as errors are triggered by solution.
-        compileWithArgsAndCheck dirname reject undefined config noTest True
-      ,
-        -- Reject if HLint warnings configured as errors are triggered by solution.
-        void $ getHlintFeedback rejectWithHint config dirname solutionFile True
-      ,
-        -- Reject on task template violations according to settings (modifying, adding, deleting).
-        matchTemplate reject config 2 exts template submission
-      ,
-        -- Reject if test suite fails for submission.
-       do
-        result      <- liftIO $ runInterpreter (interpreter dirname config modules)
-        checkResult reject result reject Nothing $ handleCounts reject inform
-      ,
-       do
-        -- Displays GHC warnings configured as non-errors triggered by submission.
-        compileWithArgsAndCheck dirname reject inform config noTest False
-
-        -- Displays HLint suggestions configured as non-errors triggered by submission.
-        void $ getHlintFeedback inform config dirname solutionFile False
-      ]
+      $ testPhases reject inform template solutionFile modules config exts submission dirname
     withSyntax $ sequence_ syntax
     withSemantics $ sequence_ semantics
- where
-    testHarnessFor file =
-      let quoted xs = '"' : xs ++ "\""
-      in replace (quoted "Solution.hs") (quoted file) testHarnessContents
-    testModule :: String -> String
-    testModule s = [SI.i|module Test (test) where
-import qualified #{s} (test)
-test = #{s}.test|]
-    rejectWithHint = rejectWithMessage reject rejectHint
-
-    signatureError = const $ rejectWithHint $ string [SI.iii|
-      Your code is not compatible with the test suite.
-      Please do not change type signatures in the given code template.
-      |]
+    case
+      (,) <$> lookup "SampleSolution" others
+          <*> runIdentity (messageOnCloningSampleSolution config)
+      of
+        Nothing                       -> pure False
+        Just (sampleSolution,message) -> catchSampleSolutionClone
+          reject
+          (inform $ string message)
+          exts
+          (replace "SampleSolution" moduleName' sampleSolution)
+          submission
 
 rejectHint :: Doc
 rejectHint = [SI.iii'E|
@@ -569,16 +581,45 @@ matchTemplate
   -> String
   -> String
   -> m ()
-matchTemplate reject config context exts template submission = do
-  mTemplate  <- parse reject exts template
-  mSubmission <- parse reject exts submission
-  case test mTemplate mSubmission of
+matchTemplate reject config context exts template submission =
+  runMatchTestOn reject exts template submission $ \case
     Fail loc -> mapM_ (rejectMatch rejectWithHint config context template submission) loc
       where
         rejectWithHint = rejectWithMessage reject rejectHint
     Ok _     -> return ()
+
+catchSampleSolutionClone
+  :: Monad m
+  => (forall a. Doc -> m a)
+  -> m ()
+  -> [E.Extension]
+  -> String
+  -> String
+  -> m Bool
+catchSampleSolutionClone reject displayMessage exts sample submission =
+  runMatchTestOn reject exts sample submission $ \case
+    Fail loc | any missingOrDifferent loc
+      -> pure False
+    _ -> displayMessage >> pure True
+  where
+    missingOrDifferent (SrcSpanInfo _ OnlySubmission _) = False
+    missingOrDifferent _                                = True
+
+runMatchTestOn
+  :: Monad m
+  => (forall a. Doc -> m a)
+  -> [E.Extension]
+  -> String
+  -> String
+  -> (Result [Location] -> m b)
+  -> m b
+runMatchTestOn reject exts rawTemplate rawSubmission whatToDo = do
+  template  <- parse reject exts rawTemplate
+  submission <- parse reject exts rawSubmission
+  case test template submission of
     Continue -> reject [SI.i|Haskell.Template.Central.matchTemplate:
 #{informTutorMessage}|]
+    otherResult -> whatToDo otherResult
 
 deriving instance Typeable Counts
 
@@ -818,3 +859,95 @@ informTutorMessage =
 
 rejectWithMessage :: (forall a. Doc -> m a) -> Doc -> Doc -> m b
 rejectWithMessage reject m = reject . vcat . (: singleton m)
+
+writeModules
+  :: MonadIO m
+  => (FilePath, String)
+  -> [(FilePath, String)]
+  -> [Char]
+  -> m ([String], String)
+writeModules (moduleName', submission) others dirname = do
+  files <- liftIO $ ((moduleName', submission) : others)
+    `forM` \(mName, contents) -> do
+    let fname = dirname </> mName <.> "hs"
+    strictWriteFile fname contents
+    return fname
+  let existingModules = map takeBaseName
+        $ filter ((".hs" ==) . takeExtension)
+        $ filter (`notElem` [".",".."]) files
+      modules = ["Test"] `union` existingModules
+      solutionFile = dirname </> (moduleName' <.> "hs")
+  liftIO $ do
+    unless ("Test" `elem` existingModules) $
+      strictWriteFile (dirname </> "Test" <.> "hs") $ testModule moduleName'
+    strictWriteFile (dirname </> "TestHelper" <.> "hs") testHelperContents
+    strictWriteFile (dirname </> "TestHarness" <.> "hs")
+      $ testHarnessFor solutionFile
+  pure (modules, solutionFile)
+  where
+    testHarnessFor file =
+      let quoted xs = '"' : xs ++ "\""
+      in replace (quoted "Solution.hs") (quoted file) testHarnessContents
+    testModule :: String -> String
+    testModule s = [SI.i|module Test (test) where
+import qualified #{s} (test)
+test = #{s}.test|]
+
+testPhases
+  :: MonadIO m
+  => (forall a. Doc -> m a)
+  -> (Doc -> m ())
+  -> String
+  -> String
+  -> [String]
+  -> SolutionConfig
+  -> [E.Extension]
+  -> String
+  -> FilePath
+  -> [m ()]
+testPhases reject inform template solutionFile modules config exts submission dirname =
+  [
+    do
+    -- Reject if submission does not compile with provided hidden modules,
+    -- but without Test module.
+    compilation <- liftIO $ runInterpreter (compiler dirname config noTest)
+    checkResult reject compilation reject Nothing $ const $ return ()
+
+    -- Reject if submission does not compile with provided hidden modules.
+    -- This only runs when allowModifying is set to True in the config
+    -- and displays a custom message telling students not to change type signatures.
+    when (runIdentity $ allowModifying config) $ do
+      compilationWithTests <- liftIO $ runInterpreter $
+        compiler dirname config modules
+      checkResult reject compilationWithTests signatureError Nothing $ const $ return ()
+  ,
+    -- Reject if GHC warnings configured as errors are triggered by solution.
+    compileWithArgsAndCheck dirname reject undefined config noTest True
+  ,
+    -- Reject if HLint warnings configured as errors are triggered by solution.
+    void $ getHlintFeedback rejectWithHint config dirname solutionFile True
+  ,
+    -- Reject on task template violations according to settings (modifying, adding, deleting).
+    matchTemplate reject config 2 exts template submission
+  ,
+    do
+    -- Reject if test suite fails for submission.
+    result <- liftIO $ runInterpreter (interpreter dirname config modules)
+    checkResult reject result reject Nothing $ handleCounts reject inform
+  ,
+    do
+    -- Displays GHC warnings configured as non-errors triggered by submission.
+    compileWithArgsAndCheck dirname reject inform config noTest False
+
+    -- Displays HLint suggestions configured as non-errors triggered by submission.
+    void $ getHlintFeedback inform config dirname solutionFile False
+  ]
+  where
+    noTest = delete "Test" modules
+
+    rejectWithHint = rejectWithMessage reject rejectHint
+
+    signatureError = const $ rejectWithHint $ string [SI.iii|
+      Your code is not compatible with the test suite.
+      Please do not change type signatures in the given code template.
+      |]
