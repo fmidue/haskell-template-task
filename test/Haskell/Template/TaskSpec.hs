@@ -14,7 +14,7 @@ import Control.Monad.Catch (
   MonadThrow (..),
   )
 import Control.Monad.IO.Class           (liftIO)
-import Control.Monad.Trans.Writer       (execWriterT, tell)
+import Control.Monad.Trans.Writer       (runWriterT, tell)
 import Data.List                        (intercalate, isPrefixOf)
 import Data.List.Extra                  (split)
 import Data.Maybe                       (fromJust)
@@ -89,7 +89,7 @@ spec = do
          |]
          ++ '\n' : rejectLine
     it "fails with forbidden warnings" $
-      exceptionToString (gradeIO (toCode incompletePattern [useImport, unlines tests]) useImport)
+      exceptionToString (gradeIO (toCode incompletePattern [useImport, tests]) useImport)
       `shouldReturn` [SI.__i|
          Solution.hs:5:1: error:
              Pattern match(es) are non-exhaustive
@@ -101,6 +101,13 @@ spec = do
                  Patterns of type ‘[a]’ not matched: []
          |]
          ++ rejectLine
+    context "when submission is successful" $ do
+      it "returns True and the configured custom message if a sample solution clone is submitted" $
+        gradeIOWithRes withCloneMessage useImport `shouldReturn` (True, cloneMessage)
+      it "returns False and no additional message if a clone is submitted, but the option is not set" $
+        gradeIOWithRes defaultCode useImport `shouldReturn` (False, "")
+      it "returns False and no additional message if option is set, but submission is no clone" $
+        gradeIOWithRes withCloneMessage noClone `shouldReturn` (False, "")
   where
     rejectLine = '\n' : render rejectHint
     exceptionToString f = catch f (\(CustomException x) -> pure $ render x)
@@ -113,8 +120,16 @@ spec = do
       incomplete [] = undefined
       incomplete2 (_:_) = undefined
       |]
-    (config : program : tests : remaining) =
-      split ("---" `isPrefixOf`) $ lines defaultCode
+    noClone = [SI.__i|
+      module Solution where
+      import Prelude
+      r :: [a] -> [a]
+      r [] = []
+      r (x:xs) = reverse xs ++ [x]
+      |]
+    withCloneMessage = toCode cloneMessageSetting $ program : tests : remaining
+    (_ : program : tests : remaining) =
+      map unlines $ split ("---" `isPrefixOf`) $ lines defaultCode
     withSyntaxCheck withReverse = unlines $ intercalate ["-------"] $
       let (config : program : _ : remaining) =
             split ("---" `isPrefixOf`) $ lines defaultCode
@@ -154,6 +169,10 @@ spec = do
     dilatedWithFixity = defaultConfig
       `withHlintErrors` ["Use dilated"]
       `withHlintRules` ["fixity: infixr 0 &", "warn: {lhs: scaled x x, rhs: dilated x}"]
+    cloneMessageSetting = defaultConfig
+      {messageOnCloningSampleSolution = pure $ Just cloneMessage}
+    cloneMessage = "Clone found"
+
 
 toCode :: SolutionConfig -> [String] -> String
 toCode config programs = intercalate "\n----\n" $ configText : programs
@@ -161,11 +180,14 @@ toCode config programs = intercalate "\n----\n" $ configText : programs
     configText = BS.unpack . encode $ toSolutionConfigOpt config
 
 gradeIO :: String -> String -> IO String
-gradeIO task submission = do
+gradeIO task submission = snd <$> gradeIOWithRes task submission
+
+gradeIOWithRes :: String -> String -> IO (Bool,String)
+gradeIOWithRes task submission = do
   tmp <- getTemporaryDirectory
   withTempDirectory tmp "Grade-test" $ \dir -> do
     setCurrentDirectory dir
-    execWriterT $ grade
+    runWriterT $ grade
       id
       id
       (throwM . CustomException)
