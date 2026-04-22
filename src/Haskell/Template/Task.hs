@@ -438,6 +438,13 @@ Generate consecutive syntax and possible semantics feedback in the context of an
 
 This Monad is expected to provide a mechanism to prematurely end the evaluation
 in case of failure.
+
+This function returns an encapsulated Bool value if all tests pass.
+It will only be `True` if the submission contains a clone of the sample solution and
+the task was also configured to add a custom message on clones via 'messageOnCloningSampleSolution'.
+Otherwise, the value will always be `False`.
+This can be used by the caller to conditionally add the sample solution
+after the grading is already completed with `maybeSampleSolution`.
 -}
 grade
   :: MonadIO m
@@ -456,6 +463,7 @@ grade
   -> String
   -- ^ the submission
   -> m Bool
+  -- ^ whether the conditions outlined in the description apply or not
 grade withSyntax withSemantics reject inform dirname task submission = do
     withSyntax $ checkUnsafe reject submission
     (config, exts, (moduleName', template), others) <- processConfig
