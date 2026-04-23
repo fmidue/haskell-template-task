@@ -611,7 +611,7 @@ runMatchTestOn
   -> [E.Extension]
   -> String
   -> String
-  -> (Result [Location] -> m b)
+  -> (Result () -> m b)
   -> m b
 runMatchTestOn reject exts rawTemplate rawSubmission whatToDo = do
   template  <- parse reject exts rawTemplate

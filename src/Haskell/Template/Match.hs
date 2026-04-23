@@ -306,23 +306,23 @@ matchLocation w f1 f2=
     Ok _     -> []
     Continue -> []
 
-matchModule :: Module S.SrcSpanInfo -> Module S.SrcSpanInfo -> M [Location]
+matchModule :: Module S.SrcSpanInfo -> Module S.SrcSpanInfo -> M ()
 matchModule (Module _ h1 p1 i1 d1) (Module _ h2 p2 i2 d2) = do
   let r = matchMaybe HeadOfModule h1 h2
         ++ matchList Pragma p1 p2
         ++ matchList ModuleImport i1 i2
         ++ matchDecl d1 d2
   if null r
-    then M $ return $ Ok r
+    then M $ return $ Ok ()
     else M $ return $ Fail r
 matchModule m1 m2 = do
   matchSrcSpanInfoSub CompleteModule m1 m2
   failLoc
 
 -- | test whether @m2@ is a suitable template for @m1@
--- in case of an error, the returned 'Location' gives the mismatching
--- position in the template
-test :: Module S.SrcSpanInfo -> Module S.SrcSpanInfo -> Result [Location]
+-- in case of an error, the returned '[Location]' gives the mismatching
+-- positions in the template
+test :: Module S.SrcSpanInfo -> Module S.SrcSpanInfo -> Result ()
 test m1 m2 =
   -- first: parse using haskell-src.
   -- ParseOk m1' = parseModule m1
