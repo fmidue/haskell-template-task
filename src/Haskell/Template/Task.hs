@@ -37,7 +37,8 @@ import qualified Data.String.Interpolate          as SI (i, iii, iii'E)
 
 import Haskell.Template.FileContents    (testHelperContents, testHarnessContents)
 import Haskell.Template.Match
-  (Location (..), Result (..), What (..), Where (..), highlight_ssi, test)
+  (Location (..), Result (..), What (..), Where (..), highlight_ssi)
+import qualified Haskell.Template.Match as Match (test)
 
 import Control.Applicative              ((<|>))
 import Control.Monad                    (forM, guard, msum, unless, void, when)
@@ -586,7 +587,7 @@ matchTemplate reject config context exts template submission =
     Fail loc -> mapM_ (rejectMatch rejectWithHint config context template submission) loc
       where
         rejectWithHint = rejectWithMessage reject rejectHint
-    Ok _     -> return ()
+    Ok ()    -> return ()
 
 catchSampleSolutionClone
   :: Monad m
@@ -616,7 +617,7 @@ runMatchTestOn
 runMatchTestOn reject exts rawTemplate rawSubmission whatToDo = do
   template  <- parse reject exts rawTemplate
   submission <- parse reject exts rawSubmission
-  case test template submission of
+  case Match.test template submission of
     Continue -> reject [SI.i|Haskell.Template.Central.matchTemplate:
 #{informTutorMessage}|]
     otherResult -> whatToDo otherResult
