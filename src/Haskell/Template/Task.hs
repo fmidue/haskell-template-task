@@ -133,6 +133,8 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \#                                 Compilation, GhcErrors, HlintErrors, TemplateMatch, TestSuite
 \#                               default on omission is TemplateMatch; steps after TestSuite are (in this order):
 \#                                 GhcWarnings, HlintSuggestions
+\# disableSemantics            - will prevent the semantics phase (as determined by syntaxCutoff) from running
+\#                               this means a submission will be accepted after passing the syntax phase
 \# provideSampleSolution       - display provided sample solution to students after semantics feedback
 \# messageOnCloningSampleSolution - compare provided sample solution with submission and output
 \#                                  this message as feedback if the submission contains the sample solution
@@ -239,6 +241,7 @@ data FSolutionConfig m = SolutionConfig {
     configModules               :: m [String],
     provideSampleSolution       :: m Bool,
     messageOnCloningSampleSolution :: m (Maybe String),
+    disableSemantics            :: m Bool,
     syntaxCutoff                :: m FeedbackPhase
   } deriving Generic
 {-# DEPRECATED configModules "config Modules will be removed" #-}
@@ -271,6 +274,7 @@ defaultSolutionConfig = SolutionConfig {
     configModules               = Nothing,
     provideSampleSolution       = Just False,
     messageOnCloningSampleSolution = Just Nothing,
+    disableSemantics            = Just False,
     syntaxCutoff                = Just TemplateMatch
   }
 
@@ -292,6 +296,7 @@ toSolutionConfigOpt SolutionConfig {..} = runIdentity $ SolutionConfig
   <*> fmap Just configModules
   <*> fmap Just provideSampleSolution
   <*> fmap Just messageOnCloningSampleSolution
+  <*> fmap Just disableSemantics
   <*> fmap Just syntaxCutoff
 
 finaliseConfigs :: [SolutionConfigOpt] -> Maybe SolutionConfig
@@ -315,6 +320,7 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
       <*> fmap Identity configModules
       <*> fmap Identity provideSampleSolution
       <*> fmap Identity messageOnCloningSampleSolution
+      <*> fmap Identity disableSemantics
       <*> fmap Identity syntaxCutoff
     combineConfigs x y = SolutionConfig {
         allowAdding                 = allowAdding                 x <|> allowAdding                 y,
@@ -333,6 +339,7 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
         configModules               = Just [],
         provideSampleSolution       = provideSampleSolution       x <|> provideSampleSolution       y,
         messageOnCloningSampleSolution = messageOnCloningSampleSolution x <|> messageOnCloningSampleSolution y,
+        disableSemantics            = disableSemantics            x <|> disableSemantics            y,
         syntaxCutoff                = syntaxCutoff                x <|> syntaxCutoff                y
       }
     emptyConfig = SolutionConfig {
@@ -352,6 +359,7 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
         configModules               = Nothing,
         provideSampleSolution       = Nothing,
         messageOnCloningSampleSolution = Nothing,
+        disableSemantics            = Nothing,
         syntaxCutoff                = Nothing
       }
 
@@ -392,12 +400,14 @@ check reject inform path i = do
     checkUniqueness xs = when (nubOrd xs /= xs) $ reject "duplicate module name"
 
 {- |
-Extract the sample solution if one was provided and 'provideSampleSolution' is enabled.
+Extract the sample solution if one was provided, 'provideSampleSolution' is enabled
+and 'disableSemantics' is not enabled.
 -}
 maybeSampleSolution :: String -> Maybe Doc
 maybeSampleSolution task = do
   (config, modules) <- splitConfigAndModules abort task
   guard =<< provideSampleSolution config
+  guard . not =<< disableSemantics config
   exts <- extensionsOf <$> addDefaults abort config
   ((taskName,_), otherModules) <- nameModules abort exts modules
   sampleSolution <- lookup "SampleSolution" otherModules
@@ -440,7 +450,8 @@ This Monad is expected to provide a mechanism to prematurely end the evaluation
 in case of failure.
 
 This function returns an encapsulated Bool value if all tests pass.
-It will only be `True` if the submission contains a clone of the sample solution and
+It will only be `True` if the submission contains a clone of the sample solution,
+the semantics phase is not disabled by 'disableSemantics' and
 the task was also configured to add a custom message on clones via 'messageOnCloningSampleSolution'.
 Otherwise, the value will always be `False`.
 This can be used by the caller to conditionally add the sample solution
@@ -475,18 +486,21 @@ grade withSyntax withSemantics reject inform dirname task submission = do
      (syntax, semantics) = splitAt (fromEnum (syntaxCutoff config) + 1)
       $ testPhases reject inform template solutionFile modules config exts submission dirname
     withSyntax $ sequence_ syntax
-    withSemantics $ sequence_ semantics
-    case
-      (,) <$> lookup "SampleSolution" others
-          <*> runIdentity (messageOnCloningSampleSolution config)
-      of
-        Nothing                       -> pure False
-        Just (sampleSolution,message) -> catchSampleSolutionClone
-          reject
-          (withSemantics $ inform $ string message)
-          exts
-          (replace "SampleSolution" moduleName' sampleSolution)
-          submission
+    if runIdentity $ disableSemantics config
+    then pure False
+    else do
+      withSemantics $ sequence_ semantics
+      case
+        (,) <$> lookup "SampleSolution" others
+            <*> runIdentity (messageOnCloningSampleSolution config)
+        of
+          Nothing                       -> pure False
+          Just (sampleSolution,message) -> catchSampleSolutionClone
+            reject
+            (withSemantics $ inform $ string message)
+            exts
+            (replace "SampleSolution" moduleName' sampleSolution)
+            submission
 
 rejectHint :: Doc
 rejectHint = [SI.iii'E|
