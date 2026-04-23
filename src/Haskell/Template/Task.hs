@@ -489,18 +489,18 @@ grade withSyntax withSemantics reject inform dirname task submission = do
     if runIdentity $ disableSemantics config
     then pure False
     else do
-      withSemantics $ sequence_ semantics
-      case
-        (,) <$> lookup "SampleSolution" others
-            <*> runIdentity (messageOnCloningSampleSolution config)
-        of
-          Nothing                       -> pure False
-          Just (sampleSolution,message) -> catchSampleSolutionClone
-            reject
-            (withSemantics $ inform $ string message)
-            exts
-            (replace "SampleSolution" moduleName' sampleSolution)
-            submission
+    withSemantics $ sequence_ semantics
+    case
+      (,) <$> lookup "SampleSolution" others
+          <*> runIdentity (messageOnCloningSampleSolution config)
+      of
+        Nothing                       -> pure False
+        Just (sampleSolution,message) -> catchSampleSolutionClone
+          reject
+          (withSemantics $ inform $ string message)
+          exts
+          (replace "SampleSolution" moduleName' sampleSolution)
+          submission
 
 rejectHint :: Doc
 rejectHint = [SI.iii'E|
