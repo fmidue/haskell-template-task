@@ -489,7 +489,7 @@ grade withSyntax withSemantics reject inform dirname task submission = do
     if runIdentity $ disableSemantics config
     then pure False
     else do
-    withSemantics $ sequence_ semantics
+     withSemantics $ sequence_ semantics
      case
       (,) <$> lookup "SampleSolution" others
           <*> runIdentity (messageOnCloningSampleSolution config)
