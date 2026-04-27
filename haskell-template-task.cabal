@@ -40,7 +40,6 @@ library
       HUnit
     , base >=4.7 && <5
     , bytestring
-    , directory
     , extra
     , file-embed
     , filepath
@@ -52,7 +51,6 @@ library
     , pcre-heavy
     , string-interpolate
     , syb
-    , temporary
     , text
     , wl-pprint-text
     , yaml
