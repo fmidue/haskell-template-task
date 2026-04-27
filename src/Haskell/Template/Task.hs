@@ -484,7 +484,7 @@ grade withSyntax withSemantics reject inform dirname task submission = do
         Nothing                       -> pure False
         Just (sampleSolution,message) -> catchSampleSolutionClone
           reject
-          (withSemantics $ inform $ string message)
+          (inform $ string message)
           exts
           (replace "SampleSolution" moduleName' sampleSolution)
           submission
