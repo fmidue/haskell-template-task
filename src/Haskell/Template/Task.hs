@@ -133,7 +133,7 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \#                                 Compilation, GhcErrors, HlintErrors, TemplateMatch, TestSuite
 \#                               default on omission is TemplateMatch; steps after TestSuite are (in this order):
 \#                                 GhcWarnings, HlintSuggestions
-\# disableSemantics            - will prevent the semantics phase (as determined by syntaxCutoff) from running
+\# disableSemantics            - will prevent the semantics phase (as determined by syntaxCutoff) from running;
 \#                               this means a submission will be accepted after passing the syntax phase
 \# provideSampleSolution       - display provided sample solution to students after semantics feedback
 \# messageOnCloningSampleSolution - compare provided sample solution with submission and output
