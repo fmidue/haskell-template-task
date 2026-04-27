@@ -406,8 +406,8 @@ and 'disableSemantics' is not enabled.
 maybeSampleSolution :: String -> Maybe Doc
 maybeSampleSolution task = do
   (config, modules) <- splitConfigAndModules abort task
-  guard =<< provideSampleSolution config
-  guard . not =<< disableSemantics config
+  SolutionConfig {..} <- addDefaults abort config
+  guard $ runIdentity $ (&&) <$> provideSampleSolution <*> fmap not disableSemantics
   exts <- extensionsOf <$> addDefaults abort config
   ((taskName,_), otherModules) <- nameModules abort exts modules
   sampleSolution <- lookup "SampleSolution" otherModules
