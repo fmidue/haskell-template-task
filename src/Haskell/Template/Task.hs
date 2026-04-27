@@ -25,10 +25,8 @@ module Haskell.Template.Task (
   rejectMatch,
   toSolutionConfigOpt,
   unsafeTemplateSegment,
-  withTempDirectoryConcurrently,
   ) where
 
-import qualified Control.Exception.Base           as MC
 import qualified Data.ByteString.Char8            as BS
 import qualified Language.Haskell.Exts            as E
 import qualified Language.Haskell.Exts.Parser     as P
@@ -69,11 +67,6 @@ import Language.Haskell.Interpreter
 import Language.Haskell.Interpreter.Unsafe
   (unsafeRunInterpreterWithArgs)
 import Numeric.Natural                  (Natural)
-import System.Directory (
-  doesDirectoryExist,
-  removePathForcibly,
-  makeAbsolute,
-  )
 import System.FilePath (
   (<.>),
   (</>),
@@ -81,32 +74,11 @@ import System.FilePath (
   takeBaseName,
   takeExtension,
   )
-import System.IO.Temp                   (createTempDirectory)
 import Test.HUnit                       (Counts (..))
 import Text.PrettyPrint.Leijen.Text
   (Doc, nest, text, vcat)
 import Text.Read                        (readMaybe)
 import Text.Regex.PCRE.Heavy            (re, sub)
-
-{-|
-Create and use a temporary directory, passing its absolute path to the
-provided action.
-Deleting the temporary directory happens even if the provided action throws
-an Exception.
--}
-withTempDirectoryConcurrently :: FilePath -> String -> (FilePath -> IO a) -> IO a
-withTempDirectoryConcurrently targetDir template process =
-  MC.bracket
-    (liftIO $ createTempDirectory targetDir template)
-    (liftIO . removePathForcibly)
-    (\x -> untilM (doesDirectoryExist x) $ makeAbsolute x >>= process)
-  where
-    untilM :: IO Bool -> IO a -> IO a
-    untilM f g = do
-      ready <- f
-      if ready
-        then g
-        else untilM f g
 
 encode :: ToJSON a => a -> BS.ByteString
 encode = encodePretty $ setConfCompare compare defConfig
