@@ -348,7 +348,7 @@ check
   -> m ()
 check reject inform path i = do
   checkUnsafe reject i
-  (config, exts, (m,s), ms) <- processConfig reject inform i
+  (config@SolutionConfig{..}, exts, (m,s), ms) <- processConfig reject inform i
   checkUniqueness (m : map fst ms)
   inform $ string $ "Parsing template module " <> m
   void $ parse reject exts s
@@ -357,15 +357,21 @@ check reject inform path i = do
   -- This step is currently optional and will not run if no sample solution is provided
   case mSampleSolution of
     Nothing -> do
-      when (runIdentity $ provideSampleSolution config) $
+      when (runIdentity provideSampleSolution) $
         reject "'provideSampleSolution' is set, but there is no sample solution in the config."
-      whenJust (runIdentity $ messageOnCloningSampleSolution config) $ const $
+      whenJust (runIdentity messageOnCloningSampleSolution) $ const $
         reject "'messageOnCloningSampleSolution' is set, but there is no sample solution in the config."
     Just sampleSolution -> do
+      let stricterConfig = config
+            { configGhcErrors = configGhcWarnings <> configGhcErrors
+            , configHlintErrors = configHlintSuggestions <> configHlintErrors
+            , configGhcWarnings = mempty
+            , configHlintSuggestions = mempty
+            }
       let others = filter ((/="SampleSolution") . fst) ms
       let content = replace "module SampleSolution" ("module " ++ m) sampleSolution
       (modules, solutionFile) <- writeModules (m, content) others path
-      sequence_ $ testPhases reject inform s solutionFile modules config exts content path
+      sequence_ $ testPhases reject inform s solutionFile modules stricterConfig exts content path
   where
     parseModule exts (m, s) = do
       inform $ string $ "Parsing module " <> m
