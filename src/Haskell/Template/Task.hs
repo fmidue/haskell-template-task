@@ -363,7 +363,7 @@ check reject inform path i = do
         reject "'messageOnCloningSampleSolution' is set, but there is no sample solution in the config."
     Just sampleSolution -> do
       let stricterConfig = config
-            { configGhcErrors = configGhcWarnings <> configGhcErrors
+            { configGhcErrors = ("all":) <$> configGhcWarnings <> configGhcErrors
             , configHlintErrors = configHlintSuggestions <> configHlintErrors
             , configGhcWarnings = mempty
             , configHlintSuggestions = mempty
