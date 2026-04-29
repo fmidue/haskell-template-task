@@ -903,7 +903,10 @@ testPhases reject inform template solutionFile modules config exts submission di
     do
     -- Reject if submission does not compile with provided hidden modules,
     -- but without Test module.
-    compilation <- liftIO $ runInterpreter (compiler dirname config noTest)
+    compilation <- liftIO $ unsafeRunInterpreterWithArgs
+      -- disable default warnings (bleed into error report if code doesn't compile)
+      ["-w"]
+      (compiler dirname config noTest)
     checkResult reject compilation reject Nothing $ const $ return ()
 
     -- Reject if submission does not compile with provided hidden modules.
