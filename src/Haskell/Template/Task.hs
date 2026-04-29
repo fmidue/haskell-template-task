@@ -367,6 +367,7 @@ check reject inform path i = do
             , configHlintErrors = configHlintSuggestions <> configHlintErrors
             , configGhcWarnings = mempty
             , configHlintSuggestions = mempty
+            , configGhcLimit = pure Nothing
             }
       let others = filter ((/="SampleSolution") . fst) ms
       let content = replace "module SampleSolution" ("module " ++ m) sampleSolution
