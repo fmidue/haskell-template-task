@@ -62,7 +62,7 @@ import GHC.Generics                     (Generic (..))
 import Language.Haskell.HLint           (hlint)
 import Language.Haskell.Interpreter
   (GhcError (..), InterpreterError (..), MonadInterpreter, OptionVal (..),
-   as, installedModulesInScope, interpret, languageExtensions, liftIO,
+   Extension(UnknownExtension), as, installedModulesInScope, interpret, languageExtensions, liftIO,
    loadModules, reset, runInterpreter, set, setImports, setTopLevelModules, searchPath)
 import Language.Haskell.Interpreter.Unsafe
   (unsafeRunInterpreterWithArgs)
@@ -554,7 +554,7 @@ compileWithArgsAndCheck
   -> m ()
 compileWithArgsAndCheck dirname reject inform config modules asError = unless (null ghcOpts) $ do
   ghcErrors <-
-    liftIO $ unsafeRunInterpreterWithArgs ghcOpts (compiler dirname config modules)
+    liftIO $ unsafeRunInterpreterWithArgs ghcOpts (compiler dirname extensions modules)
   checkResult reject ghcErrors how howMany $ const $ return ()
   where
     makeOpts xs = ("-w":) $ ("-Werror=" ++) <$> xs
@@ -565,6 +565,7 @@ compileWithArgsAndCheck dirname reject inform config modules asError = unless (n
       else (configGhcWarnings, inform)
     howMany = runIdentity $ configGhcLimit config
     rejectWithHint = rejectWithMessage reject rejectHint
+    extensions = extensionsOf config
 
 matchTemplate
   :: Monad m
@@ -679,27 +680,29 @@ checkResult reject result handleError mErrorLimit handleResult = case result of
 interpreter
   :: MonadInterpreter m
   => FilePath
-  -> SolutionConfig
+  -> [E.Extension]
   -> [String]
   -> m (IO (Counts, ShowS))
-interpreter dirname config modules = do
-  prepareInterpreter dirname config modules
+interpreter dirname exts modules = do
+  prepareInterpreter dirname exts modules
   interpret "TestHarness.run Test.test" (as :: IO (Counts, ShowS))
 
-compiler :: MonadInterpreter m => FilePath -> SolutionConfig -> [String] -> m Bool
-compiler dirname config modules = do
-  prepareInterpreter dirname config modules
+compiler :: MonadInterpreter m => FilePath -> [E.Extension] -> [String] -> m Bool
+compiler dirname exts modules = do
+  prepareInterpreter dirname exts modules
   interpret "Prelude.True" (as :: Bool)
 
-prepareInterpreter :: MonadInterpreter m => FilePath -> SolutionConfig -> [String] -> m ()
-prepareInterpreter dirname config modules = do
-  set [languageExtensions := map read (msum $ configLanguageExtensions config)]
+prepareInterpreter :: MonadInterpreter m => FilePath -> [E.Extension] -> [String] -> m ()
+prepareInterpreter dirname exts modules = do
+  set [languageExtensions := map (readExt . E.prettyExtension) exts]
   reset -- Make sure nothing is available
   set [installedModulesInScope := False]
   set [searchPath := [dirname]]
   loadModules ("TestHarness" : modules)
   setTopLevelModules modules
   setImports ["Prelude", "Test.HUnit", "TestHarness"]
+  where
+    readExt input = fromMaybe (UnknownExtension input) $ readMaybe input
 
 parse
   :: Monad m
@@ -907,7 +910,7 @@ testPhases reject inform template solutionFile modules config exts submission di
     compilation <- liftIO $ unsafeRunInterpreterWithArgs
       -- disable default warnings (bleed into error report if code doesn't compile)
       ["-w"]
-      (compiler dirname config noTest)
+      (compiler dirname exts noTest)
     checkResult reject compilation reject Nothing $ const $ return ()
 
     -- Reject if submission does not compile with provided hidden modules.
@@ -915,7 +918,7 @@ testPhases reject inform template solutionFile modules config exts submission di
     -- and displays a custom message telling students not to change type signatures.
     when (runIdentity $ allowModifying config) $ do
       compilationWithTests <- liftIO $ runInterpreter $
-        compiler dirname config modules
+        compiler dirname exts modules
       checkResult reject compilationWithTests signatureError Nothing $ const $ return ()
   ,
     -- Reject if GHC warnings configured as errors are triggered by solution.
@@ -929,7 +932,7 @@ testPhases reject inform template solutionFile modules config exts submission di
   ,
     do
     -- Reject if test suite fails for submission.
-    result <- liftIO $ runInterpreter (interpreter dirname config modules)
+    result <- liftIO $ runInterpreter (interpreter dirname exts modules)
     checkResult reject result reject Nothing $ handleCounts reject inform
   ,
     do
