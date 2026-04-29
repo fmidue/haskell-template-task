@@ -16,6 +16,8 @@ module Haskell.Template.Task (
   defaultSolutionConfig,
   finaliseConfigs,
   getCodeWorldButtonOption,
+  getCodeWorldRenderButtonOption,
+  getCodeWorldPartialRenderButtonOption,
   getHlintFeedback,
   grade,
   matchTemplate,
@@ -91,6 +93,11 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \# allowRemoving               - allow removing program parts
 \# addCodeWorldButton          - adds a button to transfer student visible code
 \#                               into the CodeWorld editor
+\# addCodeWorldRenderButton    - adds a button to transfer student visible code
+\#                               into the CodeWorld runner
+\# addCodeWorldPartialRenderButton - adds a button to transfer student visible
+\#                                   code into the CodeWorld runner with
+\#                                   preview for code containing 'undefined'
 \# configGhcLimit              - caps amount of GHC warnings/errors to display
 \# configGhcErrors             - GHC warnings to enforce
 \# configGhcWarnings           - GHC warnings to provide as hints
@@ -202,6 +209,8 @@ data FSolutionConfig m = SolutionConfig {
     allowModifying              :: m Bool,
     allowRemoving               :: m Bool,
     addCodeWorldButton          :: m Bool,
+    addCodeWorldRenderButton    :: m Bool,
+    addCodeWorldPartialRenderButton :: m Bool,
     configGhcLimit              :: m (Maybe Natural),
     configGhcErrors             :: m [String],
     configGhcWarnings           :: m [String],
@@ -235,6 +244,8 @@ defaultSolutionConfig = SolutionConfig {
     allowModifying              = Just False,
     allowRemoving               = Just False,
     addCodeWorldButton          = Just True,
+    addCodeWorldRenderButton    = Just True,
+    addCodeWorldPartialRenderButton = Just False,
     configGhcLimit              = Just Nothing,
     configGhcErrors             = Just [],
     configGhcWarnings           = Just [],
@@ -257,6 +268,8 @@ toSolutionConfigOpt SolutionConfig {..} = runIdentity $ SolutionConfig
   <*> fmap Just allowModifying
   <*> fmap Just allowRemoving
   <*> fmap Just addCodeWorldButton
+  <*> fmap Just addCodeWorldRenderButton
+  <*> fmap Just addCodeWorldPartialRenderButton
   <*> fmap Just configGhcLimit
   <*> fmap Just configGhcErrors
   <*> fmap Just configGhcWarnings
@@ -281,6 +294,8 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
       <*> fmap Identity allowModifying
       <*> fmap Identity allowRemoving
       <*> fmap Identity addCodeWorldButton
+      <*> fmap Identity addCodeWorldRenderButton
+      <*> fmap Identity addCodeWorldPartialRenderButton
       <*> fmap Identity configGhcLimit
       <*> fmap Identity configGhcErrors
       <*> fmap Identity configGhcWarnings
@@ -300,6 +315,8 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
         allowModifying              = allowModifying              x <|> allowModifying              y,
         allowRemoving               = allowRemoving               x <|> allowRemoving               y,
         addCodeWorldButton          = addCodeWorldButton          x <|> addCodeWorldButton          y,
+        addCodeWorldRenderButton    = addCodeWorldRenderButton    x <|> addCodeWorldRenderButton    y,
+        addCodeWorldPartialRenderButton = addCodeWorldPartialRenderButton x <|> addCodeWorldPartialRenderButton y,
         configGhcLimit              = configGhcLimit              x <|> configGhcLimit              y,
         configGhcErrors             = configGhcErrors             x <|> configGhcErrors             y,
         configGhcWarnings           = configGhcWarnings           x <|> configGhcWarnings           y,
@@ -320,6 +337,8 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
         allowRemoving               = Nothing,
         allowModifying              = Nothing,
         addCodeWorldButton          = Nothing,
+        addCodeWorldRenderButton    = Nothing,
+        addCodeWorldPartialRenderButton = Nothing,
         configGhcLimit              = Nothing,
         configGhcErrors             = Nothing,
         configGhcWarnings           = Nothing,
@@ -404,6 +423,26 @@ getCodeWorldButtonOption :: String -> Bool
 getCodeWorldButtonOption s = fromMaybe False mOption
   where
     mOption = splitConfigAndModules (const Nothing) s >>= addCodeWorldButton . fst
+
+{-|
+Extract the value of the `addCodeWorldRenderButton` option.
+Defaults to `False` if not specified.
+Also returns `False` in case the config cannot be read.
+-}
+getCodeWorldRenderButtonOption :: String -> Bool
+getCodeWorldRenderButtonOption s = fromMaybe False mOption
+  where
+    mOption = splitConfigAndModules (const Nothing) s >>= addCodeWorldRenderButton . fst
+
+{-|
+Extract the value of the `addCodeWorldPartialRenderButton` option.
+Defaults to `False` if not specified.
+Also returns `False` in case the config cannot be read.
+-}
+getCodeWorldPartialRenderButtonOption :: String -> Bool
+getCodeWorldPartialRenderButtonOption s = fromMaybe False mOption
+  where
+    mOption = splitConfigAndModules (const Nothing) s >>= addCodeWorldPartialRenderButton . fst
 
 {-|
 Enforces completely writing the file by flushing the output,
