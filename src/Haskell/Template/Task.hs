@@ -78,7 +78,7 @@ import System.FilePath (
   )
 import Test.HUnit                       (Counts (..))
 import Text.PrettyPrint.Leijen.Text
-  (Doc, nest, text, vcat)
+  (Doc, (<+>), int, linebreak, nest, punctuate, text, vcat)
 import Text.Read                        (readMaybe)
 import Text.Regex.PCRE.Heavy            (re, sub)
 
@@ -108,9 +108,10 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \# configHlintSuggestions      - hlint hints to provide as suggestions
 \# configLanguageExtensions    - this sets LanguageExtensions for hlint as well
 \# configModules               - DEPRECATED (will be ignored)
+\# maxLineLength               - submissions with lines longer than this value are rejected
 \# syntaxCutoff                - determines the last step in the syntax phase (later steps are considered semantics)
 \#                               possible values (and also the order of steps):
-\#                                 Compilation, GhcErrors, HlintErrors, TemplateMatch, TestSuite
+\#                                 CodeWidth, Compilation, GhcErrors, HlintErrors, TemplateMatch, TestSuite
 \#                               default on omission is TemplateMatch; steps after TestSuite are (in this order):
 \#                                 GhcWarnings, HlintSuggestions
 \# disableSemantics            - will prevent the semantics phase (as determined by syntaxCutoff) from running;
@@ -197,7 +198,8 @@ Also available are the following modules:
  -}|]
 
 data FeedbackPhase
-  = Compilation
+  = CodeWidth
+  | Compilation
   | GhcErrors
   | HlintErrors
   | TemplateMatch
@@ -221,6 +223,7 @@ data FSolutionConfig m = SolutionConfig {
     configHlintSuggestions      :: m [String],
     configLanguageExtensions    :: m [String],
     configModules               :: m [String],
+    maxLineLength               :: m (Maybe Natural),
     provideSampleSolution       :: m Bool,
     messageOnCloningSampleSolution :: m (Maybe String),
     disableSemantics            :: m Bool,
@@ -256,6 +259,7 @@ defaultSolutionConfig = SolutionConfig {
     configHlintSuggestions      = Just [],
     configLanguageExtensions    = Just ["NPlusKPatterns","ScopedTypeVariables"],
     configModules               = Nothing,
+    maxLineLength               = Just Nothing,
     provideSampleSolution       = Just False,
     messageOnCloningSampleSolution = Just Nothing,
     disableSemantics            = Just False,
@@ -280,6 +284,7 @@ toSolutionConfigOpt SolutionConfig {..} = runIdentity $ SolutionConfig
   <*> fmap Just configHlintSuggestions
   <*> fmap Just configLanguageExtensions
   <*> fmap Just configModules
+  <*> fmap Just maxLineLength
   <*> fmap Just provideSampleSolution
   <*> fmap Just messageOnCloningSampleSolution
   <*> fmap Just disableSemantics
@@ -306,6 +311,7 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
       <*> fmap Identity configHlintSuggestions
       <*> fmap Identity configLanguageExtensions
       <*> fmap Identity configModules
+      <*> fmap Identity maxLineLength
       <*> fmap Identity provideSampleSolution
       <*> fmap Identity messageOnCloningSampleSolution
       <*> fmap Identity disableSemantics
@@ -327,6 +333,7 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
         configHlintSuggestions      = configHlintSuggestions      x <|> configHlintSuggestions      y,
         configLanguageExtensions    = configLanguageExtensions    x <|> configLanguageExtensions    y,
         configModules               = Just [],
+        maxLineLength               = maxLineLength               x <|> maxLineLength               y,
         provideSampleSolution       = provideSampleSolution       x <|> provideSampleSolution       y,
         messageOnCloningSampleSolution = messageOnCloningSampleSolution x <|> messageOnCloningSampleSolution y,
         disableSemantics            = disableSemantics            x <|> disableSemantics            y,
@@ -349,6 +356,7 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
         configHlintSuggestions      = Nothing,
         configLanguageExtensions    = Nothing,
         configModules               = Nothing,
+        maxLineLength               = Nothing,
         provideSampleSolution       = Nothing,
         messageOnCloningSampleSolution = Nothing,
         disableSemantics            = Nothing,
@@ -943,6 +951,10 @@ testPhases
   -> [m ()]
 testPhases reject inform template solutionFile modules config exts submission dirname =
   [
+    -- Reject if submission has lines violating the configured maximum line length.
+    -- Only checked if the setting is configured.
+    mapM_ (checkLineLength reject submission) $ runIdentity $ maxLineLength config
+  ,
     do
     -- Reject if submission does not compile with provided hidden modules,
     -- but without Test module.
@@ -990,3 +1002,25 @@ testPhases reject inform template solutionFile modules config exts submission di
       Your code is not compatible with the test suite.
       Please do not change type signatures in the given code template.
       |]
+
+checkLineLength :: Applicative m => (forall a. Doc -> m a) -> String -> Natural -> m ()
+checkLineLength reject code maxLength = case hasLonger of
+  []     -> pure ()
+  xs     -> rejectWithHint $ separated
+    [ "Your submission contains overlong lines:"
+    , separated xs
+    , "The maximum line length allowed is" <+> string (show maxLength) <> "."
+    ]
+  where
+    codeLines = lines code
+    hasLonger =
+      [ format x
+      | x@(_,l) <- zip [1..] codeLines
+      , length l > fromIntegral maxLength
+      ]
+    format (i,l) = nest 2 $ vcat
+      [ "Line" <+> int i <+> "(length" <+> int (length l) <> "):"
+      , string l
+      ]
+    separated = vcat . punctuate linebreak
+    rejectWithHint = rejectWithMessage reject rejectHint
