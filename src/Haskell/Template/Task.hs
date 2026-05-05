@@ -509,7 +509,7 @@ grade withSyntax withSemantics reject inform dirname task submission = do
       (const $ pure ())
       task
     (modules, solutionFile) <- if runIdentity $ fmap (== CodeWidth) syntaxCutoff &&^ disableSemantics
-      -- completely skip file writing if code length is the only syntax phase action
+      -- Completely skip file writing if code length is the only syntax phase action
       -- and semantics phase is disabled.
       then pure (undefined, undefined)
       else writeModules (moduleName', submission) others dirname
@@ -1009,8 +1009,8 @@ testPhases reject inform template solutionFile modules config exts submission di
 
 checkLineLength :: Applicative m => (forall a. Doc -> m a) -> String -> Natural -> m ()
 checkLineLength reject code maxLength = case hasLonger of
-  []     -> pure ()
-  xs     -> rejectWithHint $ separated
+  [] -> pure ()
+  xs -> rejectWithHint $ separated
     [ "Your submission contains overlong lines:"
     , separated xs
     , "The maximum line length allowed is" <+> string (show maxLength) <> "."
@@ -1018,12 +1018,12 @@ checkLineLength reject code maxLength = case hasLonger of
   where
     codeLines = lines code
     hasLonger =
-      [ format (i, l, lineLength)
+      [ format i l lineLength
       | (i, l) <- zip [1..] codeLines
       , let lineLength = length l
       , fromIntegral lineLength > maxLength
       ]
-    format (i, l, lineLength) = nest 2 $ vcat
+    format i l lineLength = nest 2 $ vcat
       [ "Line" <+> int i <+> "(length" <+> int lineLength <> "):"
       , string l
       ]
