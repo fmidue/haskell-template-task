@@ -511,7 +511,7 @@ grade withSyntax withSemantics reject inform dirname task submission = do
     (modules, solutionFile) <- if runIdentity $ fmap (== CodeWidth) syntaxCutoff &&^ disableSemantics
       -- completely skip file writing if code length is the only syntax phase action
       -- and semantics phase is disabled.
-      then pure (undefined,undefined)
+      then pure (undefined, undefined)
       else writeModules (moduleName', submission) others dirname
     let
      (syntax, semantics) = splitAt (fromEnum syntaxCutoff + 1)
