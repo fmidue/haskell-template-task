@@ -1018,12 +1018,13 @@ checkLineLength reject code maxLength = case hasLonger of
   where
     codeLines = lines code
     hasLonger =
-      [ format x
-      | x@(_,l) <- zip [1..] codeLines
-      , length l > fromIntegral maxLength
+      [ format (i, l, lineLength)
+      | (i, l) <- zip [1..] codeLines
+      , let lineLength = length l
+      , fromIntegral lineLength > maxLength
       ]
-    format (i,l) = nest 2 $ vcat
-      [ "Line" <+> int i <+> "(length" <+> int (length l) <> "):"
+    format (i, l, lineLength) = nest 2 $ vcat
+      [ "Line" <+> int i <+> "(length" <+> int lineLength <> "):"
       , string l
       ]
     separated = vcat . punctuate linebreak
