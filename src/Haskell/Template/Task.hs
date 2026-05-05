@@ -42,7 +42,7 @@ import qualified Haskell.Template.Match as Match (test)
 
 import Control.Applicative              ((<|>))
 import Control.Monad                    (forM, guard, msum, unless, void, when)
-import Control.Monad.Extra              (whenJust)
+import Control.Monad.Extra              ((&&^), whenJust)
 import Control.Monad.IO.Class           (MonadIO)
 import Data.Char                        (isUpper)
 import Data.Functor.Identity            (Identity (..))
@@ -204,7 +204,7 @@ data FeedbackPhase
   | HlintErrors
   | TemplateMatch
   | TestSuite
-  deriving (Enum, Generic, Show, FromJSON, ToJSON)
+  deriving (Enum, Eq, Generic, Show, FromJSON, ToJSON)
 
 data FSolutionConfig m = SolutionConfig {
     allowAdding                 :: m Bool,
@@ -504,22 +504,26 @@ grade
   -- ^ whether the conditions outlined in the description apply or not
 grade withSyntax withSemantics reject inform dirname task submission = do
     withSyntax $ checkUnsafe reject submission
-    (config, exts, (moduleName', template), others) <- processConfig
+    (config@SolutionConfig{..}, exts, (moduleName', template), others) <- processConfig
       (rejectWithMessage reject $ string informTutorMessage)
       (const $ pure ())
       task
-    (modules, solutionFile) <- writeModules (moduleName', submission) others dirname
+    (modules, solutionFile) <- if runIdentity $ fmap (== CodeWidth) syntaxCutoff &&^ disableSemantics
+      -- completely skip file writing if code length is the only syntax phase action
+      -- and semantics phase is disabled.
+      then pure (undefined,undefined)
+      else writeModules (moduleName', submission) others dirname
     let
-     (syntax, semantics) = splitAt (fromEnum (syntaxCutoff config) + 1)
+     (syntax, semantics) = splitAt (fromEnum syntaxCutoff + 1)
       $ testPhases reject inform template solutionFile modules config exts submission dirname
     withSyntax $ sequence_ syntax
-    if runIdentity $ disableSemantics config
+    if runIdentity disableSemantics
     then pure False
     else do
      withSemantics $ sequence_ semantics
      case
       (,) <$> lookup "SampleSolution" others
-          <*> runIdentity (messageOnCloningSampleSolution config)
+          <*> runIdentity messageOnCloningSampleSolution
       of
         Nothing                       -> pure False
         Just (sampleSolution,message) -> catchSampleSolutionClone
