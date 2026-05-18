@@ -107,7 +107,6 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \# configHlintRules            - hlint extra hint rules to use
 \# configHlintSuggestions      - hlint hints to provide as suggestions
 \# configLanguageExtensions    - this sets LanguageExtensions for hlint as well
-\# configModules               - DEPRECATED (will be ignored)
 \# maxLineLength               - submissions with lines longer than this value are rejected
 \# syntaxCutoff                - determines the last step in the syntax phase (later steps are considered semantics)
 \#                               possible values (and also the order of steps):
@@ -222,14 +221,12 @@ data FSolutionConfig m = SolutionConfig {
     configHlintRules            :: m [String],
     configHlintSuggestions      :: m [String],
     configLanguageExtensions    :: m [String],
-    configModules               :: m [String],
     maxLineLength               :: m (Maybe Natural),
     provideSampleSolution       :: m Bool,
     messageOnCloningSampleSolution :: m (Maybe String),
     disableSemantics            :: m Bool,
     syntaxCutoff                :: m FeedbackPhase
   } deriving Generic
-{-# DEPRECATED configModules "config Modules will be removed" #-}
 
 type SolutionConfigOpt = FSolutionConfig Maybe
 
@@ -258,7 +255,6 @@ defaultSolutionConfig = SolutionConfig {
     configHlintRules            = Just [],
     configHlintSuggestions      = Just [],
     configLanguageExtensions    = Just ["NPlusKPatterns","ScopedTypeVariables"],
-    configModules               = Nothing,
     maxLineLength               = Just Nothing,
     provideSampleSolution       = Just False,
     messageOnCloningSampleSolution = Just Nothing,
@@ -283,7 +279,6 @@ toSolutionConfigOpt SolutionConfig {..} = runIdentity $ SolutionConfig
   <*> fmap Just configHlintRules
   <*> fmap Just configHlintSuggestions
   <*> fmap Just configLanguageExtensions
-  <*> fmap Just configModules
   <*> fmap Just maxLineLength
   <*> fmap Just provideSampleSolution
   <*> fmap Just messageOnCloningSampleSolution
@@ -310,7 +305,6 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
       <*> fmap Identity configHlintRules
       <*> fmap Identity configHlintSuggestions
       <*> fmap Identity configLanguageExtensions
-      <*> fmap Identity configModules
       <*> fmap Identity maxLineLength
       <*> fmap Identity provideSampleSolution
       <*> fmap Identity messageOnCloningSampleSolution
@@ -332,7 +326,6 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
         configHlintRules            = configHlintRules            x <|> configHlintRules            y,
         configHlintSuggestions      = configHlintSuggestions      x <|> configHlintSuggestions      y,
         configLanguageExtensions    = configLanguageExtensions    x <|> configLanguageExtensions    y,
-        configModules               = Just [],
         maxLineLength               = maxLineLength               x <|> maxLineLength               y,
         provideSampleSolution       = provideSampleSolution       x <|> provideSampleSolution       y,
         messageOnCloningSampleSolution = messageOnCloningSampleSolution x <|> messageOnCloningSampleSolution y,
@@ -355,7 +348,6 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
         configHlintRules            = Nothing,
         configHlintSuggestions      = Nothing,
         configLanguageExtensions    = Nothing,
-        configModules               = Nothing,
         maxLineLength               = Nothing,
         provideSampleSolution       = Nothing,
         messageOnCloningSampleSolution = Nothing,
