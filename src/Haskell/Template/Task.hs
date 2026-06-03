@@ -117,7 +117,7 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \#                               this means a submission will be accepted after passing the syntax phase
 \# provideSampleSolution       - display provided sample solution to students after semantics feedback
 \# rigorousValidation          - will run all tests configured for submissions on the provided sample solution
-\#                               (no effect if provideSampleSolution is not set)
+\#                               (no effect if there is none)
 \#                               this should be set while configuring the task and disabled after,
 \#                               in order to reduce wait times for students
 \# messageOnCloningSampleSolution - compare provided sample solution with submission and output
