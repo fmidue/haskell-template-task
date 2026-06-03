@@ -108,7 +108,7 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \# configHlintSuggestions      - hlint hints to provide as suggestions
 \# configLanguageExtensions    - this sets LanguageExtensions for hlint as well
 \# maxLineLength               - submissions with lines longer than this value are rejected
-\# syntaxCutoff                - determines the last step in the syntax phase (later steps are considered semantics)
+\# syntaxCutoff                - determines the last step in the syntax phase (later steps are considered semantics);
 \#                               possible values (and also the order of steps):
 \#                                 CodeWidth, Compilation, GhcErrors, HlintErrors, TemplateMatch, TestSuite
 \#                               default on omission is TemplateMatch; steps after TestSuite are (in this order):
@@ -117,7 +117,7 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \#                               this means a submission will be accepted after passing the syntax phase
 \# provideSampleSolution       - display provided sample solution to students after semantics feedback
 \# rigorousValidation          - will run all tests configured for submissions on the provided sample solution
-\#                               (no effect if there is none)
+\#                               (no effect if there is none);
 \#                               this should be set while configuring the task and disabled after,
 \#                               in order to reduce wait times for students
 \# messageOnCloningSampleSolution - compare provided sample solution with submission and output
