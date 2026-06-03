@@ -116,6 +116,10 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \# disableSemantics            - will prevent the semantics phase (as determined by syntaxCutoff) from running;
 \#                               this means a submission will be accepted after passing the syntax phase
 \# provideSampleSolution       - display provided sample solution to students after semantics feedback
+\# rigorousValidation          - will run all tests configured for submissions on the provided sample solution
+\#                               (no effect if provideSampleSolution is not set)
+\#                               this should be set while configuring the task and disabled after,
+\#                               in order to reduce wait times for students
 \# messageOnCloningSampleSolution - compare provided sample solution with submission and output
 \#                                  this message as feedback if the submission contains the sample solution
 \#                                  (provideSampleSolution will be ignored if the submission is a clone)
@@ -225,6 +229,7 @@ data FSolutionConfig m = SolutionConfig {
     provideSampleSolution       :: m Bool,
     messageOnCloningSampleSolution :: m (Maybe String),
     disableSemantics            :: m Bool,
+    rigorousValidation          :: m Bool,
     syntaxCutoff                :: m FeedbackPhase
   } deriving Generic
 
@@ -259,6 +264,7 @@ defaultSolutionConfig = SolutionConfig {
     provideSampleSolution       = Just False,
     messageOnCloningSampleSolution = Just Nothing,
     disableSemantics            = Just False,
+    rigorousValidation          = Just False,
     syntaxCutoff                = Just TemplateMatch
   }
 
@@ -283,6 +289,7 @@ toSolutionConfigOpt SolutionConfig {..} = runIdentity $ SolutionConfig
   <*> fmap Just provideSampleSolution
   <*> fmap Just messageOnCloningSampleSolution
   <*> fmap Just disableSemantics
+  <*> fmap Just rigorousValidation
   <*> fmap Just syntaxCutoff
 
 finaliseConfigs :: [SolutionConfigOpt] -> Maybe SolutionConfig
@@ -309,6 +316,7 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
       <*> fmap Identity provideSampleSolution
       <*> fmap Identity messageOnCloningSampleSolution
       <*> fmap Identity disableSemantics
+      <*> fmap Identity rigorousValidation
       <*> fmap Identity syntaxCutoff
     combineConfigs x y = SolutionConfig {
         allowAdding                 = allowAdding                 x <|> allowAdding                 y,
@@ -330,6 +338,7 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
         provideSampleSolution       = provideSampleSolution       x <|> provideSampleSolution       y,
         messageOnCloningSampleSolution = messageOnCloningSampleSolution x <|> messageOnCloningSampleSolution y,
         disableSemantics            = disableSemantics            x <|> disableSemantics            y,
+        rigorousValidation          = rigorousValidation          x <|> rigorousValidation          y,
         syntaxCutoff                = syntaxCutoff                x <|> syntaxCutoff                y
       }
     emptyConfig = SolutionConfig {
@@ -352,6 +361,7 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
         provideSampleSolution       = Nothing,
         messageOnCloningSampleSolution = Nothing,
         disableSemantics            = Nothing,
+        rigorousValidation          = Nothing,
         syntaxCutoff                = Nothing
       }
 
@@ -380,7 +390,7 @@ check reject inform path i = do
         reject "'provideSampleSolution' is set, but there is no sample solution in the config."
       whenJust (runIdentity messageOnCloningSampleSolution) $ const $
         reject "'messageOnCloningSampleSolution' is set, but there is no sample solution in the config."
-    Just sampleSolution -> do
+    Just sampleSolution -> when (runIdentity rigorousValidation) $ do
       let stricterConfig = config
             { configGhcErrors = configGhcWarnings <> configGhcErrors
             , configHlintErrors = configHlintSuggestions <> configHlintErrors
