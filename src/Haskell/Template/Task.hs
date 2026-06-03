@@ -371,6 +371,7 @@ check reject inform path i = do
   checkUniqueness (m : map fst ms)
   inform $ string $ "Parsing template module " <> m
   void $ parse reject exts s
+  mapM_ (checkLineLength reject s) $ runIdentity maxLineLength
   void $ parseModule exts `mapM` ms
   let mSampleSolution = lookup "SampleSolution" ms
   -- This step is currently optional and will not run if no sample solution is provided
