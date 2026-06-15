@@ -197,7 +197,11 @@ gradeIOWithRes task submission = do
       task
       submission
 
-hlintIO :: SolutionConfig -> String -> (PP.Doc -> IO (Either String String)) -> (SolutionConfig -> Identity [String]) -> IO [Either String String]
+hlintIO :: SolutionConfig
+           -> String
+           -> (PP.Doc -> IO (Either String String))
+           -> (SolutionConfig -> Identity [String])
+           -> IO [Either String String]
 hlintIO config content display selectHints = do
   tmp <- liftIO getTemporaryDirectory
   withTempDirectory tmp "Template-test" $ \dir -> do
