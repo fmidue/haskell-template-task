@@ -15,6 +15,7 @@ import Control.Monad.Catch (
   )
 import Control.Monad.IO.Class           (liftIO)
 import Control.Monad.Trans.Writer       (runWriterT, tell)
+import Data.Functor.Identity            (Identity)
 import Data.List                        (intercalate, isPrefixOf)
 import Data.List.Extra                  (split)
 import Data.Maybe                       (fromJust)
@@ -47,24 +48,24 @@ spec :: Spec
 spec = do
   describe "hlintFeedback" $ do
     it "accepts code without warnings/errors" $
-      hlintIO defaultConfig noError True `shouldReturn` []
+      hlintIO defaultConfig noError errorP configHlintErrors `shouldReturn` []
     it "returns specified warnings" $
-      hlintIO idSuggestion useId False
+      hlintIO idSuggestion useId infoP configHlintSuggestions
       `shouldReturn` [Right "Warning: Redundant id"]
     it "returns specified errors" $
-      hlintIO idError useId True `shouldReturn` [Left "Warning: Redundant id"]
+      hlintIO idError useId errorP configHlintErrors `shouldReturn` [Left "Warning: Redundant id"]
     it "returns no errors if specified warnings only" $
-      hlintIO idSuggestion useId True `shouldReturn` []
+      hlintIO idSuggestion useId errorP configHlintErrors `shouldReturn` []
     it "returns no warnings if specified errors only" $
-      hlintIO idError useId False `shouldReturn` []
+      hlintIO idError useId infoP configHlintSuggestions `shouldReturn` []
     it "returns specified custom warnings" $
-      hlintIO dilatedError useDilated True
+      hlintIO dilatedError useDilated errorP configHlintErrors
       `shouldReturn` [Left "Warning: Use dilated"]
     it "returns specified custom warnings with name" $
-      hlintIO dilatedNamed useDilated True
+      hlintIO dilatedNamed useDilated errorP configHlintErrors
       `shouldReturn` [Left "Warning: Do not use scaled"]
     it "allows specifying fixity" $
-      hlintIO dilatedWithFixity useDilated True
+      hlintIO dilatedWithFixity useDilated errorP configHlintErrors
       `shouldReturn` [Left "Warning: Use dilated"]
   describe "grade" $ do
     it "is running" $
@@ -196,17 +197,20 @@ gradeIOWithRes task submission = do
       task
       submission
 
-hlintIO :: SolutionConfig -> String -> Bool -> IO [Either String String]
-hlintIO config content asError = do
+hlintIO :: SolutionConfig
+           -> String
+           -> (PP.Doc -> IO (Either String String))
+           -> (SolutionConfig -> Identity [String])
+           -> IO [Either String String]
+hlintIO config content display selectHints = do
   tmp <- liftIO getTemporaryDirectory
   withTempDirectory tmp "Template-test" $ \dir -> do
     setCurrentDirectory dir
     let file = dir </> "Main.hs"
     writeFile file content
-    feedback <- getHlintFeedback display config tmp file asError
+    feedback <- getHlintFeedback display config tmp file selectHints
     return $ (repackStrings +++ repackStrings) <$> feedback
   where
-    display = if asError then errorP else infoP
     repackStrings x =
       let xs = filterWarnings $ lines x
       in if null xs then x else head xs

@@ -558,9 +558,9 @@ getHlintFeedback
   -> FilePath
   -- ^ directory where to write @additional.yaml@ for hints to check to
   -> String
-  -> Bool
+  -> (SolutionConfig -> Identity [String])
   -> m [a]
-getHlintFeedback documentInfo config dir file asError = case hints of
+getHlintFeedback documentInfo config dir file selectHints = case hints of
   [] -> return []
   _  -> do
     liftIO $ strictWriteFile additional $ hlintConfig rules
@@ -578,10 +578,6 @@ getHlintFeedback documentInfo config dir file asError = case hints of
     additional = dir </> "additional.yaml"
     rules = runIdentity $ configHlintRules config
     hints = runIdentity $ selectHints config
-    selectHints =
-      if asError
-      then configHlintErrors
-      else configHlintSuggestions
     hintLimit =
       maybe id genericTake $ runIdentity $ configHlintSuggestionsLimit config
     hlintFeedback feedbackIdeas =
@@ -604,21 +600,16 @@ compileWithArgsAndCheck
   -> (Doc -> m ())
   -> SolutionConfig
   -> [String]
-  -> Bool
+  -> (SolutionConfig -> Identity [String])
   -> m ()
-compileWithArgsAndCheck dirname reject inform config modules asError = unless (null ghcOpts) $ do
+compileWithArgsAndCheck dirname reject how config modules selectWarnings = unless (null ghcOpts) $ do
   ghcErrors <-
     liftIO $ unsafeRunInterpreterWithArgs ghcOpts (compiler dirname extensions modules)
   checkResult reject ghcErrors how howMany $ const $ return ()
   where
     makeOpts xs = ("-w":) $ ("-Werror=" ++) <$> xs
-    ghcOpts  = makeOpts $ msum (warnings config)
-    (warnings, how) =
-      if asError
-      then (configGhcErrors,   rejectWithHint)
-      else (configGhcWarnings, inform)
+    ghcOpts  = makeOpts $ msum (selectWarnings config)
     howMany = runIdentity $ configGhcLimit config
-    rejectWithHint = rejectWithMessage reject rejectHint
     extensions = extensionsOf config
 
 matchTemplate
@@ -978,10 +969,10 @@ testPhases reject inform template solutionFile modules config exts submission di
       checkResult reject compilationWithTests signatureError Nothing $ const $ return ()
   ,
     -- Reject if GHC warnings configured as errors are triggered by solution.
-    compileWithArgsAndCheck dirname reject undefined config noTest True
+    compileWithArgsAndCheck dirname reject rejectWithHint config noTest configGhcErrors
   ,
     -- Reject if HLint warnings configured as errors are triggered by solution.
-    void $ getHlintFeedback rejectWithHint config dirname solutionFile True
+    void $ getHlintFeedback rejectWithHint config dirname solutionFile configHlintErrors
   ,
     -- Reject on task template violations according to settings (modifying, adding, deleting).
     matchTemplate reject config 2 exts template submission
@@ -993,10 +984,10 @@ testPhases reject inform template solutionFile modules config exts submission di
   ,
     do
     -- Displays GHC warnings configured as non-errors triggered by submission.
-    compileWithArgsAndCheck dirname reject inform config noTest False
+    compileWithArgsAndCheck dirname reject inform config noTest configGhcWarnings
 
     -- Displays HLint suggestions configured as non-errors triggered by submission.
-    void $ getHlintFeedback inform config dirname solutionFile False
+    void $ getHlintFeedback inform config dirname solutionFile configHlintSuggestions
   ]
   where
     noTest = delete "Test" modules
