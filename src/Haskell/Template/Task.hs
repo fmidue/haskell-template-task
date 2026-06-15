@@ -675,18 +675,16 @@ deriving instance Typeable Counts
 handleCounts
   :: MonadIO m
   => (forall a. Doc -> m a)
-  -> (Doc -> m ())
   -> IO (Counts, String -> String)
   -> m ()
-handleCounts reject inform runResult = do
+handleCounts reject runResult = do
   result <- liftIO runResult
   case result of
-    (Counts {errors=x, failures=0}, f) | x /= 0 -> do
-      inform $ vcat [ "Some error occurred before fully testing the solution:", empty ]
-      reject (string (f ""))
+    (Counts {errors = 0, failures = 0}, _) -> pure ()
+    (Counts {failures = 0}, f) -> do
+      reject $ vcat [ "Some error(s) occurred before fully testing the solution:", empty, string (f "") ]
       -- e.g. quickcheck timeout errors
-    (Counts {errors=0, failures=0}, _) -> pure ()
-    (_                            , f) -> reject (string (f ""))
+    (_, f) -> reject (string (f ""))
 
 checkResult
   :: Monad m
@@ -991,7 +989,7 @@ testPhases reject inform template solutionFile modules config exts submission di
     do
     -- Reject if test suite fails for submission.
     result <- liftIO $ runInterpreter (interpreter dirname exts modules)
-    checkResult reject result reject Nothing $ handleCounts reject inform
+    checkResult reject result reject Nothing $ handleCounts reject
   ,
     do
     -- Displays GHC warnings configured as non-errors triggered by submission.
