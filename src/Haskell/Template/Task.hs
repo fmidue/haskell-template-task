@@ -78,7 +78,7 @@ import System.FilePath (
   )
 import Test.HUnit                       (Counts (..))
 import Text.PrettyPrint.Leijen.Text
-  (Doc, (<+>), int, linebreak, nest, punctuate, text, vcat)
+  (Doc, (<+>), empty, int, linebreak, nest, punctuate, text, vcat)
 import Text.Read                        (readMaybe)
 import Text.Regex.PCRE.Heavy            (re, sub)
 
@@ -682,7 +682,7 @@ handleCounts reject inform runResult = do
   result <- liftIO runResult
   case result of
     (Counts {errors=x, failures=0}, f) | x /= 0 -> do
-      inform "Some error occurred before fully testing the solution:"
+      inform $ vcat [ "Some error occurred before fully testing the solution:", empty ]
       reject (string (f ""))
       -- e.g. quickcheck timeout errors
     (Counts {errors=0, failures=0}, _) -> pure ()
