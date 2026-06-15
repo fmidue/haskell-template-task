@@ -602,13 +602,13 @@ compileWithArgsAndCheck
   -> [String]
   -> (SolutionConfig -> Identity [String])
   -> m ()
-compileWithArgsAndCheck dirname reject how config modules warnings = unless (null ghcOpts) $ do
+compileWithArgsAndCheck dirname reject how config modules selectWarnings = unless (null ghcOpts) $ do
   ghcErrors <-
     liftIO $ unsafeRunInterpreterWithArgs ghcOpts (compiler dirname extensions modules)
   checkResult reject ghcErrors how howMany $ const $ return ()
   where
     makeOpts xs = ("-w":) $ ("-Werror=" ++) <$> xs
-    ghcOpts  = makeOpts $ msum (warnings config)
+    ghcOpts  = makeOpts $ msum (selectWarnings config)
     howMany = runIdentity $ configGhcLimit config
     extensions = extensionsOf config
 
