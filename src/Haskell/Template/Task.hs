@@ -401,6 +401,7 @@ check reject inform path i = do
             }
       let others = filter ((/="SampleSolution") . fst) ms
       let content = replace "module SampleSolution" ("module " ++ m) sampleSolution
+      mapM_ (checkLineLength reject content) $ runIdentity maxLineLength
       (modules, solutionFile) <- writeModules (m, content) others path
       sequence_ $ testPhases reject inform s solutionFile modules stricterConfig exts content path
   where
@@ -511,13 +512,14 @@ grade withSyntax withSemantics reject inform dirname task submission = do
       (rejectWithMessage reject $ string informTutorMessage)
       (const $ pure ())
       task
+    withSyntax $ mapM_ (checkLineLength reject submission) $ runIdentity maxLineLength
     (modules, submissionFile) <- if runIdentity $ fmap (== CodeWidth) syntaxCutoff &&^ disableSemantics
       -- Completely skip file writing if code length is the only syntax phase action
       -- and semantics phase is disabled.
       then pure (undefined, undefined)
       else writeModules (moduleName', submission) others dirname
     let
-     (syntax, semantics) = splitAt (fromEnum syntaxCutoff + 1)
+     (syntax, semantics) = splitAt (fromEnum syntaxCutoff)
       $ testPhases reject inform template submissionFile modules config exts submission dirname
     withSyntax $ sequence_ syntax
     if runIdentity disableSemantics
@@ -948,10 +950,6 @@ testPhases
   -> [m ()]
 testPhases reject inform template submissionFile modules config exts submission dirname =
   [
-    -- Reject if submission has lines violating the configured maximum line length.
-    -- Only checked if the setting is configured.
-    mapM_ (checkLineLength reject submission) $ runIdentity $ maxLineLength config
-  ,
     do
     -- Reject if submission does not compile with provided hidden modules,
     -- but without Test module.
