@@ -680,11 +680,11 @@ handleCounts
 handleCounts reject runResult = do
   result <- liftIO runResult
   case result of
-    (Counts {errors=x, failures=0}, f) | x /= 0 -> do
-      reject $ vcat [ "Some error occurred before fully testing the solution:", empty, string (f "") ]
+    (Counts {errors = 0, failures = 0}, _) -> pure ()
+    (Counts {failures = 0}, f) -> do
+      reject $ vcat [ "Some error(s) occurred before fully testing the solution:", empty, string (f "") ]
       -- e.g. quickcheck timeout errors
-    (Counts {errors=0, failures=0}, _) -> pure ()
-    (_                            , f) -> reject (string (f ""))
+    (_, f) -> reject (string (f ""))
 
 checkResult
   :: Monad m
