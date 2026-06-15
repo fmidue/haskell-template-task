@@ -511,14 +511,14 @@ grade withSyntax withSemantics reject inform dirname task submission = do
       (rejectWithMessage reject $ string informTutorMessage)
       (const $ pure ())
       task
-    (modules, solutionFile) <- if runIdentity $ fmap (== CodeWidth) syntaxCutoff &&^ disableSemantics
+    (modules, submissionFile) <- if runIdentity $ fmap (== CodeWidth) syntaxCutoff &&^ disableSemantics
       -- Completely skip file writing if code length is the only syntax phase action
       -- and semantics phase is disabled.
       then pure (undefined, undefined)
       else writeModules (moduleName', submission) others dirname
     let
      (syntax, semantics) = splitAt (fromEnum syntaxCutoff + 1)
-      $ testPhases reject inform template solutionFile modules config exts submission dirname
+      $ testPhases reject inform template submissionFile modules config exts submission dirname
     withSyntax $ sequence_ syntax
     if runIdentity disableSemantics
     then pure False
@@ -673,7 +673,7 @@ handleCounts reject runResult = do
   case result of
     (Counts {errors = 0, failures = 0}, _) -> pure ()
     (Counts {failures = 0}, f) -> do
-      reject $ vcat [ "Some error(s) occurred before fully testing the solution:", empty, string (f "") ]
+      reject $ vcat [ "Some error(s) occurred before fully testing the submission:", empty, string (f "") ]
       -- e.g. quickcheck timeout errors
     (_, f) -> reject (string (f ""))
 
@@ -692,7 +692,7 @@ checkResult reject result handleError mErrorLimit handleResult = case result of
       $ map (editFeedback . formatHyperlinks) $ filterWerrors msgs
   Left err -> reject $
     vcat ["An unexpected error occurred.",
-          "This is usually not caused by a fault within your solution.",
+          "This is usually not caused by a fault within your submission.",
           "Please contact your lecturers, providing the following error message:",
           nest 4 $ string $ show err]
   where
@@ -769,7 +769,7 @@ rejectParse reject' m loc msg =
       lPre'     = takeEnd 3 lPre
       tag       = replicate (E.srcColumn loc - 1) '.' ++ "^"
   in reject' $ vcat
-       ["Syntax error (your solution is no Haskell program):",
+       ["Syntax error (your submission is no Haskell program):",
         bloc $ lPre' ++ [tag],
         string msg]
 
@@ -785,7 +785,7 @@ rejectMatch
 rejectMatch reject config context i b l = case l of
   SrcSpanInfoPair w sp1 sp2 ->
     unless (allowedOperation w allowModifying) $ reject $ vcat
-      ["Your solution does not fit the template:" , "",
+      ["Your submission does not fit the template:" , "",
        "Template:"   , bloc $ highlight_ssi sp1 context i,
        "Submission:" , bloc $ highlight_ssi sp2 context b]
   SrcSpanInfo w OnlyTemplate sp ->
@@ -895,7 +895,7 @@ checkUnsafe reject rawFile =  do
 
 informTutorMessage :: String
 informTutorMessage =
-  [SI.i|Please inform a tutor about this issue providing your solution and this message.|]
+  [SI.i|Please inform a tutor about this issue providing your submission and this message.|]
 
 rejectWithMessage :: (forall a. Doc -> m a) -> Doc -> Doc -> m b
 rejectWithMessage reject m = reject . vcat . (: singleton m)
@@ -916,14 +916,14 @@ writeModules (moduleName', submission) others dirname = do
         $ filter ((".hs" ==) . takeExtension)
         $ filter (`notElem` [".",".."]) files
       modules = ["Test"] `union` existingModules
-      solutionFile = dirname </> (moduleName' <.> "hs")
+      submissionFile = dirname </> (moduleName' <.> "hs")
   liftIO $ do
     unless ("Test" `elem` existingModules) $
       strictWriteFile (dirname </> "Test" <.> "hs") $ testModule moduleName'
     strictWriteFile (dirname </> "TestHelper" <.> "hs") testHelperContents
     strictWriteFile (dirname </> "TestHarness" <.> "hs")
-      $ testHarnessFor solutionFile
-  pure (modules, solutionFile)
+      $ testHarnessFor submissionFile
+  pure (modules, submissionFile)
   where
     testHarnessFor file =
       let quoted xs = '"' : xs ++ "\""
@@ -945,7 +945,7 @@ testPhases
   -> String
   -> FilePath
   -> [m ()]
-testPhases reject inform template solutionFile modules config exts submission dirname =
+testPhases reject inform template submissionFile modules config exts submission dirname =
   [
     -- Reject if submission has lines violating the configured maximum line length.
     -- Only checked if the setting is configured.
@@ -968,11 +968,11 @@ testPhases reject inform template solutionFile modules config exts submission di
         compiler dirname exts modules
       checkResult reject compilationWithTests signatureError Nothing $ const $ return ()
   ,
-    -- Reject if GHC warnings configured as errors are triggered by solution.
+    -- Reject if GHC warnings configured as errors are triggered by submission.
     compileWithArgsAndCheck dirname reject rejectWithHint config noTest configGhcErrors
   ,
-    -- Reject if HLint warnings configured as errors are triggered by solution.
-    void $ getHlintFeedback rejectWithHint config dirname solutionFile configHlintErrors
+    -- Reject if HLint warnings configured as errors are triggered by submission.
+    void $ getHlintFeedback rejectWithHint config dirname submissionFile configHlintErrors
   ,
     -- Reject on task template violations according to settings (modifying, adding, deleting).
     matchTemplate reject config 2 exts template submission
@@ -987,7 +987,7 @@ testPhases reject inform template solutionFile modules config exts submission di
     compileWithArgsAndCheck dirname reject inform config noTest configGhcWarnings
 
     -- Displays HLint suggestions configured as non-errors triggered by submission.
-    void $ getHlintFeedback inform config dirname solutionFile configHlintSuggestions
+    void $ getHlintFeedback inform config dirname submissionFile configHlintSuggestions
   ]
   where
     noTest = delete "Test" modules
