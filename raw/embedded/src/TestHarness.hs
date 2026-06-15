@@ -208,7 +208,7 @@ callTo name mod decl = declName decl `elem` findDeclsCalling name mod
 {- |
 Run an assertion on the submission module's syntax tree.
 
-Only enables language extensions explicitly listed in the student's solution file.
+Only enables language extensions explicitly listed in the student's submission file.
 Using any hidden default extensions will cause a parse error.
 -}
 syntaxCheck :: (Module SrcSpanInfo -> HU.Assertion) -> HU.Assertion
@@ -220,7 +220,7 @@ on top of what is found in the file.
 -}
 syntaxCheckWithExts :: [String] -> (Module SrcSpanInfo -> HU.Assertion) -> HU.Assertion
 syntaxCheckWithExts exts check = do
-  contents <- IO.readFile "Solution.hs"
+  contents <- IO.readFile "Submission.hs"
   let mod = case parseFileContentsWithExts (map classifyExtension exts) contents of
               ParseOk mod'    -> mod'
               ParseFailed l e -> error $ "Parsing file contents failed at " ++ show l ++ ": " ++ e

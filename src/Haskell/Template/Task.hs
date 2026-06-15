@@ -927,7 +927,7 @@ writeModules (moduleName', submission) others dirname = do
   where
     testHarnessFor file =
       let quoted xs = '"' : xs ++ "\""
-      in replace (quoted "Solution.hs") (quoted file) testHarnessContents
+      in replace (quoted "Submission.hs") (quoted file) testHarnessContents
     testModule :: String -> String
     testModule s = [SI.i|module Test (test) where
 import qualified #{s} (test)

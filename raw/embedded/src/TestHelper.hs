@@ -130,7 +130,7 @@ tcTimeoutAndArgsHandleFailure to args prog spec withFailure = do
   case outcome of
     Just (IOTasks.Outcome IOTasks.Success{} _) -> return ()
     Just (IOTasks.Outcome IOTasks.GaveUp _) -> assertFailure
-      "Gave up on testing. This is usually not caused by a fault within your solution. Please contact your lecturers"
+      "Gave up on testing. This is usually not caused by a fault within your submission. Please contact your lecturer."
     Just o@(IOTasks.Outcome IOTasks.Failure{} _) -> assertFailure $ withFailure o
     Nothing -> assertFailure "Failure: Timeout"
 #endif
