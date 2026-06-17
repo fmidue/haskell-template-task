@@ -788,7 +788,7 @@ rejectMatch
 rejectMatch reject config context i b l = case l of
   SrcSpanInfoPair w sp1 sp2 ->
     unless (allowedOperation w allowModifying) $ reject $ vcat
-      ["Your submission does not fit the template:" , "",
+      ["Your submission does not fit the template:" , empty,
        "Template:"   , bloc $ highlight_ssi sp1 context i,
        "Submission:" , bloc $ highlight_ssi sp2 context b]
   SrcSpanInfo w OnlyTemplate sp ->
