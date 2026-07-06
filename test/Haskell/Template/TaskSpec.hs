@@ -88,7 +88,7 @@ spec = do
          Perhaps:
            x
          |]
-         ++ '\n' : '\n' : rejectLine
+         ++ '\n' : rejectLine
     it "fails with forbidden warnings" $
       exceptionToString (gradeIO (toCode incompletePattern [useImport, tests]) useImport)
       `shouldReturn` [SI.__i|
@@ -111,7 +111,7 @@ spec = do
       it "returns False and no additional message if option is set, but submission is no clone" $
         gradeIOWithRes withCloneMessage noClone `shouldReturn` (False, "")
   where
-    rejectLine = '\n' : render rejectHint
+    rejectLine = '\n' : '\n' : render rejectHint
     exceptionToString f = catch f (\(CustomException x) -> pure $ render x)
     withHlintError = toCode idError [useId]
     useImport = [SI.__i|
