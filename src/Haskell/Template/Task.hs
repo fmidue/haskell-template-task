@@ -33,7 +33,7 @@ import qualified Data.ByteString.Char8            as BS
 import qualified Language.Haskell.Exts            as E
 import qualified Language.Haskell.Exts.Parser     as P
 import qualified System.IO                        as IO {- required to avoid encoding problems -}
-import qualified Data.String.Interpolate          as SI (i, iii, iii'E)
+import qualified Data.String.Interpolate          as SI (i, iii)
 
 import Haskell.Template.FileContents    (testHelperContents, testHarnessContents)
 import Haskell.Template.Match
@@ -48,7 +48,6 @@ import Data.Char                        (isUpper)
 import Data.Functor.Identity            (Identity (..))
 import Data.List
   (delete, elemIndex, groupBy, intercalate, isInfixOf, isPrefixOf,
-   singleton,
    union,
    )
 import Data.List.Extra
@@ -539,7 +538,7 @@ grade withSyntax withSemantics reject inform dirname task submission = do
           submission
 
 rejectHint :: Doc
-rejectHint = [SI.iii'E|
+rejectHint = [SI.iii|
   Unless you fix the above,
   your submission will not be considered further
   (e.g., no tests being run on it).
@@ -901,7 +900,7 @@ informTutorMessage =
   [SI.i|Please inform a tutor about this issue providing your submission and this message.|]
 
 rejectWithMessage :: (forall a. Doc -> m a) -> Doc -> Doc -> m b
-rejectWithMessage reject m = reject . vcat . (: singleton m)
+rejectWithMessage reject m = reject . vcat . (: [empty, m])
 
 writeModules
   :: MonadIO m
