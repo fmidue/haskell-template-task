@@ -88,7 +88,7 @@ spec = do
          Perhaps:
            x
          |]
-         ++ '\n' : rejectLine
+         ++ '\n' : '\n' : rejectLine
     it "fails with forbidden warnings" $
       exceptionToString (gradeIO (toCode incompletePattern [useImport, tests]) useImport)
       `shouldReturn` [SI.__i|
