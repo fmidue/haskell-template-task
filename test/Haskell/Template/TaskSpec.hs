@@ -96,6 +96,7 @@ spec = do
              Pattern match(es) are non-exhaustive
              In an equation for ‘incomplete’:
                  Patterns of type ‘[a]’ not matched: (_:_)
+
          Solution.hs:6:1: error:
              Pattern match(es) are non-exhaustive
              In an equation for ‘incomplete2’:
