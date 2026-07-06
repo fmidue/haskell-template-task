@@ -995,7 +995,7 @@ testPhases reject inform template submissionFile modules config exts submission 
 
     signatureError = const $ rejectWithHint $ string [SI.iii|
       Your code is not compatible with the test suite.
-      Please do not change type signatures in the given code template.
+      Please do adhere to type requirements expressed in the given code template.
       |]
 
 checkLineLength :: Applicative m => (forall a. Doc -> m a) -> String -> Natural -> m ()
