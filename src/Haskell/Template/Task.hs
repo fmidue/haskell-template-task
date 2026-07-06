@@ -589,8 +589,8 @@ editFeedback :: String -> String
 editFeedback xs = case elemIndex ':' xs of
       Just index ->
         let (path, position) = splitAt index xs
-        in takeWhileEnd (/= pathSeparator) path ++ position
-      Nothing    -> xs
+        in takeWhileEnd (/= pathSeparator) path ++ position ++ "\n"
+      Nothing    -> xs ++ "\n"
 
 hlintConfig :: [String] -> String
 hlintConfig rules = unlines ["- " ++ r | r <- rules]
