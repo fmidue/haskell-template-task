@@ -743,9 +743,10 @@ prepareInterpreter dirname exts modules = do
   reset -- Make sure nothing is available
   set [installedModulesInScope := False]
   set [searchPath := [dirname]]
+  -- All modules can be imported in source files
   loadModules ("TestHarness" : modules)
-  setTopLevelModules modules
-  setImports ["Prelude", "Test.HUnit", "TestHarness"]
+  -- All export items from these modules are in scope for the interpreter evaluation.
+  setImports $ ["Prelude", "Test.HUnit", "TestHarness"] ++ ["Test" | "Test" `elem` modules]
   where
     readExt input = fromMaybe (UnknownExtension input) $ readMaybe input
 
