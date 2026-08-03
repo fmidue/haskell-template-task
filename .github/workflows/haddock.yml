@@ -1,0 +1,72 @@
+---
+name: Haddock to GitHub pages
+
+on:
+  workflow_run:
+    workflows: ["Haskell CI"]
+    branches: [master]
+    types: completed
+
+permissions: read-all
+
+jobs:
+  build:
+    permissions:
+      contents: read
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Cache Stack
+        id: cache-stack-unix
+        uses: actions/cache@v5
+        with:
+          path: ~/.stack
+          key: ubuntu-latest-stack-stack-home-${{ hashFiles('stack.yaml') }}-${{ hashFiles('**/package.yaml') }}
+
+      - name: Setup stack
+        uses: haskell-actions/setup@v2
+        with:
+          enable-stack: true
+          stack-no-global: true
+
+      - name: install/restore PCRE
+        uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: libpcre3 libpcre3-dev
+          version: 1.0
+
+      - name: Build Haddock
+        id: haddock
+        run: |
+          stack haddock \
+            --haddock-arguments "--hyperlinked-source --quickjump --title=Haskell.Template"
+          echo "doc_path=$(stack path --local-doc-root)" >> $GITHUB_OUTPUT
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          name: github-pages
+          path: ${{steps.haddock.outputs.doc_path}}
+          retention-days: 1
+
+  deploy:
+    needs: build
+
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
