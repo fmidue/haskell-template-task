@@ -14,7 +14,7 @@ extra-source-files:
 synopsis: A task type for haskell tasks developed for the e-learning platform Autotool
 category: E-Learning
 
-description: Please see the README on GitHub at <https://github.com/marcellussiegburg/haskell-template-task#readme>
+description: Please see the README on GitHub at <https://github.com/fmidue/haskell-template-task#readme>
 
 dependencies:
   - base >= 4.7 && < 5

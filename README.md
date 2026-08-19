@@ -33,7 +33,7 @@ The following sections contain further modules.
 If testing is desired, one of these module needs to be named `Test` which
 exports a function named `test`.
 
-Library documentation is [here](https://fmidue.github.io/haskell-template-task/).
+[Library documentation](https://fmidue.github.io/haskell-template-task/) in Haddock form exists.
 
 ## Issues & Pull requests
 
