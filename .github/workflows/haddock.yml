@@ -35,7 +35,7 @@ jobs:
       - name: install/restore PCRE
         uses: awalsh128/cache-apt-pkgs-action@latest
         with:
-          packages: libpcre3 libpcre3-dev
+          packages: libpcre3 libpcre3-dev z3 libz3-dev
           version: 1.0
 
       - name: Build Haddock
@@ -43,13 +43,21 @@ jobs:
         run: |
           stack haddock \
             --haddock-arguments "--hyperlinked-source --quickjump --title=Haskell.Template"
-          echo "doc_path=$(stack path --local-doc-root)" >> $GITHUB_OUTPUT
+          cp -R $(stack path --local-doc-root) /tmp/haddock/haskell-template-task
+
+      - name: Build Haddock (embedded)
+        id: haddock
+        run: |
+          stack haddock \
+            --stack-yaml raw/embedded/stack.yaml \
+            --haddock-arguments "--hyperlinked-source --quickjump --title=Haskell.Template"
+          cp -R $(stack path --stack-yaml raw/embedded/stack.yaml --local-doc-root) /tmp/haddock/haskell-template-task-embedded
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v4
         with:
           name: github-pages
-          path: ${{steps.haddock.outputs.doc_path}}
+          path: /tmp/haddock
           retention-days: 1
 
   deploy:
