@@ -121,7 +121,8 @@ jobs:
           <body>
             <div class="container">
               <h1>Haddock Documentation</h1>
-              <p>Select a package (from <a href="https://github.com/fmidue/haskell-template-task">fmidue/haskell-template-task<a>) to browse its API documentation.</p>
+              <p>for <a href="https://github.com/fmidue/haskell-template-task">fmidue/haskell-template-task<a></p>
+              <p>Select a package to browse its API documentation.</p>
               <div class="cards">
                 <a class="card" href="./haskell-template-task/">
                   <h2>haskell-template-task</h2>
