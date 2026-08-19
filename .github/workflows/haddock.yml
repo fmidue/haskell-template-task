@@ -46,7 +46,7 @@ jobs:
           cp -R $(stack path --local-doc-root) /tmp/haddock/haskell-template-task
 
       - name: Build Haddock (embedded)
-        id: haddock
+        id: haddock-embedded
         run: |
           stack haddock \
             --stack-yaml raw/embedded/stack.yaml \
