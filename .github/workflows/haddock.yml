@@ -43,6 +43,7 @@ jobs:
         run: |
           stack haddock \
             --haddock-arguments "--hyperlinked-source --quickjump --title=Haskell.Template"
+          mkdir -p /tmp/haddock
           cp -R $(stack path --local-doc-root) /tmp/haddock/haskell-template-task
 
       - name: Build Haddock (embedded)
