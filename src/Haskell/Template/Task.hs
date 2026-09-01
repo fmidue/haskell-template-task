@@ -27,7 +27,6 @@ module Haskell.Template.Task (
   rejectHint,
   rejectMatch,
   toSolutionConfigOpt,
-  unsafeTemplateSegment,
   ) where
 
 import qualified Data.ByteString.Char8            as BS
@@ -847,13 +846,6 @@ splitBy p = dropOdd . groupBy (\l r -> not (p l) && not (p r))
    dropOdd [] = []
    dropOdd [x] = [x]
    dropOdd (x:_:xs) = x:dropOdd xs
-
-unsafeTemplateSegment :: String -> String
-unsafeTemplateSegment task = either id id $ do
-  let (config, modules) = fromMaybe (defaultSolutionConfig, []) $
-        splitConfigAndModules (const Nothing) task
-      exts = maybe [] extensionsOf $ addDefaults (const Nothing) config
-  snd . fst <$> nameModules Left exts modules
 
 nameModules
   :: Monad m
