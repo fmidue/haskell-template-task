@@ -206,27 +206,25 @@ grade
   -- ^ display a message and continue
   -> FilePath
   -- ^ parent directory to use for file operations
-  -> String
-  -- ^ the task
+  -> HaskellConfig
+  -- ^ the task configuration
   -> String
   -- ^ the submission
   -> m Bool
   -- ^ whether the conditions outlined in the description apply or not
-grade withSyntax withSemantics reject inform dirname task submission = do
+grade withSyntax withSemantics reject inform dirname HaskellConfig{solutionConfig = solutionConfig@SolutionConfig{..},..} submission = do
     withSyntax $ checkUnsafe reject submission
-    (config@SolutionConfig{..}, exts, (moduleName', template), others) <- processConfig
-      (rejectWithMessage reject $ string informTutorMessage)
-      (const $ pure ())
-      task
+    let exts = extensionsOf solutionConfig
+    ((moduleName', template), others) <- nameModules (reject . string) exts modules
     withSyntax $ mapM_ (checkLineLength reject submission) $ runIdentity maxLineLength
-    (modules, submissionFile) <- if runIdentity $ fmap (== CodeWidth) syntaxCutoff &&^ disableSemantics
+    (modules', submissionFile) <- if runIdentity $ fmap (== CodeWidth) syntaxCutoff &&^ disableSemantics
       -- Completely skip file writing if code length is the only syntax phase action
       -- and semantics phase is disabled.
       then pure (undefined, undefined)
       else writeModules (moduleName', submission) others dirname
     let
      (syntax, semantics) = splitAt (fromEnum syntaxCutoff)
-      $ testPhases reject inform template submissionFile modules config exts submission dirname
+      $ testPhases reject inform template submissionFile modules' solutionConfig exts submission dirname
     withSyntax $ sequence_ syntax
     if runIdentity disableSemantics
     then pure False
