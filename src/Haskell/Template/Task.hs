@@ -82,11 +82,12 @@ check
   => (forall a. Doc -> m a)
   -> (Doc -> m ())
   -> FilePath
-  -> String
+  -> HaskellConfig
   -> m ()
-check reject inform path i = do
-  checkUnsafe reject i
-  (config@SolutionConfig{..}, exts, (m,s), ms) <- processConfig reject inform i
+check reject inform path HaskellConfig{solutionConfig = config@SolutionConfig{..},..} = do
+  checkUnsafe reject $ unlines modules
+  let exts = extensionsOf config
+  ((m,s), ms) <- nameModules (reject . string) exts modules
   checkUniqueness (m : map fst ms)
   inform $ string $ "Parsing template module " <> m
   void $ parse reject exts s
@@ -111,8 +112,8 @@ check reject inform path i = do
       let others = filter ((/="SampleSolution") . fst) ms
       let content = replace "module SampleSolution" ("module " ++ m) sampleSolution
       mapM_ (checkLineLength reject content) $ runIdentity maxLineLength
-      (modules, solutionFile) <- writeModules (m, content) others path
-      sequence_ $ testPhases reject inform s solutionFile modules stricterConfig exts content path
+      (modules', solutionFile) <- writeModules (m, content) others path
+      sequence_ $ testPhases reject inform s solutionFile modules' stricterConfig exts content path
   where
     parseModule exts (m, s) = do
       inform $ string $ "Parsing module " <> m
