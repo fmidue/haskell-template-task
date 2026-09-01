@@ -24,7 +24,6 @@ module Haskell.Template.Task (
   initialTask
   ) where
 
-import qualified Data.ByteString.Char8            as BS
 import qualified Language.Haskell.Exts            as E
 import qualified Language.Haskell.Exts.Parser     as P
 import qualified System.IO                        as IO {- required to avoid encoding problems -}
@@ -41,7 +40,7 @@ import Control.Monad.IO.Class           (MonadIO)
 import Data.Char                        (isUpper)
 import Data.Functor.Identity            (Identity (..))
 import Data.List
-  (delete, elemIndex, groupBy, intercalate, isInfixOf, isPrefixOf,
+  (delete, elemIndex, intercalate, isInfixOf,
    union,
    )
 import Data.List.Extra
@@ -69,8 +68,7 @@ import Text.PrettyPrint.Leijen.Text
   (Doc, (<+>), empty, int, linebreak, nest, punctuate, text, vcat)
 import Text.Read                        (readMaybe)
 import Text.Regex.PCRE.Heavy            (re, sub)
-import Data.Yaml (ParseException, decodeEither')
-import Haskell.Template.Config (HaskellConfig (..), SolutionConfig, SolutionConfigOpt, FSolutionConfig (..), defaultSolutionConfig, finaliseConfigs, FeedbackPhase (..))
+import Haskell.Template.Config (HaskellConfig (..), SolutionConfig, FSolutionConfig (..), FeedbackPhase (..))
 
 
 
@@ -516,38 +514,6 @@ bloc codeLines =
   let dash = string $ '+' : replicate 30 '-'
   in  vcat [ dash, vcat $ map (string . ("| " ++)) codeLines, dash ]
 
-splitConfigAndModules
-  :: Monad m
-  => (forall a. Doc -> m a)
-  -> String -> m (SolutionConfigOpt, [String])
-splitConfigAndModules reject configAndModules =
-  either (reject . string . ("Error while parsing config:\n" <>) . show)
-         (return . (,rawModules))
-         eConfig
-  where
-    configJson:rawModules = splitModules False configAndModules
-    eConfig :: Either ParseException SolutionConfigOpt
-    eConfig = decodeEither' $ BS.pack configJson
-
-addDefaults :: Monad m => (forall a. Doc -> m a) -> SolutionConfigOpt -> m SolutionConfig
-addDefaults reject f = maybe
-  (reject "There is a required configuration parameter missing")
-  return
-  $ finaliseConfigs [f, defaultSolutionConfig]
-
-splitModules :: Bool -> String -> [String]
-splitModules dropFirst = map unlines
-  . (if dropFirst then drop 1 else id)
-  . splitBy (isPrefixOf "---")
-  . lines
-
-splitBy :: (t -> Bool) -> [t] -> [[t]]
-splitBy p = dropOdd . groupBy (\l r -> not (p l) && not (p r))
-  where
-   dropOdd [] = []
-   dropOdd [x] = [x]
-   dropOdd (x:_:xs) = x:dropOdd xs
-
 nameModules
   :: Monad m
   => (forall a. String -> m a)
@@ -569,24 +535,6 @@ moduleName :: E.Module l -> String
 moduleName (E.Module _ (Just (E.ModuleHead _ (E.ModuleName _ n) _ _)) _ _ _) = n
 moduleName (E.Module _ Nothing _ _ _) = "Main"
 moduleName _                          = error "unsupported module type"
-
-processConfig
-  :: Monad m
-  => (forall a. Doc -> m a)
-  -- ^ display a message and fail
-  -> (Doc -> m ())
-  -- ^ display a message and continue
-  -> String
-  -- ^ raw configuration
-  -> m (FSolutionConfig Identity, [E.Extension], (String,String), [(String,String)])
-processConfig reject inform rawConfig = do
-  (config, modules) <- splitConfigAndModules reject rawConfig
-  inform $ string $ "Parsed the following setting options:\n" ++ show config
-  completedConfig <- addDefaults reject config
-  inform $ string $ "Completed configuration to:\n" ++ show completedConfig
-  let exts = extensionsOf completedConfig
-  ((m,s), ms) <- nameModules (reject . string) exts modules
-  return (completedConfig, exts, (m,s), ms)
 
 checkUnsafe :: Monad m => (forall a. Doc -> m a) -> String -> m ()
 checkUnsafe reject rawFile =  do
