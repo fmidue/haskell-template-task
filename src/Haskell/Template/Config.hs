@@ -3,6 +3,9 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Haskell.Template.Config (
   FSolutionConfig (..),
   HaskellConfig (..),
@@ -11,13 +14,21 @@ module Haskell.Template.Config (
   FeedbackPhase (..),
   defaultSolutionConfig,
   finaliseConfigs,
-  toSolutionConfigOpt
+  toSolutionConfigOpt,
+  displayHaskellConfig,
+  parseHaskellConfig
   ) where
 import GHC.Generics (Generic (..))
 import Data.Yaml (FromJSON, ToJSON)
 import Numeric.Natural (Natural)
 import Data.Functor.Identity (Identity (..))
 import Control.Applicative ((<|>))
+import Data.Yaml.Pretty (encodePretty, setConfCompare, defConfig)
+import qualified Data.ByteString.Char8            as BS
+import Data.List ( intersperse, groupBy, isPrefixOf )
+import Data.Yaml.Aeson (ParseException, decodeEither')
+import Text.PrettyPrint.Leijen.Text (Doc, text)
+import Data.Text.Lazy (pack)
 
 data FeedbackPhase
   = CodeWidth
@@ -61,11 +72,13 @@ deriving instance ToJSON SolutionConfigOpt
 type SolutionConfig  = FSolutionConfig Identity
 
 deriving instance Show SolutionConfig
+deriving instance FromJSON SolutionConfig
+deriving instance ToJSON SolutionConfig
 
 data HaskellConfig = HaskellConfig
   { solutionConfig :: SolutionConfig
   , modules :: [String]
-  }
+  } deriving Show
 
 defaultSolutionConfig :: SolutionConfigOpt
 defaultSolutionConfig = SolutionConfig {
@@ -188,3 +201,51 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
         rigorousValidation          = Nothing,
         syntaxCutoff                = Nothing
       }
+
+displayHaskellConfig :: HaskellConfig -> String
+displayHaskellConfig HaskellConfig{..} = unlines $
+  BS.unpack (encodePretty (setConfCompare compare defConfig) solutionConfig) : if null modules then [] else "----------" : intersperse "----------" modules
+
+parseHaskellConfig :: String -> Either Doc HaskellConfig
+parseHaskellConfig raw = do
+  (solConfig, modules') <- splitConfigAndModules Left raw
+  completedConfig <- addDefaults Left solConfig
+  return $ HaskellConfig
+    { solutionConfig = completedConfig
+    , modules = modules'
+    }
+
+addDefaults :: Monad m => (forall a. Doc -> m a) -> SolutionConfigOpt -> m SolutionConfig
+addDefaults reject f = maybe
+  (reject "There is a required configuration parameter missing")
+  return
+  $ finaliseConfigs [f, defaultSolutionConfig]
+
+splitConfigAndModules
+  :: Monad m
+  => (forall a. Doc -> m a)
+  -> String -> m (SolutionConfigOpt, [String])
+splitConfigAndModules reject configAndModules =
+  either (reject . string . ("Error while parsing config:\n" <>) . show)
+         (return . (,rawModules))
+         eConfig
+  where
+    configJson:rawModules = splitModules False configAndModules
+    eConfig :: Either ParseException SolutionConfigOpt
+    eConfig = decodeEither' $ BS.pack configJson
+
+splitModules :: Bool -> String -> [String]
+splitModules dropFirst = map unlines
+  . (if dropFirst then drop 1 else id)
+  . splitBy (isPrefixOf "---")
+  . lines
+
+splitBy :: (t -> Bool) -> [t] -> [[t]]
+splitBy p = dropOdd . groupBy (\l r -> not (p l) && not (p r))
+  where
+   dropOdd [] = []
+   dropOdd [x] = [x]
+   dropOdd (x:_:xs) = x:dropOdd xs
+
+string :: String -> Doc
+string = text . pack
