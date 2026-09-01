@@ -8,14 +8,10 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE NamedFieldPuns #-}
 module Haskell.Template.Task (
-  FSolutionConfig (..),
-  HaskellConfig (..),
-  SolutionConfig,
   check,
   defaultCode,
-  defaultSolutionConfig,
-  finaliseConfigs,
   getCodeWorldButtonOption,
   getCodeWorldRenderButtonOption,
   getCodeWorldPartialRenderButtonOption,
@@ -26,7 +22,6 @@ module Haskell.Template.Task (
   parse,
   rejectHint,
   rejectMatch,
-  toSolutionConfigOpt,
   ) where
 
 import qualified Data.ByteString.Char8            as BS
@@ -40,7 +35,6 @@ import Haskell.Template.Match
   (Location (..), Result (..), What (..), Where (..), highlight_ssi)
 import qualified Haskell.Template.Match as Match (test)
 
-import Control.Applicative              ((<|>))
 import Control.Monad                    (forM, guard, msum, unless, void, when)
 import Control.Monad.Extra              ((&&^), whenJust)
 import Control.Monad.IO.Class           (MonadIO)
@@ -55,16 +49,13 @@ import Data.List.Extra
 import Data.Maybe                       (fromMaybe)
 import Data.Text.Lazy                   (pack)
 import Data.Typeable                    (Typeable)
-import Data.Yaml
-  (FromJSON, ParseException, ToJSON, decodeEither')
 import Data.Yaml.Pretty
   (defConfig, encodePretty, setConfCompare)
-import GHC.Generics                     (Generic (..))
 import Language.Haskell.HLint           (hlint)
 import Language.Haskell.Interpreter
   (GhcError (..), InterpreterError (..), MonadInterpreter, OptionVal (..),
    Extension(UnknownExtension), as, installedModulesInScope, interpret, languageExtensions, liftIO,
-   loadModules, reset, runInterpreter, set, setImports, setTopLevelModules, searchPath)
+   loadModules, reset, runInterpreter, set, setImports, searchPath)
 import Language.Haskell.Interpreter.Unsafe
   (unsafeRunInterpreterWithArgs)
 import Numeric.Natural                  (Natural)
@@ -80,6 +71,8 @@ import Text.PrettyPrint.Leijen.Text
   (Doc, (<+>), empty, int, linebreak, nest, punctuate, text, vcat)
 import Text.Read                        (readMaybe)
 import Text.Regex.PCRE.Heavy            (re, sub)
+import Data.Yaml (ToJSON, ParseException, decodeEither')
+import Haskell.Template.Config (HaskellConfig (..), SolutionConfig, SolutionConfigOpt, FSolutionConfig (..), defaultSolutionConfig, finaliseConfigs, FeedbackPhase (..))
 
 encode :: ToJSON a => a -> BS.ByteString
 encode = encodePretty $ setConfCompare compare defConfig
@@ -199,175 +192,6 @@ Also available are the following modules:
       with the option to allow a fixed number of tests to fail.)
  -}|]
 
-data FeedbackPhase
-  = CodeWidth
-  | Compilation
-  | GhcErrors
-  | HlintErrors
-  | TemplateMatch
-  | TestSuite
-  deriving (Enum, Eq, Generic, Show, FromJSON, ToJSON)
-
-data FSolutionConfig m = SolutionConfig {
-    allowAdding                 :: m Bool,
-    allowModifying              :: m Bool,
-    allowRemoving               :: m Bool,
-    addCodeWorldButton          :: m Bool,
-    addCodeWorldRenderButton    :: m Bool,
-    addCodeWorldPartialRenderButton :: m Bool,
-    configGhcLimit              :: m (Maybe Natural),
-    configGhcErrors             :: m [String],
-    configGhcWarnings           :: m [String],
-    configHlintSuggestionsLimit :: m (Maybe Natural),
-    configHlintErrors           :: m [String],
-    configHlintGroups           :: m [String],
-    configHlintRules            :: m [String],
-    configHlintSuggestions      :: m [String],
-    configLanguageExtensions    :: m [String],
-    maxLineLength               :: m (Maybe Natural),
-    provideSampleSolution       :: m Bool,
-    messageOnCloningSampleSolution :: m (Maybe String),
-    disableSemantics            :: m Bool,
-    rigorousValidation          :: m Bool,
-    syntaxCutoff                :: m FeedbackPhase
-  } deriving Generic
-
-type SolutionConfigOpt = FSolutionConfig Maybe
-
-deriving instance Show SolutionConfigOpt
-deriving instance FromJSON SolutionConfigOpt
-deriving instance ToJSON SolutionConfigOpt
-
-type SolutionConfig  = FSolutionConfig Identity
-
-deriving instance Show SolutionConfig
-
-data HaskellConfig = HaskellConfig
-  { solutionConfig :: SolutionConfig
-  , modules :: [String]
-  }
-
-defaultSolutionConfig :: SolutionConfigOpt
-defaultSolutionConfig = SolutionConfig {
-    allowAdding                 = Just True,
-    allowModifying              = Just False,
-    allowRemoving               = Just False,
-    addCodeWorldButton          = Just True,
-    addCodeWorldRenderButton    = Just True,
-    addCodeWorldPartialRenderButton = Just False,
-    configGhcLimit              = Just Nothing,
-    configGhcErrors             = Just [],
-    configGhcWarnings           = Just [],
-    configHlintSuggestionsLimit = Just Nothing,
-    configHlintErrors           = Just [],
-    configHlintGroups           = Just [],
-    configHlintRules            = Just [],
-    configHlintSuggestions      = Just [],
-    configLanguageExtensions    = Just ["NPlusKPatterns","ScopedTypeVariables"],
-    maxLineLength               = Just Nothing,
-    provideSampleSolution       = Just False,
-    messageOnCloningSampleSolution = Just Nothing,
-    disableSemantics            = Just False,
-    rigorousValidation          = Just False,
-    syntaxCutoff                = Just TemplateMatch
-  }
-
-toSolutionConfigOpt :: SolutionConfig -> SolutionConfigOpt
-toSolutionConfigOpt SolutionConfig {..} = runIdentity $ SolutionConfig
-  <$> fmap Just allowAdding
-  <*> fmap Just allowModifying
-  <*> fmap Just allowRemoving
-  <*> fmap Just addCodeWorldButton
-  <*> fmap Just addCodeWorldRenderButton
-  <*> fmap Just addCodeWorldPartialRenderButton
-  <*> fmap Just configGhcLimit
-  <*> fmap Just configGhcErrors
-  <*> fmap Just configGhcWarnings
-  <*> fmap Just configHlintSuggestionsLimit
-  <*> fmap Just configHlintErrors
-  <*> fmap Just configHlintGroups
-  <*> fmap Just configHlintRules
-  <*> fmap Just configHlintSuggestions
-  <*> fmap Just configLanguageExtensions
-  <*> fmap Just maxLineLength
-  <*> fmap Just provideSampleSolution
-  <*> fmap Just messageOnCloningSampleSolution
-  <*> fmap Just disableSemantics
-  <*> fmap Just rigorousValidation
-  <*> fmap Just syntaxCutoff
-
-finaliseConfigs :: [SolutionConfigOpt] -> Maybe SolutionConfig
-finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
-  where
-    finaliseConfig :: SolutionConfigOpt -> Maybe SolutionConfig
-    finaliseConfig SolutionConfig {..} = SolutionConfig
-      <$> fmap Identity allowAdding
-      <*> fmap Identity allowModifying
-      <*> fmap Identity allowRemoving
-      <*> fmap Identity addCodeWorldButton
-      <*> fmap Identity addCodeWorldRenderButton
-      <*> fmap Identity addCodeWorldPartialRenderButton
-      <*> fmap Identity configGhcLimit
-      <*> fmap Identity configGhcErrors
-      <*> fmap Identity configGhcWarnings
-      <*> fmap Identity configHlintSuggestionsLimit
-      <*> fmap Identity configHlintErrors
-      <*> fmap Identity configHlintGroups
-      <*> fmap Identity configHlintRules
-      <*> fmap Identity configHlintSuggestions
-      <*> fmap Identity configLanguageExtensions
-      <*> fmap Identity maxLineLength
-      <*> fmap Identity provideSampleSolution
-      <*> fmap Identity messageOnCloningSampleSolution
-      <*> fmap Identity disableSemantics
-      <*> fmap Identity rigorousValidation
-      <*> fmap Identity syntaxCutoff
-    combineConfigs x y = SolutionConfig {
-        allowAdding                 = allowAdding                 x <|> allowAdding                 y,
-        allowModifying              = allowModifying              x <|> allowModifying              y,
-        allowRemoving               = allowRemoving               x <|> allowRemoving               y,
-        addCodeWorldButton          = addCodeWorldButton          x <|> addCodeWorldButton          y,
-        addCodeWorldRenderButton    = addCodeWorldRenderButton    x <|> addCodeWorldRenderButton    y,
-        addCodeWorldPartialRenderButton = addCodeWorldPartialRenderButton x <|> addCodeWorldPartialRenderButton y,
-        configGhcLimit              = configGhcLimit              x <|> configGhcLimit              y,
-        configGhcErrors             = configGhcErrors             x <|> configGhcErrors             y,
-        configGhcWarnings           = configGhcWarnings           x <|> configGhcWarnings           y,
-        configHlintSuggestionsLimit = configHlintSuggestionsLimit x <|> configHlintSuggestionsLimit y,
-        configHlintErrors           = configHlintErrors           x <|> configHlintErrors           y,
-        configHlintGroups           = configHlintGroups           x <|> configHlintGroups           y,
-        configHlintRules            = configHlintRules            x <|> configHlintRules            y,
-        configHlintSuggestions      = configHlintSuggestions      x <|> configHlintSuggestions      y,
-        configLanguageExtensions    = configLanguageExtensions    x <|> configLanguageExtensions    y,
-        maxLineLength               = maxLineLength               x <|> maxLineLength               y,
-        provideSampleSolution       = provideSampleSolution       x <|> provideSampleSolution       y,
-        messageOnCloningSampleSolution = messageOnCloningSampleSolution x <|> messageOnCloningSampleSolution y,
-        disableSemantics            = disableSemantics            x <|> disableSemantics            y,
-        rigorousValidation          = rigorousValidation          x <|> rigorousValidation          y,
-        syntaxCutoff                = syntaxCutoff                x <|> syntaxCutoff                y
-      }
-    emptyConfig = SolutionConfig {
-        allowAdding                 = Nothing,
-        allowRemoving               = Nothing,
-        allowModifying              = Nothing,
-        addCodeWorldButton          = Nothing,
-        addCodeWorldRenderButton    = Nothing,
-        addCodeWorldPartialRenderButton = Nothing,
-        configGhcLimit              = Nothing,
-        configGhcErrors             = Nothing,
-        configGhcWarnings           = Nothing,
-        configHlintSuggestionsLimit = Nothing,
-        configHlintErrors           = Nothing,
-        configHlintGroups           = Nothing,
-        configHlintRules            = Nothing,
-        configHlintSuggestions      = Nothing,
-        configLanguageExtensions    = Nothing,
-        maxLineLength               = Nothing,
-        provideSampleSolution       = Nothing,
-        messageOnCloningSampleSolution = Nothing,
-        disableSemantics            = Nothing,
-        rigorousValidation          = Nothing,
-        syntaxCutoff                = Nothing
-      }
 
 string :: String -> Doc
 string = text . pack
@@ -418,12 +242,10 @@ check reject inform path i = do
 Extract the sample solution if one was provided, 'provideSampleSolution' is enabled
 and 'disableSemantics' is not enabled.
 -}
-maybeSampleSolution :: String -> Maybe Doc
-maybeSampleSolution task = do
-  (config, modules) <- splitConfigAndModules abort task
-  SolutionConfig {..} <- addDefaults abort config
+maybeSampleSolution :: HaskellConfig -> Maybe Doc
+maybeSampleSolution HaskellConfig{solutionConfig = solConf@SolutionConfig{..},..} = do
   guard $ runIdentity $ (&&) <$> provideSampleSolution <*> fmap not disableSemantics
-  exts <- extensionsOf <$> addDefaults abort config
+  let exts = extensionsOf solConf
   ((taskName,_), otherModules) <- nameModules abort exts modules
   sampleSolution <- lookup "SampleSolution" otherModules
   pure $ string $ replace "SampleSolution" taskName sampleSolution
@@ -435,30 +257,24 @@ Extract the value of the `addCodeWorldButton` option.
 Defaults to `False` if not specified.
 Also returns `False` in case the config cannot be read.
 -}
-getCodeWorldButtonOption :: String -> Bool
-getCodeWorldButtonOption s = fromMaybe False mOption
-  where
-    mOption = splitConfigAndModules (const Nothing) s >>= addCodeWorldButton . fst
+getCodeWorldButtonOption :: HaskellConfig -> Bool
+getCodeWorldButtonOption HaskellConfig { solutionConfig = SolutionConfig{ addCodeWorldButton }} = runIdentity addCodeWorldButton
 
 {-|
 Extract the value of the `addCodeWorldRenderButton` option.
 Defaults to `False` if not specified.
 Also returns `False` in case the config cannot be read.
 -}
-getCodeWorldRenderButtonOption :: String -> Bool
-getCodeWorldRenderButtonOption s = fromMaybe False mOption
-  where
-    mOption = splitConfigAndModules (const Nothing) s >>= addCodeWorldRenderButton . fst
+getCodeWorldRenderButtonOption :: HaskellConfig -> Bool
+getCodeWorldRenderButtonOption HaskellConfig { solutionConfig = SolutionConfig{ addCodeWorldRenderButton }} = runIdentity addCodeWorldRenderButton
 
 {-|
 Extract the value of the `addCodeWorldPartialRenderButton` option.
 Defaults to `False` if not specified.
 Also returns `False` in case the config cannot be read.
 -}
-getCodeWorldPartialRenderButtonOption :: String -> Bool
-getCodeWorldPartialRenderButtonOption s = fromMaybe False mOption
-  where
-    mOption = splitConfigAndModules (const Nothing) s >>= addCodeWorldPartialRenderButton . fst
+getCodeWorldPartialRenderButtonOption :: HaskellConfig -> Bool
+getCodeWorldPartialRenderButtonOption HaskellConfig { solutionConfig = SolutionConfig{ addCodeWorldPartialRenderButton }} = runIdentity addCodeWorldPartialRenderButton
 
 {-|
 Enforces completely writing the file by flushing the output,
