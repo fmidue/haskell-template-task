@@ -10,6 +10,7 @@
 {-# LANGUAGE TupleSections #-}
 module Haskell.Template.Task (
   FSolutionConfig (..),
+  HaskellConfig (..),
   SolutionConfig,
   check,
   defaultCode,
@@ -241,6 +242,11 @@ deriving instance ToJSON SolutionConfigOpt
 type SolutionConfig  = FSolutionConfig Identity
 
 deriving instance Show SolutionConfig
+
+data HaskellConfig = HaskellConfig
+  { solutionConfig :: SolutionConfig
+  , modules :: [String]
+  }
 
 defaultSolutionConfig :: SolutionConfigOpt
 defaultSolutionConfig = SolutionConfig {
