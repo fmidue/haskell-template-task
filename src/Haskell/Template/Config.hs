@@ -6,6 +6,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes #-}
 module Haskell.Template.Config (
   FSolutionConfig (..),
   HaskellConfig (..),
@@ -16,7 +17,8 @@ module Haskell.Template.Config (
   finaliseConfigs,
   toSolutionConfigOpt,
   displayHaskellConfig,
-  parseHaskellConfig
+  parseHaskellConfig,
+  defaultHaskellConfig
   ) where
 import GHC.Generics (Generic (..))
 import Data.Yaml (FromJSON, ToJSON)
@@ -29,6 +31,8 @@ import Data.List ( intersperse, groupBy, isPrefixOf )
 import Data.Yaml.Aeson (ParseException, decodeEither')
 import Text.PrettyPrint.Leijen.Text (Doc, text)
 import Data.Text.Lazy (pack)
+import qualified Data.String.Interpolate          as SI (i)
+import Data.Either.Extra (fromRight')
 
 data FeedbackPhase
   = CodeWidth
@@ -204,7 +208,7 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
 
 displayHaskellConfig :: HaskellConfig -> String
 displayHaskellConfig HaskellConfig{..} = unlines $
-  BS.unpack (encodePretty (setConfCompare compare defConfig) solutionConfig) : if null modules then [] else "----------" : intersperse "----------" modules
+  BS.unpack (encode solutionConfig) : if null modules then [] else "----------" : intersperse "----------" modules
 
 parseHaskellConfig :: String -> Either Doc HaskellConfig
 parseHaskellConfig raw = do
@@ -249,3 +253,124 @@ splitBy p = dropOdd . groupBy (\l r -> not (p l) && not (p r))
 
 string :: String -> Doc
 string = text . pack
+
+encode :: ToJSON a => a -> BS.ByteString
+encode = encodePretty $ setConfCompare compare defConfig
+
+defaultCode :: String
+defaultCode = BS.unpack (encode defaultSolutionConfig) ++
+  [SI.i|\#\#\#\#\# parameter description:
+\# allowAdding                 - allow adding program parts
+\# allowModifying              - allow modifying program parts
+\# allowRemoving               - allow removing program parts
+\# addCodeWorldButton          - adds a button to transfer student visible code
+\#                               into the CodeWorld editor
+\# addCodeWorldRenderButton    - adds a button to transfer student visible code
+\#                               into the CodeWorld runner
+\# addCodeWorldPartialRenderButton - adds a button to transfer student visible
+\#                                   code into the CodeWorld runner with
+\#                                   preview for code containing 'undefined'
+\# configGhcLimit              - caps amount of GHC warnings/errors to display
+\# configGhcErrors             - GHC warnings to enforce
+\# configGhcWarnings           - GHC warnings to provide as hints
+\# configHlintSuggestionsLimit - caps amount of hlint suggestions to display
+\# configHlintErrors           - hlint hints to enforce, only first one encountered is displayed
+\# configHlintGroups           - hlint extra hint groups to use
+\# configHlintRules            - hlint extra hint rules to use
+\# configHlintSuggestions      - hlint hints to provide as suggestions
+\# configLanguageExtensions    - this sets LanguageExtensions for hlint as well
+\# maxLineLength               - submissions with lines longer than this value are rejected
+\# syntaxCutoff                - determines the last step in the syntax phase (later steps are considered semantics);
+\#                               possible values (and also the order of steps):
+\#                                 CodeWidth, Compilation, GhcErrors, HlintErrors, TemplateMatch, TestSuite
+\#                               default on omission is TemplateMatch; steps after TestSuite are (in this order):
+\#                                 GhcWarnings, HlintSuggestions
+\# disableSemantics            - will prevent the semantics phase (as determined by syntaxCutoff) from running;
+\#                               this means a submission will be accepted after passing the syntax phase
+\# provideSampleSolution       - display provided sample solution to students after semantics feedback
+\# rigorousValidation          - will run all tests configured for submissions on the provided sample solution
+\#                               (no effect if there is none);
+\#                               this should be set while configuring the task and disabled after,
+\#                               in order to reduce wait times for students
+\# messageOnCloningSampleSolution - compare provided sample solution with submission and output
+\#                                  this message as feedback if the submission contains the sample solution
+\#                                  (provideSampleSolution will be ignored if the submission is a clone)
+----------
+module Solution where
+import Prelude
+
+r :: [a] -> [a]
+r = undefined
+
+----------
+{- You can add additional modules separated by lines of three or more dashes: -}
+{-\# LANGUAGE ScopedTypeVariables \#-}
+module Test (test) where
+import Prelude
+{-
+If this module is present, Test.test is used to check the submission.
+Otherwise, Solution.test is used.
+
+'test' has to be Test.HUnit.Testable, so assertions build with (@?=) will work,
+as do plain 'Bool's.
+If your test suite comprises more than a single assertion, you should use a list
+of named test cases (see (~:)) to provide better feedback.
+
+Example:
+-}
+import TestHelper (qc)
+import TestHarness
+import Test.HUnit (Test, (@?=), (~:))
+
+import qualified Solution
+
+test :: [Test]
+test =
+  ["Test with QuickCheck (random input)" ~:
+     qc 5000 $ \\(xs :: [Int]) ->
+       Solution.r xs == Prelude.reverse xs
+  ]
+----------
+module SampleSolution where
+import Prelude
+
+{-
+This module may provide a sample solution.
+Including it is currently optional, but strongly encouraged,
+as the sample will be validated the same way a student's submission would,
+thus preventing a broken configuration or impossible task.
+-}
+
+r :: [a] -> [a]
+r = reverse
+
+----------
+module SomeHiddenModule where
+import Prelude
+{- This module is also not shown to the student but is available to the code -}
+{-
+Also available are the following modules:
+
+  TestHelper   (Import this in Solution or Test)
+    (Use either of the following instead of 'quickCheck' to turn a property into a HUnit assertion.)
+    qcWithArgs :: Testable prop => Int -> Args -> prop -> Assertion
+      (Provide a timeout (in ms) and Arbitrary QuickCheck Args)
+    qc'        :: Testable prop => Int -> Int -> prop -> Assertion
+      (Provide a timeout (in ms) and a number for 'maxSuccess')
+    qc         :: Testable prop => Int -> prop -> Assertion
+      (Provide a timeout (in ms))
+
+  TestHarness  (Import this in Test)
+    syntaxCheck :: (Module SrcSpanInfo -> Assertion) -> Assertion
+    findTopLevelDeclsOf :: String -> Module SrcSpanInfo -> [Decl SrcSpanInfo]
+    contains
+    ident :: String -> Name SrcSpanInfo -> Bool
+      (Used to implement syntax checks. Example usage: see above)
+
+    allowFailures :: Int -> [Test] -> Assertion
+      (Detailed output of correct/incorrect Tests in case of failure,
+      with the option to allow a fixed number of tests to fail.)
+ -}|]
+
+defaultHaskellConfig :: HaskellConfig
+defaultHaskellConfig = fromRight' $ parseHaskellConfig defaultCode
