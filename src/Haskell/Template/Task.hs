@@ -21,6 +21,7 @@ module Haskell.Template.Task (
   parse,
   rejectHint,
   rejectMatch,
+  initialTask
   ) where
 
 import qualified Data.ByteString.Char8            as BS
@@ -117,6 +118,11 @@ check reject inform path i = do
       inform $ string $ "Parsing module " <> m
       parse reject exts s
     checkUniqueness xs = when (nubOrd xs /= xs) $ reject "duplicate module name"
+
+initialTask :: HaskellConfig -> String
+initialTask HaskellConfig {..} = either id id $ do
+  snd . fst <$> nameModules Left (extensionsOf solutionConfig) modules
+
 
 {- |
 Extract the sample solution if one was provided, 'provideSampleSolution' is enabled
