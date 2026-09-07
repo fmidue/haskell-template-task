@@ -255,29 +255,29 @@ data HaskellConfig = HaskellConfig
   , modules :: [String]
   } deriving Show
 
-defaultSolutionConfig :: SolutionConfigOpt
+defaultSolutionConfig :: SolutionConfig
 defaultSolutionConfig = SolutionConfig {
-    allowAdding                 = Just True,
-    allowModifying              = Just False,
-    allowRemoving               = Just False,
-    addCodeWorldButton          = Just True,
-    addCodeWorldRenderButton    = Just True,
-    addCodeWorldPartialRenderButton = Just False,
-    configGhcLimit              = Just Nothing,
-    configGhcErrors             = Just [],
-    configGhcWarnings           = Just [],
-    configHlintSuggestionsLimit = Just Nothing,
-    configHlintErrors           = Just [],
-    configHlintGroups           = Just [],
-    configHlintRules            = Just [],
-    configHlintSuggestions      = Just [],
-    configLanguageExtensions    = Just ["NPlusKPatterns","ScopedTypeVariables"],
-    maxLineLength               = Just Nothing,
-    provideSampleSolution       = Just False,
-    messageOnCloningSampleSolution = Just Nothing,
-    disableSemantics            = Just False,
-    rigorousValidation          = Just False,
-    syntaxCutoff                = Just TemplateMatch
+    allowAdding                 = Identity True,
+    allowModifying              = Identity False,
+    allowRemoving               = Identity False,
+    addCodeWorldButton          = Identity True,
+    addCodeWorldRenderButton    = Identity True,
+    addCodeWorldPartialRenderButton = Identity False,
+    configGhcLimit              = Identity Nothing,
+    configGhcErrors             = Identity [],
+    configGhcWarnings           = Identity [],
+    configHlintSuggestionsLimit = Identity Nothing,
+    configHlintErrors           = Identity [],
+    configHlintGroups           = Identity [],
+    configHlintRules            = Identity [],
+    configHlintSuggestions      = Identity [],
+    configLanguageExtensions    = Identity ["NPlusKPatterns","ScopedTypeVariables"],
+    maxLineLength               = Identity Nothing,
+    provideSampleSolution       = Identity False,
+    messageOnCloningSampleSolution = Identity Nothing,
+    disableSemantics            = Identity False,
+    rigorousValidation          = Identity False,
+    syntaxCutoff                = Identity TemplateMatch
   }
 
 toSolutionConfigOpt :: SolutionConfig -> SolutionConfigOpt
@@ -848,7 +848,7 @@ addDefaults :: Monad m => (forall a. Doc -> m a) -> SolutionConfigOpt -> m Solut
 addDefaults reject f = maybe
   (reject "There is a required configuration parameter missing")
   return
-  $ finaliseConfigs [f, defaultSolutionConfig]
+  $ finaliseConfigs [f, toSolutionConfigOpt defaultSolutionConfig]
 
 splitModules :: Bool -> String -> [String]
 splitModules dropFirst = map unlines
