@@ -1,8 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.39.1.
+-- This file has been generated from package.yaml by hpack version 0.38.0.
 --
 -- see: https://github.com/sol/hpack
+--
+-- hash: a3dd1a76204cb44c5c18d17a9f59895631572a2cbc4573d597af2b0c9d1f045f
 
 name:           haskell-template-task
 version:        0.2
@@ -27,7 +29,6 @@ source-repository head
 
 library
   exposed-modules:
-      Haskell.Template.Config
       Haskell.Template.Match
       Haskell.Template.Task
   other-modules:
