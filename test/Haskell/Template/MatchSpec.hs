@@ -16,16 +16,16 @@ import Test.Hspec
 
 withAll :: SolutionConfig
 withAll = fromJust $ finaliseConfigs
-  [defaultSolutionConfig {
+  [toSolutionConfigOpt $ defaultSolutionConfig {
       allowModifying = Just True,
       allowRemoving = Just True }]
 
 withAdding :: SolutionConfig
-withAdding = fromJust $ finaliseConfigs [defaultSolutionConfig]
+withAdding = fromJust $ finaliseConfigs [toSolutionConfigOpt defaultSolutionConfig]
 
 noEdits :: SolutionConfig
 noEdits = fromJust $ finaliseConfigs
-  [defaultSolutionConfig { allowAdding = Just False }]
+  [toSolutionConfigOpt $ defaultSolutionConfig { allowAdding = Just False }]
 
 spec :: Spec
 spec =
