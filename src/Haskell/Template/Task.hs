@@ -460,7 +460,8 @@ Defaults to `False` if not specified.
 Also returns `False` in case the config cannot be read.
 -}
 getCodeWorldButtonOption :: HaskellConfig -> Bool
-getCodeWorldButtonOption HaskellConfig { solutionConfig = SolutionConfig{ addCodeWorldButton }} = runIdentity addCodeWorldButton
+getCodeWorldButtonOption HaskellConfig { solutionConfig = SolutionConfig{ addCodeWorldButton }} = 
+  runIdentity addCodeWorldButton
 
 {-|
 Extract the value of the `addCodeWorldRenderButton` option.
@@ -468,7 +469,8 @@ Defaults to `False` if not specified.
 Also returns `False` in case the config cannot be read.
 -}
 getCodeWorldRenderButtonOption :: HaskellConfig -> Bool
-getCodeWorldRenderButtonOption HaskellConfig { solutionConfig = SolutionConfig{ addCodeWorldRenderButton }} = runIdentity addCodeWorldRenderButton
+getCodeWorldRenderButtonOption HaskellConfig { solutionConfig = SolutionConfig{ addCodeWorldRenderButton }} = 
+  runIdentity addCodeWorldRenderButton
 
 {-|
 Extract the value of the `addCodeWorldPartialRenderButton` option.
@@ -476,7 +478,8 @@ Defaults to `False` if not specified.
 Also returns `False` in case the config cannot be read.
 -}
 getCodeWorldPartialRenderButtonOption :: HaskellConfig -> Bool
-getCodeWorldPartialRenderButtonOption HaskellConfig { solutionConfig = SolutionConfig{ addCodeWorldPartialRenderButton }} = runIdentity addCodeWorldPartialRenderButton
+getCodeWorldPartialRenderButtonOption HaskellConfig { solutionConfig } = 
+  runIdentity $ addCodeWorldPartialRenderButton solutionConfig
 
 {-|
 Enforces completely writing the file by flushing the output,
@@ -528,7 +531,15 @@ grade
   -- ^ the submission
   -> m Bool
   -- ^ whether the conditions outlined in the description apply or not
-grade withSyntax withSemantics reject inform dirname HaskellConfig{solutionConfig = solutionConfig@SolutionConfig{..},..} submission = do
+grade 
+  withSyntax
+  withSemantics
+  reject
+  inform
+  dirname
+  HaskellConfig{solutionConfig = solutionConfig@SolutionConfig{..},..}
+  submission
+  = do
     withSyntax $ checkUnsafe reject submission
     let exts = extensionsOf solutionConfig
     ((moduleName', template), others) <- nameModules (reject . string) exts modules

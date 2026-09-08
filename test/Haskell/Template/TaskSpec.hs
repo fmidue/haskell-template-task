@@ -32,13 +32,16 @@ defaultConfig :: SolutionConfig
 defaultConfig = solutionConfig defaultHaskellConfig
 
 withHlintSuggestions :: HaskellConfig -> [String] -> HaskellConfig
-withHlintSuggestions config@HaskellConfig {solutionConfig} xs = config {solutionConfig = solutionConfig {configHlintSuggestions = return xs}}
+withHlintSuggestions config@HaskellConfig {solutionConfig} xs = 
+  config {solutionConfig = solutionConfig {configHlintSuggestions = return xs}}
 
 withHlintErrors :: HaskellConfig -> [String] -> HaskellConfig
-withHlintErrors config@HaskellConfig {solutionConfig} xs = config {solutionConfig = solutionConfig {configHlintErrors = return xs}}
+withHlintErrors config@HaskellConfig {solutionConfig} xs = 
+  config {solutionConfig = solutionConfig {configHlintErrors = return xs}}
 
 withHlintRules :: HaskellConfig -> [String] -> HaskellConfig
-withHlintRules config@HaskellConfig {solutionConfig} xs = config {solutionConfig = solutionConfig {configHlintRules = return xs}}
+withHlintRules config@HaskellConfig {solutionConfig} xs = 
+  config {solutionConfig = solutionConfig {configHlintRules = return xs}}
 
 spec :: Spec
 spec = do
