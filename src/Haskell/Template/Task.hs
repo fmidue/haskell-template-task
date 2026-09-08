@@ -58,7 +58,7 @@ import Data.List
    )
 import Data.List.Extra
   (genericTake, nubOrd, replace, takeEnd, takeWhileEnd)
-import Data.Maybe                       (fromMaybe, fromJust)
+import Data.Maybe                       (fromMaybe)
 import Data.Text.Lazy                   (pack)
 import Data.Typeable                    (Typeable)
 import Data.Yaml
@@ -384,7 +384,7 @@ displayHaskellConfig HaskellConfig{..} = unlines $
 parseHaskellConfig :: String -> Either Doc HaskellConfig
 parseHaskellConfig raw = do
   (solConfig, modules') <- splitConfigAndModules Left raw
-  completedConfig <- addDefaults solConfig
+  completedConfig <- addDefaults Left solConfig
   return $ HaskellConfig
     { solutionConfig = completedConfig
     , modules = modules'
@@ -844,8 +844,11 @@ splitConfigAndModules reject configAndModules =
     eConfig :: Either ParseException SolutionConfigOpt
     eConfig = decodeEither' $ BS.pack configJson
 
-addDefaults :: Monad m => SolutionConfigOpt -> m SolutionConfig
-addDefaults f = return $ fromJust $ finaliseConfigs [f, toSolutionConfigOpt defaultSolutionConfig]
+addDefaults :: Monad m => (forall a. Doc -> m a) -> SolutionConfigOpt -> m SolutionConfig
+addDefaults reject f = maybe
+  (reject "There is a required configuration parameter missing")
+  return
+  $ finaliseConfigs [f, toSolutionConfigOpt defaultSolutionConfig]
 
 splitModules :: Bool -> String -> [String]
 splitModules dropFirst = map unlines
