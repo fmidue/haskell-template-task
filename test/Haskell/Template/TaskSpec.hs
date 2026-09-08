@@ -1,7 +1,7 @@
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE QuasiQuotes #-}
 module Haskell.Template.TaskSpec where
 
-import qualified Data.ByteString.Char8            as BS (unpack)
 import qualified Data.String.Interpolate          as SI (__i, i)
 import qualified Text.PrettyPrint.Leijen.Text     as PP
 
@@ -16,11 +16,7 @@ import Control.Monad.Catch (
 import Control.Monad.IO.Class           (liftIO)
 import Control.Monad.Trans.Writer       (runWriterT, tell)
 import Data.Functor.Identity            (Identity)
-import Data.List                        (intercalate, isPrefixOf)
-import Data.List.Extra                  (split)
-import Data.Maybe                       (fromJust)
 import Data.Text.Lazy                   (unpack)
-import Data.Yaml                        (encode)
 import System.Directory
   (getTemporaryDirectory, setCurrentDirectory)
 import System.FilePath                  ((</>))
@@ -33,22 +29,22 @@ newtype CustomException = CustomException PP.Doc
 instance Exception CustomException
 
 defaultConfig :: SolutionConfig
-defaultConfig = fromJust $ finaliseConfigs [toSolutionConfigOpt defaultSolutionConfig]
+defaultConfig = solutionConfig defaultHaskellConfig
 
-withHlintSuggestions :: Monad m => FSolutionConfig m -> [String] -> FSolutionConfig m
-withHlintSuggestions config xs = config { configHlintSuggestions = return xs }
+withHlintSuggestions :: HaskellConfig -> [String] -> HaskellConfig
+withHlintSuggestions config@HaskellConfig {solutionConfig} xs = config {solutionConfig = solutionConfig {configHlintSuggestions = return xs}}
 
-withHlintErrors :: Monad m => FSolutionConfig m -> [String] -> FSolutionConfig m
-withHlintErrors config xs = config { configHlintErrors = return xs}
+withHlintErrors :: HaskellConfig -> [String] -> HaskellConfig
+withHlintErrors config@HaskellConfig {solutionConfig} xs = config {solutionConfig = solutionConfig {configHlintErrors = return xs}}
 
-withHlintRules :: Monad m => FSolutionConfig m -> [String] -> FSolutionConfig m
-withHlintRules config xs = config { configHlintRules = return xs}
+withHlintRules :: HaskellConfig -> [String] -> HaskellConfig
+withHlintRules config@HaskellConfig {solutionConfig} xs = config {solutionConfig = solutionConfig {configHlintRules = return xs}}
 
 spec :: Spec
 spec = do
   describe "hlintFeedback" $ do
     it "accepts code without warnings/errors" $
-      hlintIO defaultConfig noError errorP configHlintErrors `shouldReturn` []
+      hlintIO defaultHaskellConfig noError errorP configHlintErrors `shouldReturn` []
     it "returns specified warnings" $
       hlintIO idSuggestion useId infoP configHlintSuggestions
       `shouldReturn` [Right "Warning: Redundant id"]
@@ -69,7 +65,7 @@ spec = do
       `shouldReturn` [Left "Warning: Use dilated"]
   describe "grade" $ do
     it "is running" $
-      gradeIO defaultCode useImport `shouldReturn` ""
+      gradeIO defaultHaskellConfig useImport `shouldReturn` ""
     it "allows syntaxCheck" $
       gradeIO (withSyntaxCheck True) useImport `shouldReturn` ""
     it "error on failing syntaxCheck" $
@@ -80,8 +76,8 @@ spec = do
            but got: True
           |] ++ "\n"
     it "returns specified warnings" $
-      exceptionToString (gradeIO withHlintError useId)
-      `shouldReturn` [SI.__i|
+      exceptionToString (gradeIO idError useId)
+        `shouldReturn` [SI.__i|
          Main.hs:3:9-12: Warning: Redundant id
          Found:
            id x
@@ -105,15 +101,14 @@ spec = do
          ++ rejectLine
     context "when submission is successful" $ do
       it "returns True and the configured custom message if a sample solution clone is submitted" $
-        gradeIOWithRes withCloneMessage useImport `shouldReturn` (True, cloneMessage)
+        gradeIOWithRes cloneMessageSetting useImport `shouldReturn` (True, cloneMessage)
       it "returns False and no additional message if a clone is submitted, but the option is not set" $
-        gradeIOWithRes defaultCode useImport `shouldReturn` (False, "")
+        gradeIOWithRes defaultHaskellConfig useImport `shouldReturn` (False, "")
       it "returns False and no additional message if option is set, but submission is no clone" $
-        gradeIOWithRes withCloneMessage noClone `shouldReturn` (False, "")
+        gradeIOWithRes cloneMessageSetting noClone `shouldReturn` (False, "")
   where
     rejectLine = '\n' : '\n' : render rejectHint
     exceptionToString f = catch f (\(CustomException x) -> pure $ render x)
-    withHlintError = toCode idError [useId]
     useImport = [SI.__i|
       module Solution where
       import Prelude
@@ -129,13 +124,8 @@ spec = do
       r [] = []
       r (x:xs) = reverse xs ++ [x]
       |]
-    withCloneMessage = toCode cloneMessageSetting $ program : tests : remaining
-    (_ : program : tests : remaining) =
-      map unlines $ split ("---" `isPrefixOf`) $ lines defaultCode
-    withSyntaxCheck withReverse = unlines $ intercalate ["-------"] $
-      let (config : program : _ : remaining) =
-            split ("---" `isPrefixOf`) $ lines defaultCode
-      in config : program : [syntaxCheck withReverse] : remaining
+    (program:tests:remaining) = modules defaultHaskellConfig
+    withSyntaxCheck withReverse = toCode defaultHaskellConfig $ program:syntaxCheck withReverse:remaining
     syntaxCheck :: Bool -> String
     syntaxCheck withReverse = [SI.__i|
       module Test (test) where
@@ -153,39 +143,44 @@ spec = do
         negateString
           | withReverse = "" :: String
           | otherwise = "not "
-    incompletePattern = defaultConfig {
-      configGhcErrors = pure ["incomplete-patterns"]
-      }
-    idSuggestion = defaultConfig
-      `withHlintSuggestions` ["Redundant id"]
-      `withHlintErrors` []
-    idError      = defaultConfig
-      `withHlintErrors` ["Redundant id"]
-      `withHlintSuggestions` []
-    dilatedError = defaultConfig
-      `withHlintErrors` ["Use dilated"]
-      `withHlintRules` ["warn: {lhs: scaled x x, rhs: dilated x}"]
-    dilatedNamed = defaultConfig
-      `withHlintErrors` ["Do not use scaled"]
-      `withHlintRules` ["warn: {lhs: scaled x x, rhs: dilated x, name: Do not use scaled}"]
-    dilatedWithFixity = defaultConfig
-      `withHlintErrors` ["Use dilated"]
-      `withHlintRules` ["fixity: infixr 0 &", "warn: {lhs: scaled x x, rhs: dilated x}"]
-    cloneMessageSetting = defaultConfig
-      {messageOnCloningSampleSolution = pure $ Just cloneMessage}
+    incompletePattern =
+      defaultHaskellConfig
+        { solutionConfig = defaultConfig {configGhcErrors = pure ["incomplete-patterns"]}
+        }
+    idSuggestion =
+      defaultHaskellConfig
+        `withHlintSuggestions` ["Redundant id"]
+        `withHlintErrors` []
+    idError =
+      defaultHaskellConfig
+        `withHlintErrors` ["Redundant id"]
+        `withHlintSuggestions` []
+    dilatedError =
+      defaultHaskellConfig
+        `withHlintErrors` ["Use dilated"]
+        `withHlintRules` ["warn: {lhs: scaled x x, rhs: dilated x}"]
+    dilatedNamed =
+      defaultHaskellConfig
+        `withHlintErrors` ["Do not use scaled"]
+        `withHlintRules` ["warn: {lhs: scaled x x, rhs: dilated x, name: Do not use scaled}"]
+    dilatedWithFixity =
+      defaultHaskellConfig
+        `withHlintErrors` ["Use dilated"]
+        `withHlintRules` ["fixity: infixr 0 &", "warn: {lhs: scaled x x, rhs: dilated x}"]
+    cloneMessageSetting =
+      defaultHaskellConfig
+        { solutionConfig = defaultConfig {messageOnCloningSampleSolution = pure $ Just cloneMessage}
+        }
     cloneMessage = "Clone found"
 
+toCode :: HaskellConfig -> [String] -> HaskellConfig
+toCode config programs = config {modules = programs}
 
-toCode :: SolutionConfig -> [String] -> String
-toCode config programs = intercalate "\n----\n" $ configText : programs
-  where
-    configText = BS.unpack . encode $ toSolutionConfigOpt config
+gradeIO :: HaskellConfig -> String -> IO String
+gradeIO config submission = snd <$> gradeIOWithRes config submission
 
-gradeIO :: String -> String -> IO String
-gradeIO task submission = snd <$> gradeIOWithRes task submission
-
-gradeIOWithRes :: String -> String -> IO (Bool,String)
-gradeIOWithRes task submission = do
+gradeIOWithRes :: HaskellConfig -> String -> IO (Bool, String)
+gradeIOWithRes config submission = do
   tmp <- getTemporaryDirectory
   withTempDirectory tmp "Grade-test" $ \dir -> do
     setCurrentDirectory dir
@@ -195,10 +190,10 @@ gradeIOWithRes task submission = do
       (throwM . CustomException)
       (tell . show)
       dir
-      task
+      config
       submission
 
-hlintIO :: SolutionConfig
+hlintIO :: HaskellConfig
            -> String
            -> (PP.Doc -> IO (Either String String))
            -> (SolutionConfig -> Identity [String])
@@ -209,7 +204,7 @@ hlintIO config content display selectHints = do
     setCurrentDirectory dir
     let file = dir </> "Main.hs"
     writeFile file content
-    feedback <- getHlintFeedback display config tmp file selectHints
+    feedback <- getHlintFeedback display (solutionConfig config) tmp file selectHints
     return $ (repackStrings +++ repackStrings) <$> feedback
   where
     repackStrings x =

@@ -9,6 +9,7 @@ import Haskell.Template.Match           (Result (..), test)
 
 import Control.Monad.State.Lazy         (State, execState, modify)
 import Data.Either                      (isLeft)
+import Data.Functor.Identity            (Identity)
 import Data.List                        (isInfixOf, isPrefixOf)
 import Data.Maybe                       (fromJust)
 import Data.Text.Lazy                   (unpack)
@@ -16,16 +17,16 @@ import Test.Hspec
 
 withAll :: SolutionConfig
 withAll = fromJust $ finaliseConfigs
-  [toSolutionConfigOpt $ defaultSolutionConfig {
+  [defaultSolutionConfig {
       allowModifying = Just True,
       allowRemoving = Just True }]
 
 withAdding :: SolutionConfig
-withAdding = fromJust $ finaliseConfigs [toSolutionConfigOpt defaultSolutionConfig]
+withAdding = fromJust $ finaliseConfigs [defaultSolutionConfig]
 
 noEdits :: SolutionConfig
 noEdits = fromJust $ finaliseConfigs
-  [toSolutionConfigOpt $ defaultSolutionConfig { allowAdding = Just False }]
+  [defaultSolutionConfig { allowAdding = Just False }]
 
 spec :: Spec
 spec =
