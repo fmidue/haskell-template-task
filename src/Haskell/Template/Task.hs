@@ -460,7 +460,7 @@ Defaults to `False` if not specified.
 Also returns `False` in case the config cannot be read.
 -}
 getCodeWorldButtonOption :: HaskellConfig -> Bool
-getCodeWorldButtonOption HaskellConfig { solutionConfig = SolutionConfig{ addCodeWorldButton }} = 
+getCodeWorldButtonOption HaskellConfig { solutionConfig = SolutionConfig{ addCodeWorldButton }} =
   runIdentity addCodeWorldButton
 
 {-|
@@ -469,7 +469,7 @@ Defaults to `False` if not specified.
 Also returns `False` in case the config cannot be read.
 -}
 getCodeWorldRenderButtonOption :: HaskellConfig -> Bool
-getCodeWorldRenderButtonOption HaskellConfig { solutionConfig = SolutionConfig{ addCodeWorldRenderButton }} = 
+getCodeWorldRenderButtonOption HaskellConfig { solutionConfig = SolutionConfig{ addCodeWorldRenderButton }} =
   runIdentity addCodeWorldRenderButton
 
 {-|
@@ -478,7 +478,7 @@ Defaults to `False` if not specified.
 Also returns `False` in case the config cannot be read.
 -}
 getCodeWorldPartialRenderButtonOption :: HaskellConfig -> Bool
-getCodeWorldPartialRenderButtonOption HaskellConfig { solutionConfig } = 
+getCodeWorldPartialRenderButtonOption HaskellConfig { solutionConfig } =
   runIdentity $ addCodeWorldPartialRenderButton solutionConfig
 
 {-|
@@ -531,7 +531,7 @@ grade
   -- ^ the submission
   -> m Bool
   -- ^ whether the conditions outlined in the description apply or not
-grade 
+grade
   withSyntax
   withSemantics
   reject
