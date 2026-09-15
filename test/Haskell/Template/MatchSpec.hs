@@ -20,12 +20,23 @@ withAll = fromJust $ finaliseConfigs
       allowModifying = Just True,
       allowRemoving = Just True }]
 
+completedDefaultSolutionConfig :: SolutionConfigOpt
+completedDefaultSolutionConfig =
+  defaultSolutionConfig {
+      addCodeWorldRenderButton = Just False,
+      configGhcErrors = Just [],
+      configGhcWarnings = Just [],
+      configHlintErrors = Just [],
+      configHlintSuggestions = Just [],
+      provideSampleSolution = Just False,
+      rigorousValidation = Just True }
+
 withAdding :: SolutionConfig
-withAdding = fromJust $ finaliseConfigs [defaultSolutionConfig]
+withAdding = fromJust $ finaliseConfigs [completedDefaultSolutionConfig]
 
 noEdits :: SolutionConfig
 noEdits = fromJust $ finaliseConfigs
-  [defaultSolutionConfig { allowAdding = Just False }]
+  [completedDefaultSolutionConfig { allowAdding = Just False }]
 
 spec :: Spec
 spec =
@@ -46,7 +57,7 @@ spec =
       getComment withAdding modUndefinedParameter modUndefinedFunction
       `shouldBe` Right [Missing ["foo t = undefined"
                                 ,"    ^^           "]]
-    it "accept code where types for given functions are added" $
+    it "accepts code where types for given functions are added" $
       getComment withAdding modNoType modUndefined
       `shouldBe` Right []
     it "accepts code where undefined is replaced without comment" $
@@ -55,10 +66,10 @@ spec =
     it "accepts code where function definitions are reordered" $
       getComment withAdding modUndefined mod43
       `shouldBe` Right []
-    it "accept code with guards" $
+    it "accepts code with guards" $
       getComment withAdding modUndefined modGuards
       `shouldBe` Right []
-    it "accept code with guards and parameter" $
+    it "accepts code with guards and parameter" $
       getComment withAdding modUndefinedParameter modGuardsParameter
       `shouldBe` Right []
     it "rejects code where parts beside undefined are changed" $
