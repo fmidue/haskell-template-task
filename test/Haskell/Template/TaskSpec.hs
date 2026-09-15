@@ -33,7 +33,15 @@ newtype CustomException = CustomException PP.Doc
 instance Exception CustomException
 
 defaultConfig :: SolutionConfig
-defaultConfig = fromJust $ finaliseConfigs [defaultSolutionConfig]
+defaultConfig = fromJust $ finaliseConfigs
+  [ defaultSolutionConfig {
+      addCodeWorldRenderButton = Just False,
+      configGhcErrors = Just [],
+      configGhcWarnings = Just [],
+      configHlintErrors = Just [],
+      configHlintSuggestions = Just [],
+      provideSampleSolution = Just True,
+      rigorousValidation = Just True } ]
 
 withHlintSuggestions :: Monad m => FSolutionConfig m -> [String] -> FSolutionConfig m
 withHlintSuggestions config xs = config { configHlintSuggestions = return xs }
