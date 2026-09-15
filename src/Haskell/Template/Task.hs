@@ -8,25 +8,30 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE NamedFieldPuns #-}
 module Haskell.Template.Task (
   FSolutionConfig (..),
   SolutionConfig,
+  HaskellConfig (..),
   check,
   defaultCode,
+  defaultHaskellConfig,
   defaultSolutionConfig,
+  displayHaskellConfig,
   finaliseConfigs,
   getCodeWorldButtonOption,
   getCodeWorldRenderButtonOption,
   getCodeWorldPartialRenderButtonOption,
   getHlintFeedback,
   grade,
+  initialTask,
   matchTemplate,
   maybeSampleSolution,
   parse,
+  parseHaskellConfig,
   rejectHint,
   rejectMatch,
   toSolutionConfigOpt,
-  unsafeTemplateSegment,
   ) where
 
 import qualified Data.ByteString.Char8            as BS
@@ -46,8 +51,9 @@ import Control.Monad.Extra              ((&&^), whenJust)
 import Control.Monad.IO.Class           (MonadIO)
 import Data.Char                        (isUpper)
 import Data.Functor.Identity            (Identity (..))
+import Data.Either.Extra                   (fromRight')
 import Data.List
-  (delete, elemIndex, groupBy, intercalate, isInfixOf, isPrefixOf,
+  (delete, elemIndex, groupBy, intercalate, intersperse, isInfixOf, isPrefixOf,
    union,
    )
 import Data.List.Extra
@@ -64,7 +70,7 @@ import Language.Haskell.HLint           (hlint)
 import Language.Haskell.Interpreter
   (GhcError (..), InterpreterError (..), MonadInterpreter, OptionVal (..),
    Extension(UnknownExtension), as, installedModulesInScope, interpret, languageExtensions, liftIO,
-   loadModules, reset, runInterpreter, set, setImports, setTopLevelModules, searchPath)
+   loadModules, reset, runInterpreter, set, setImports, searchPath)
 import Language.Haskell.Interpreter.Unsafe
   (unsafeRunInterpreterWithArgs)
 import Numeric.Natural                  (Natural)
@@ -241,6 +247,13 @@ deriving instance ToJSON SolutionConfigOpt
 type SolutionConfig  = FSolutionConfig Identity
 
 deriving instance Show SolutionConfig
+deriving instance FromJSON SolutionConfig
+deriving instance ToJSON SolutionConfig
+
+data HaskellConfig = HaskellConfig
+  { solutionConfig :: SolutionConfig
+  , modules :: [String]
+  } deriving Show
 
 defaultSolutionConfig :: SolutionConfigOpt
 defaultSolutionConfig = SolutionConfig {
@@ -341,6 +354,19 @@ finaliseConfigs = toMaybeSolutionConfig . foldl1 combineConfigs
         syntaxCutoff                = syntaxCutoff                x <|> syntaxCutoff                y
       }
 
+displayHaskellConfig :: HaskellConfig -> String
+displayHaskellConfig HaskellConfig{..} = unlines $
+  BS.unpack (encode solutionConfig) : if null modules then [] else "----------" : intersperse "----------" modules
+
+parseHaskellConfig :: String -> Either Doc HaskellConfig
+parseHaskellConfig raw = do
+  (solConfig, modules') <- splitConfigAndModules Left raw
+  completedConfig <- addDefaults Left solConfig
+  return $ HaskellConfig
+    { solutionConfig = completedConfig
+    , modules = modules'
+    }
+
 string :: String -> Doc
 string = text . pack
 
@@ -349,11 +375,12 @@ check
   => (forall a. Doc -> m a)
   -> (Doc -> m ())
   -> FilePath
-  -> String
+  -> HaskellConfig
   -> m ()
-check reject inform path i = do
-  checkUnsafe reject i
-  (config@SolutionConfig{..}, exts, (m,s), ms) <- processConfig reject inform i
+check reject inform path HaskellConfig{solutionConfig = config@SolutionConfig{..},..} = do
+  checkUnsafe reject $ unlines modules
+  let exts = extensionsOf config
+  ((m,s), ms) <- nameModules (reject . string) exts modules
   checkUniqueness (m : map fst ms)
   inform $ string $ "Parsing template module " <> m
   void $ parse reject exts s
@@ -378,24 +405,26 @@ check reject inform path i = do
       let others = filter ((/="SampleSolution") . fst) ms
       let content = replace "module SampleSolution" ("module " ++ m) sampleSolution
       mapM_ (checkLineLength reject content) $ runIdentity maxLineLength
-      (modules, solutionFile) <- writeModules (m, content) others path
-      sequence_ $ testPhases reject inform s solutionFile modules stricterConfig exts content path
+      (modules', solutionFile) <- writeModules (m, content) others path
+      sequence_ $ testPhases reject inform s solutionFile modules' stricterConfig exts content path
   where
     parseModule exts (m, s) = do
       inform $ string $ "Parsing module " <> m
       parse reject exts s
     checkUniqueness xs = when (nubOrd xs /= xs) $ reject "duplicate module name"
 
+initialTask :: HaskellConfig -> String
+initialTask HaskellConfig {..} = either id id $ do
+  snd . fst <$> nameModules Left (extensionsOf solutionConfig) modules
+
 {- |
 Extract the sample solution if one was provided, 'provideSampleSolution' is enabled
 and 'disableSemantics' is not enabled.
 -}
-maybeSampleSolution :: String -> Maybe Doc
-maybeSampleSolution task = do
-  (config, modules) <- splitConfigAndModules abort task
-  SolutionConfig {..} <- addDefaults abort config
+maybeSampleSolution :: HaskellConfig -> Maybe Doc
+maybeSampleSolution HaskellConfig{solutionConfig = solConf@SolutionConfig{..},..} = do
   guard $ runIdentity $ (&&) <$> provideSampleSolution <*> fmap not disableSemantics
-  exts <- extensionsOf <$> addDefaults abort config
+  let exts = extensionsOf solConf
   ((taskName,_), otherModules) <- nameModules abort exts modules
   sampleSolution <- lookup "SampleSolution" otherModules
   pure $ string $ replace "SampleSolution" taskName sampleSolution
@@ -407,30 +436,27 @@ Extract the value of the `addCodeWorldButton` option.
 Defaults to `False` if not specified.
 Also returns `False` in case the config cannot be read.
 -}
-getCodeWorldButtonOption :: String -> Bool
-getCodeWorldButtonOption s = fromMaybe False mOption
-  where
-    mOption = splitConfigAndModules (const Nothing) s >>= addCodeWorldButton . fst
+getCodeWorldButtonOption :: HaskellConfig -> Bool
+getCodeWorldButtonOption HaskellConfig { solutionConfig = SolutionConfig{ addCodeWorldButton }} =
+  runIdentity addCodeWorldButton
 
 {-|
 Extract the value of the `addCodeWorldRenderButton` option.
 Defaults to `False` if not specified.
 Also returns `False` in case the config cannot be read.
 -}
-getCodeWorldRenderButtonOption :: String -> Bool
-getCodeWorldRenderButtonOption s = fromMaybe False mOption
-  where
-    mOption = splitConfigAndModules (const Nothing) s >>= addCodeWorldRenderButton . fst
+getCodeWorldRenderButtonOption :: HaskellConfig -> Bool
+getCodeWorldRenderButtonOption HaskellConfig { solutionConfig = SolutionConfig{ addCodeWorldRenderButton }} =
+  runIdentity addCodeWorldRenderButton
 
 {-|
 Extract the value of the `addCodeWorldPartialRenderButton` option.
 Defaults to `False` if not specified.
 Also returns `False` in case the config cannot be read.
 -}
-getCodeWorldPartialRenderButtonOption :: String -> Bool
-getCodeWorldPartialRenderButtonOption s = fromMaybe False mOption
-  where
-    mOption = splitConfigAndModules (const Nothing) s >>= addCodeWorldPartialRenderButton . fst
+getCodeWorldPartialRenderButtonOption :: HaskellConfig -> Bool
+getCodeWorldPartialRenderButtonOption HaskellConfig { solutionConfig } =
+  runIdentity $ addCodeWorldPartialRenderButton solutionConfig
 
 {-|
 Enforces completely writing the file by flushing the output,
@@ -476,27 +502,33 @@ grade
   -- ^ display a message and continue
   -> FilePath
   -- ^ parent directory to use for file operations
-  -> String
-  -- ^ the task
+  -> HaskellConfig
+  -- ^ the task configuration
   -> String
   -- ^ the submission
   -> m Bool
   -- ^ whether the conditions outlined in the description apply or not
-grade withSyntax withSemantics reject inform dirname task submission = do
+grade
+  withSyntax
+  withSemantics
+  reject
+  inform
+  dirname
+  HaskellConfig{solutionConfig = solutionConfig@SolutionConfig{..},..}
+  submission
+  = do
     withSyntax $ checkUnsafe reject submission
-    (config@SolutionConfig{..}, exts, (moduleName', template), others) <- processConfig
-      (rejectWithMessage reject $ string informTutorMessage)
-      (const $ pure ())
-      task
+    let exts = extensionsOf solutionConfig
+    ((moduleName', template), others) <- nameModules (reject . string) exts modules
     withSyntax $ mapM_ (checkLineLength reject submission) $ runIdentity maxLineLength
-    (modules, submissionFile) <- if runIdentity $ fmap (== CodeWidth) syntaxCutoff &&^ disableSemantics
+    (modules', submissionFile) <- if runIdentity $ fmap (== CodeWidth) syntaxCutoff &&^ disableSemantics
       -- Completely skip file writing if code length is the only syntax phase action
       -- and semantics phase is disabled.
       then pure (undefined, undefined)
       else writeModules (moduleName', submission) others dirname
     let
      (syntax, semantics) = splitAt (fromEnum syntaxCutoff)
-      $ testPhases reject inform template submissionFile modules config exts submission dirname
+      $ testPhases reject inform template submissionFile modules' solutionConfig exts submission dirname
     withSyntax $ sequence_ syntax
     if runIdentity disableSemantics
     then pure False
@@ -819,13 +851,6 @@ splitBy p = dropOdd . groupBy (\l r -> not (p l) && not (p r))
    dropOdd [x] = [x]
    dropOdd (x:_:xs) = x:dropOdd xs
 
-unsafeTemplateSegment :: String -> String
-unsafeTemplateSegment task = either id id $ do
-  let (config, modules) = fromMaybe (defaultSolutionConfig, []) $
-        splitConfigAndModules (const Nothing) task
-      exts = maybe [] extensionsOf $ addDefaults (const Nothing) config
-  snd . fst <$> nameModules Left exts modules
-
 nameModules
   :: Monad m
   => (forall a. String -> m a)
@@ -847,24 +872,6 @@ moduleName :: E.Module l -> String
 moduleName (E.Module _ (Just (E.ModuleHead _ (E.ModuleName _ n) _ _)) _ _ _) = n
 moduleName (E.Module _ Nothing _ _ _) = "Main"
 moduleName _                          = error "unsupported module type"
-
-processConfig
-  :: Monad m
-  => (forall a. Doc -> m a)
-  -- ^ display a message and fail
-  -> (Doc -> m ())
-  -- ^ display a message and continue
-  -> String
-  -- ^ raw configuration
-  -> m (FSolutionConfig Identity, [E.Extension], (String,String), [(String,String)])
-processConfig reject inform rawConfig = do
-  (config, modules) <- splitConfigAndModules reject rawConfig
-  inform $ string $ "Parsed the following setting options:\n" ++ show config
-  completedConfig <- addDefaults reject config
-  inform $ string $ "Completed configuration to:\n" ++ show completedConfig
-  let exts = extensionsOf completedConfig
-  ((m,s), ms) <- nameModules (reject . string) exts modules
-  return (completedConfig, exts, (m,s), ms)
 
 checkUnsafe :: Monad m => (forall a. Doc -> m a) -> String -> m ()
 checkUnsafe reject rawFile =  do
@@ -997,3 +1004,6 @@ checkLineLength reject code maxLength = case hasLonger of
       ]
     separated = vcat . punctuate linebreak
     rejectWithHint = rejectWithMessage reject rejectHint
+
+defaultHaskellConfig :: HaskellConfig
+defaultHaskellConfig = fromRight' $ parseHaskellConfig defaultCode

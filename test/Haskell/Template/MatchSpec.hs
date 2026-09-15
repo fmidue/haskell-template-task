@@ -9,6 +9,7 @@ import Haskell.Template.Match           (Result (..), test)
 
 import Control.Monad.State.Lazy         (State, execState, modify)
 import Data.Either                      (isLeft)
+import Data.Functor.Identity            (Identity)
 import Data.List                        (isInfixOf, isPrefixOf)
 import Data.Maybe                       (fromJust)
 import Data.Text.Lazy                   (unpack)
