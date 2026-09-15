@@ -806,7 +806,7 @@ splitConfigAndModules reject configAndModules =
 
 addDefaults :: Monad m => (forall a. Doc -> m a) -> SolutionConfigOpt -> m SolutionConfig
 addDefaults reject f = maybe
-  (reject "There is a required configuration parameter missing")
+  (reject "There is a required configuration parameter missing.")
   return
   $ finaliseConfigs [f, defaultSolutionConfig]
 
