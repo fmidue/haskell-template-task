@@ -292,10 +292,10 @@ toSolutionConfigOpt SolutionConfig {..} = runIdentity $ SolutionConfig
   <*> fmap Just syntaxCutoff
 
 finaliseConfigs :: [SolutionConfigOpt] -> Maybe SolutionConfig
-finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
+finaliseConfigs = toMaybeSolutionConfig . foldl1 combineConfigs
   where
-    finaliseConfig :: SolutionConfigOpt -> Maybe SolutionConfig
-    finaliseConfig SolutionConfig {..} = SolutionConfig
+    toMaybeSolutionConfig :: SolutionConfigOpt -> Maybe SolutionConfig
+    toMaybeSolutionConfig SolutionConfig{..} = SolutionConfig
       <$> fmap Identity allowAdding
       <*> fmap Identity allowModifying
       <*> fmap Identity allowRemoving
@@ -339,29 +339,6 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
         disableSemantics            = disableSemantics            x <|> disableSemantics            y,
         rigorousValidation          = rigorousValidation          x <|> rigorousValidation          y,
         syntaxCutoff                = syntaxCutoff                x <|> syntaxCutoff                y
-      }
-    emptyConfig = SolutionConfig {
-        allowAdding                 = Nothing,
-        allowRemoving               = Nothing,
-        allowModifying              = Nothing,
-        addCodeWorldButton          = Nothing,
-        addCodeWorldRenderButton    = Nothing,
-        addCodeWorldPartialRenderButton = Nothing,
-        configGhcLimit              = Nothing,
-        configGhcErrors             = Nothing,
-        configGhcWarnings           = Nothing,
-        configHlintSuggestionsLimit = Nothing,
-        configHlintErrors           = Nothing,
-        configHlintGroups           = Nothing,
-        configHlintRules            = Nothing,
-        configHlintSuggestions      = Nothing,
-        configLanguageExtensions    = Nothing,
-        maxLineLength               = Nothing,
-        provideSampleSolution       = Nothing,
-        messageOnCloningSampleSolution = Nothing,
-        disableSemantics            = Nothing,
-        rigorousValidation          = Nothing,
-        syntaxCutoff                = Nothing
       }
 
 string :: String -> Doc
