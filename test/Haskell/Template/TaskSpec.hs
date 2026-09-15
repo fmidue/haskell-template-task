@@ -61,7 +61,7 @@ configHlintErrors: []
 configHlintSuggestions: []
 provideSampleSolution: true
 rigorousValidation: true
-  |] ++ defaultCode
+  |] ++ "\n" ++ defaultCode
 
 spec :: Spec
 spec = do
