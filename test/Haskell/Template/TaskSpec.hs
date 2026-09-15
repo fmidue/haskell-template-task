@@ -52,6 +52,17 @@ withHlintErrors config xs = config { configHlintErrors = return xs}
 withHlintRules :: Monad m => FSolutionConfig m -> [String] -> FSolutionConfig m
 withHlintRules config xs = config { configHlintRules = return xs}
 
+completedDefaultCode :: String
+completedDefaultCode = [SI.i|
+addCodeWorldRenderButton: false
+configGhcErrors: []
+configGhcWarnings: []
+configHlintErrors: []
+configHlintSuggestions: []
+provideSampleSolution: true
+rigorousValidation: true
+  |] ++ defaultCode
+
 spec :: Spec
 spec = do
   describe "hlintFeedback" $ do
@@ -77,10 +88,10 @@ spec = do
       `shouldReturn` [Left "Warning: Use dilated"]
   describe "grade" $ do
     it "is running" $
-      gradeIO defaultCode useImport `shouldReturn` ""
+      gradeIO completedDefaultCode useImport `shouldReturn` ""
     it "allows syntaxCheck" $
       gradeIO (withSyntaxCheck True) useImport `shouldReturn` ""
-    it "error on failing syntaxCheck" $
+    it "errors out on failing syntaxCheck" $
       exceptionToString (gradeIO (withSyntaxCheck False) useImport)
       `shouldReturn` [SI.__i|
           \#\#\# Failure in: 'r' does not use 'reverse'?
@@ -115,7 +126,7 @@ spec = do
       it "returns True and the configured custom message if a sample solution clone is submitted" $
         gradeIOWithRes withCloneMessage useImport `shouldReturn` (True, cloneMessage)
       it "returns False and no additional message if a clone is submitted, but the option is not set" $
-        gradeIOWithRes defaultCode useImport `shouldReturn` (False, "")
+        gradeIOWithRes completedDefaultCode useImport `shouldReturn` (False, "")
       it "returns False and no additional message if option is set, but submission is no clone" $
         gradeIOWithRes withCloneMessage noClone `shouldReturn` (False, "")
   where
@@ -139,10 +150,10 @@ spec = do
       |]
     withCloneMessage = toCode cloneMessageSetting $ program : tests : remaining
     (_ : program : tests : remaining) =
-      map unlines $ split ("---" `isPrefixOf`) $ lines defaultCode
+      map unlines $ split ("---" `isPrefixOf`) $ lines completedDefaultCode
     withSyntaxCheck withReverse = unlines $ intercalate ["-------"] $
       let (config : program : _ : remaining) =
-            split ("---" `isPrefixOf`) $ lines defaultCode
+            split ("---" `isPrefixOf`) $ lines completedDefaultCode
       in config : program : [syntaxCheck withReverse] : remaining
     syntaxCheck :: Bool -> String
     syntaxCheck withReverse = [SI.__i|
