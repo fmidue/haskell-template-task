@@ -87,33 +87,35 @@ encode = encodePretty $ setConfCompare compare defConfig
 defaultCode :: String
 defaultCode = BS.unpack (encode defaultSolutionConfig) ++
   [SI.i|\#\#\#\#\# parameter description:
-\# allowAdding                 - allow adding program parts
-\# allowModifying              - allow modifying program parts
-\# allowRemoving               - allow removing program parts
+\# allowAdding                 - allow adding program parts; defaults to true
+\# allowModifying              - allow modifying program parts; defaults to false
+\# allowRemoving               - allow removing program parts; defaults to false
 \# addCodeWorldButton          - adds a button to transfer student visible code
-\#                               into the CodeWorld editor
+\#                               into the CodeWorld editor; defaults to false
 \# addCodeWorldRenderButton    - adds a button to transfer student visible code
 \#                               into the CodeWorld runner
 \# addCodeWorldPartialRenderButton - adds a button to transfer student visible
 \#                                   code into the CodeWorld runner with
-\#                                   preview for code containing 'undefined'
-\# configGhcLimit              - caps amount of GHC warnings/errors to display
+\#                                   preview for code containing 'undefined'; defaults to false
+\# configGhcLimit              - caps amount of GHC warnings/errors to display; defaults to no cap
 \# configGhcErrors             - GHC warnings to enforce
 \# configGhcWarnings           - GHC warnings to provide as hints
-\# configHlintSuggestionsLimit - caps amount of hlint suggestions to display
+\# configHlintSuggestionsLimit - caps amount of hlint suggestions to display; defaults to no cap
 \# configHlintErrors           - hlint hints to enforce, only first one encountered is displayed
-\# configHlintGroups           - hlint extra hint groups to use
-\# configHlintRules            - hlint extra hint rules to use
+\# configHlintGroups           - hlint extra hint groups to use; defaults to none
+\# configHlintRules            - hlint extra hint rules to use; defaults to none
 \# configHlintSuggestions      - hlint hints to provide as suggestions
-\# configLanguageExtensions    - this sets LanguageExtensions for hlint as well
-\# maxLineLength               - submissions with lines longer than this value are rejected
+\# configLanguageExtensions    - this sets LanguageExtensions for hlint as well;
+\#                               defaults to NPlusKPatterns + ScopedTypeVariables
+\# maxLineLength               - submissions with lines longer than this value are rejected; defaults to no limit
 \# syntaxCutoff                - determines the last step in the syntax phase (later steps are considered semantics);
 \#                               possible values (and also the order of steps):
 \#                                 CodeWidth, Compilation, GhcErrors, HlintErrors, TemplateMatch, TestSuite
 \#                               default on omission is TemplateMatch; steps after TestSuite are (in this order):
 \#                                 GhcWarnings, HlintSuggestions
 \# disableSemantics            - will prevent the semantics phase (as determined by syntaxCutoff) from running;
-\#                               this means a submission will be accepted after passing the syntax phase
+\#                               this means a submission will be accepted after passing the syntax phase;
+\#                               defaults to false
 \# provideSampleSolution       - display provided sample solution to students after semantics feedback
 \# rigorousValidation          - will run all tests configured for submissions on the provided sample solution
 \#                               (no effect if there is none);
@@ -121,7 +123,8 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \#                               in order to reduce wait times for students
 \# messageOnCloningSampleSolution - compare provided sample solution with submission and output
 \#                                  this message as feedback if the submission contains the sample solution
-\#                                  (provideSampleSolution will be ignored if the submission is a clone)
+\#                                  (provideSampleSolution will be ignored if the submission is a clone);
+\#                                  default is to skip this
 ----------
 module Solution where
 import Prelude
@@ -247,23 +250,23 @@ defaultSolutionConfig = SolutionConfig {
     allowAdding                 = Just True,
     allowModifying              = Just False,
     allowRemoving               = Just False,
-    addCodeWorldButton          = Just True,
-    addCodeWorldRenderButton    = Just True,
+    addCodeWorldButton          = Just False,
+    addCodeWorldRenderButton    = Nothing,
     addCodeWorldPartialRenderButton = Just False,
     configGhcLimit              = Just Nothing,
-    configGhcErrors             = Just [],
-    configGhcWarnings           = Just [],
+    configGhcErrors             = Nothing,
+    configGhcWarnings           = Nothing,
     configHlintSuggestionsLimit = Just Nothing,
-    configHlintErrors           = Just [],
+    configHlintErrors           = Nothing,
     configHlintGroups           = Just [],
     configHlintRules            = Just [],
-    configHlintSuggestions      = Just [],
+    configHlintSuggestions      = Nothing,
     configLanguageExtensions    = Just ["NPlusKPatterns","ScopedTypeVariables"],
     maxLineLength               = Just Nothing,
-    provideSampleSolution       = Just False,
+    provideSampleSolution       = Nothing,
     messageOnCloningSampleSolution = Just Nothing,
     disableSemantics            = Just False,
-    rigorousValidation          = Just False,
+    rigorousValidation          = Nothing,
     syntaxCutoff                = Just TemplateMatch
   }
 
