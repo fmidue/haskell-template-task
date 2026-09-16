@@ -53,15 +53,9 @@ withHlintRules :: Monad m => FSolutionConfig m -> [String] -> FSolutionConfig m
 withHlintRules config xs = config { configHlintRules = return xs}
 
 completedDefaultCode :: String
-completedDefaultCode = [SI.i|
-addCodeWorldRenderButton: false
-configGhcErrors: []
-configGhcWarnings: []
-configHlintErrors: []
-configHlintSuggestions: []
-provideSampleSolution: true
-rigorousValidation: true
-  |] ++ "\n" ++ defaultCode
+completedDefaultCode = case map unlines $ split ("---" `isPrefixOf`) $ lines defaultCode of
+ _ : modules -> toCode defaultConfig modules
+ [] -> defaultCode
 
 spec :: Spec
 spec = do
