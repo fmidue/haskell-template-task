@@ -53,9 +53,8 @@ withHlintRules :: Monad m => FSolutionConfig m -> [String] -> FSolutionConfig m
 withHlintRules config xs = config { configHlintRules = return xs}
 
 completedDefaultCode :: String
-completedDefaultCode = case map unlines $ split ("---" `isPrefixOf`) $ lines defaultCode of
- _ : modules -> toCode defaultConfig modules
- [] -> defaultCode
+completedDefaultCode = toCode defaultConfig . drop 1
+  $ map unlines $ split ("---" `isPrefixOf`) $ lines defaultCode
 
 spec :: Spec
 spec = do
