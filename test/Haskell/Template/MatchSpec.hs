@@ -15,10 +15,10 @@ import Data.Text.Lazy                   (unpack)
 import Test.Hspec
 
 withAll :: SolutionConfig
-withAll = fromJust $ finaliseConfigs
-  [defaultSolutionConfig {
+withAll = fromJust $ toMaybeSolutionConfig
+  (defaultSolutionConfig {
       allowModifying = Just True,
-      allowRemoving = Just True }]
+      allowRemoving = Just True })
 
 completedDefaultSolutionConfig :: SolutionConfigOpt
 completedDefaultSolutionConfig =
@@ -32,11 +32,11 @@ completedDefaultSolutionConfig =
       rigorousValidation = Just True }
 
 withAdding :: SolutionConfig
-withAdding = fromJust $ finaliseConfigs [completedDefaultSolutionConfig]
+withAdding = fromJust $ toMaybeSolutionConfig completedDefaultSolutionConfig
 
 noEdits :: SolutionConfig
-noEdits = fromJust $ finaliseConfigs
-  [completedDefaultSolutionConfig { allowAdding = Just False }]
+noEdits = fromJust $ toMaybeSolutionConfig
+  (completedDefaultSolutionConfig { allowAdding = Just False })
 
 spec :: Spec
 spec =

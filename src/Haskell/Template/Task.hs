@@ -15,7 +15,6 @@ module Haskell.Template.Task (
   check,
   defaultCode,
   defaultSolutionConfig,
-  finaliseConfigs,
   getCodeWorldButtonOption,
   getCodeWorldRenderButtonOption,
   getCodeWorldPartialRenderButtonOption,
@@ -27,6 +26,7 @@ module Haskell.Template.Task (
   rejectHint,
   rejectMatch,
   toSolutionConfigOpt,
+  toMaybeSolutionConfig,
   unsafeTemplateSegment,
   ) where
 
@@ -295,11 +295,8 @@ toSolutionConfigOpt SolutionConfig {..} = runIdentity $ SolutionConfig
   <*> fmap Just rigorousValidation
   <*> fmap Just syntaxCutoff
 
-finaliseConfigs :: [SolutionConfigOpt] -> Maybe SolutionConfig
-finaliseConfigs = toMaybeSolutionConfig . foldl1 combineConfigs
-  where
-    toMaybeSolutionConfig :: SolutionConfigOpt -> Maybe SolutionConfig
-    toMaybeSolutionConfig SolutionConfig{..} = SolutionConfig
+toMaybeSolutionConfig :: SolutionConfigOpt -> Maybe SolutionConfig
+toMaybeSolutionConfig SolutionConfig{..} = SolutionConfig
       <$> fmap Identity allowAdding
       <*> fmap Identity allowModifying
       <*> fmap Identity allowRemoving
@@ -321,7 +318,9 @@ finaliseConfigs = toMaybeSolutionConfig . foldl1 combineConfigs
       <*> fmap Identity disableSemantics
       <*> fmap Identity rigorousValidation
       <*> fmap Identity syntaxCutoff
-    combineConfigs x y = SolutionConfig {
+
+combineConfigs :: SolutionConfigOpt -> SolutionConfigOpt -> SolutionConfigOpt
+combineConfigs x y = SolutionConfig {
         allowAdding                 = allowAdding                 x <|> allowAdding                 y,
         allowModifying              = allowModifying              x <|> allowModifying              y,
         allowRemoving               = allowRemoving               x <|> allowRemoving               y,
@@ -808,7 +807,7 @@ addDefaults :: Monad m => (forall a. Doc -> m a) -> SolutionConfigOpt -> m Solut
 addDefaults reject f = maybe
   (reject "There is a required configuration parameter missing.")
   return
-  $ finaliseConfigs [f, defaultSolutionConfig]
+  $ toMaybeSolutionConfig $ combineConfigs f defaultSolutionConfig
 
 splitModules :: Bool -> String -> [String]
 splitModules dropFirst = map unlines
