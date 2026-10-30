@@ -20,6 +20,9 @@ mempty
 mplus
 msum
 mzero
+PApp
+QName
+QVar
 snd
 thd
 uncurry
