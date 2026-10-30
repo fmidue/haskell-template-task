@@ -109,7 +109,7 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \# configHlintSuggestions      - hlint hints to provide as suggestions
 \# configLanguageExtensions    - this sets LanguageExtensions for hlint as well;
 \#                               defaults to NPlusKPatterns + ScopedTypeVariables
-\# suggestMaybeCaseOfUsage    - suggest if-statements containing checks on maybe values to be replaces with 
+\# suggestMaybeCaseOfUsage    - suggest if-statements containing checks on maybe values to be replaces with
 \#                               case-of expressions
 \# maxLineLength               - submissions with lines longer than this value are rejected; defaults to no limit
 \# syntaxCutoff                - determines the last step in the syntax phase (later steps are considered semantics);
