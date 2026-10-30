@@ -79,6 +79,55 @@ spec = do
     it "allows specifying fixity" $
       hlintIO dilatedWithFixity useDilated errorP configHlintErrors
       `shouldReturn` [Left "Warning: Use dilated"]
+  describe "maybe feedback" $ do
+    it "should suggest replacing if with case-of when applicable (isJust)" $ do
+        result <- maybeCheckIO [SI.i|
+  module Main where
+
+  def :: Maybe Int -> Int
+  def mVal = if isNothing mVal then -3 else fromJust mVal|]
+
+        length result `shouldBe` 1
+    it "should suggest replacing if with case-of when applicable (isNothing)" $ do
+        result <- maybeCheckIO [SI.i|
+  module Main where
+
+  def :: Maybe Int -> Int
+  def mVal = if mVal == Nothing then -3 else fromJust mVal|]
+
+        length result `shouldBe` 1
+    it "should suggest replacing if with case-of when applicable (== Nothing)" $ do
+        result <- maybeCheckIO [SI.i|
+  module Main where
+
+  def :: Maybe Int -> Int
+  def mVal = if mVal /= Nothing then fromJust mVal else -3|]
+
+        length result `shouldBe` 1
+    it "should suggest replacing if with case-of when applicable (/= Nothing)" $ do
+        result <- maybeCheckIO [SI.i|
+  module Main where
+
+  def :: Maybe Int -> Int
+  def mVal = if isJust mVal then fromJust mVal else -3|]
+
+        length result `shouldBe` 1
+    it "should not suggest replacing if with case-of when condition is mixed" $ do
+        result <- maybeCheckIO [SI.i|
+  module Main where
+
+  def :: Maybe Int -> Int
+  def mVal = if isJust mVal && True then fromJust mVal else -3|]
+
+        length result `shouldBe` 0
+    it "should not suggest replacing if with case-of when condition is comparison with Just value" $ do
+        result <- maybeCheckIO [SI.i|
+  module Main where
+
+  def :: Maybe Int -> Int
+  def mVal = if mVal == Just 5 then fromJust mVal else -3|]
+
+        length result `shouldBe` 0
   describe "grade" $ do
     it "is running" $
       gradeIO completedDefaultCode useImport `shouldReturn` ""
@@ -234,6 +283,14 @@ hlintIO config content display selectHints = do
     firstLineOf ('\\':'n':_) = []
     firstLineOf (y:ys)            = y : firstLineOf ys
     firstLineOf []                = []
+
+maybeCheckIO :: String -> IO [String]
+maybeCheckIO code = do
+  tmp <- getTemporaryDirectory
+  withTempDirectory tmp "maybe-feedback-test" $ \dir -> do
+    let file = dir </> "Main.hs"
+    writeFile file code
+    liftIO $ getMaybeFeedback (pure . show) file
 
 render :: PP.Doc -> String
 render = unpack . PP.displayT . PP.renderPretty 1.0 100

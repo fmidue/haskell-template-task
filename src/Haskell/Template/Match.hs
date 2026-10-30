@@ -23,9 +23,20 @@ import Control.Monad (
   )
 import Control.Monad.State              (State, evalState, gets, put)
 import Data.Function                    (on)
-import Data.Generics
-  (Data (..), GenericM, GenericM' (..), GenericQ, cast, gfoldlAccum, gmapQ)
-import Data.List                        (insertBy)
+import Data.Generics (
+  Data (..),
+  GenericM,
+  GenericM' (..),
+  GenericQ,
+  cast,
+  gfoldlAccum,
+  gmapQ,
+  everything,
+  mkQ,
+  everywhere,
+  mkT,
+  )
+import Data.List                        (insertBy, singleton)
 import Data.Maybe                       (isJust)
 import Language.Haskell.Exts.Syntax
 
@@ -328,6 +339,55 @@ test m1 m2 =
   -- ParseOk m1' = parseModule m1
   -- ParseOk m2' = parseModule m2
   evalState (runM (matchModule m1 m2)) $ SrcSpanInfoPair CompleteModule S.noSrcSpan S.noSrcSpan
+
+collectIfsWithMaybeChecks :: Module S.SrcSpanInfo -> [(Exp S.SrcSpanInfo, Exp ())]
+collectIfsWithMaybeChecks = everything (++) $ mkQ [] (maybe [] singleton . exprToIfInfo)
+
+exprToIfInfo :: Exp S.SrcSpanInfo -> Maybe (Exp S.SrcSpanInfo, Exp ())
+exprToIfInfo expr@(If _ cond t e) = case removeParens cond of
+  (App _ (Var _ vn) maybeVal)
+    | hasName "isJust" vn -> Just (expr,asCaseExpression maybeVal t e)
+    | hasName "isNothing" vn -> Just (expr,asCaseExpression maybeVal e t)
+  (InfixApp _ l (QVarOp _ opName) r)
+    | hasName "==" opName -> (\maybeVal -> (expr, asCaseExpression maybeVal e t)) <$> getMaybeVal l r
+    | hasName "/=" opName -> (\maybeVal -> (expr, asCaseExpression maybeVal t e)) <$> getMaybeVal l r
+  _ -> Nothing
+  where
+    isNothingExpression (Con _ vName) = hasName "Nothing" vName
+    isNothingExpression _ = False
+
+    getMaybeVal l r
+      | isNothingExpression l && isNothingExpression r = Nothing
+      | isNothingExpression l = Just r
+      | isNothingExpression r = Just l
+      | otherwise = Nothing
+exprToIfInfo _ = Nothing
+
+asCaseExpression :: Exp a -> Exp a -> Exp a -> Exp ()
+asCaseExpression maybeValue justCase nothingCase = Case () (void maybeValue)
+  [ Alt () (PApp () (UnQual () (Ident () "Nothing")) []) (UnGuardedRhs () $ void nothingCase) Nothing
+  , Alt () (PApp () (UnQual () (Ident () "Just")) [PVar () (Ident () "value")])
+      (UnGuardedRhs () $ replaceFromJustWithValue (void maybeValue) (void justCase)) Nothing
+  ]
+
+replaceFromJustWithValue :: Exp () -> Exp () -> Exp ()
+replaceFromJustWithValue maybeValue = everywhere $ mkT replace
+  where
+    replace (App () (Var () (UnQual _ (Ident () "fromJust"))) fnBody)
+      | fnBody == maybeValue = Var () (UnQual () (Ident () "value"))
+    replace expr = expr
+
+removeParens :: Exp a -> Exp a
+removeParens (Paren _ e) = removeParens e
+removeParens e = e
+
+hasName :: String -> QName l -> Bool
+hasName qName (UnQual _ (Ident _ n)) = n == qName
+hasName qName (Qual _ _ (Ident _ n)) = n == qName
+hasName qName (UnQual _ (Symbol _ n)) = n == qName
+hasName qName (Qual _ _ (Symbol _ n)) = n == qName
+hasName _ _ = False
+
 ------------------------------------------------------------------------------
 -- | Twin map for monadic transformation
 --

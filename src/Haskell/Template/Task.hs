@@ -28,6 +28,7 @@ module Haskell.Template.Task (
   toSolutionConfigOpt,
   toMaybeSolutionConfig,
   unsafeTemplateSegment,
+  getMaybeFeedback,
   ) where
 
 import qualified Data.ByteString.Char8            as BS
@@ -38,7 +39,7 @@ import qualified Data.String.Interpolate          as SI (i, iii)
 
 import Haskell.Template.FileContents    (testHelperContents, testHarnessContents)
 import Haskell.Template.Match
-  (Location (..), Result (..), What (..), Where (..), highlight_ssi)
+  (Location (..), Result (..), What (..), Where (..), highlight_ssi, collectIfsWithMaybeChecks)
 import qualified Haskell.Template.Match as Match (test)
 
 import Control.Applicative              ((<|>))
@@ -78,7 +79,7 @@ import System.FilePath (
   )
 import Test.HUnit                       (Counts (..))
 import Text.PrettyPrint.Leijen.Text
-  (Doc, (<+>), empty, int, linebreak, nest, punctuate, text, vcat)
+  (Doc, (<+>), empty, int, linebreak, nest, punctuate, text, vcat, indent)
 import Text.Read                        (readMaybe)
 import Text.Regex.PCRE.Heavy            (re, sub)
 
@@ -108,6 +109,8 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \# configHlintSuggestions      - hlint hints to provide as suggestions
 \# configLanguageExtensions    - this sets LanguageExtensions for hlint as well;
 \#                               defaults to NPlusKPatterns + ScopedTypeVariables
+\# suggestMaybeCaseOfUsage    - suggest if-statements containing checks on maybe values to be replaces with 
+\#                               case-of expressions
 \# maxLineLength               - submissions with lines longer than this value are rejected; defaults to no limit
 \# syntaxCutoff                - determines the last step in the syntax phase (later steps are considered semantics);
 \#                               possible values (and also the order of steps):
@@ -233,7 +236,8 @@ data FSolutionConfig m = SolutionConfig {
     messageOnCloningSampleSolution :: m (Maybe String),
     disableSemantics            :: m Bool,
     rigorousValidation          :: m Bool,
-    syntaxCutoff                :: m FeedbackPhase
+    syntaxCutoff                :: m FeedbackPhase,
+    suggestMaybeCaseOfUsage     :: m Bool
   } deriving Generic
 
 type SolutionConfigOpt = FSolutionConfig Maybe
@@ -268,7 +272,8 @@ defaultSolutionConfig = SolutionConfig {
     messageOnCloningSampleSolution = Just Nothing,
     disableSemantics            = Just False,
     rigorousValidation          = Nothing,
-    syntaxCutoff                = Just TemplateMatch
+    syntaxCutoff                = Just TemplateMatch,
+    suggestMaybeCaseOfUsage     = Just False
   }
 
 toSolutionConfigOpt :: SolutionConfig -> SolutionConfigOpt
@@ -294,6 +299,7 @@ toSolutionConfigOpt SolutionConfig {..} = runIdentity $ SolutionConfig
   <*> fmap Just disableSemantics
   <*> fmap Just rigorousValidation
   <*> fmap Just syntaxCutoff
+  <*> fmap Just suggestMaybeCaseOfUsage
 
 toMaybeSolutionConfig :: SolutionConfigOpt -> Maybe SolutionConfig
 toMaybeSolutionConfig SolutionConfig{..} = SolutionConfig
@@ -318,6 +324,7 @@ toMaybeSolutionConfig SolutionConfig{..} = SolutionConfig
       <*> fmap Identity disableSemantics
       <*> fmap Identity rigorousValidation
       <*> fmap Identity syntaxCutoff
+      <*> fmap Identity suggestMaybeCaseOfUsage
 
 combineConfigs :: SolutionConfigOpt -> SolutionConfigOpt -> SolutionConfigOpt
 combineConfigs x y = SolutionConfig {
@@ -341,7 +348,8 @@ combineConfigs x y = SolutionConfig {
         messageOnCloningSampleSolution = messageOnCloningSampleSolution x <|> messageOnCloningSampleSolution y,
         disableSemantics            = disableSemantics            x <|> disableSemantics            y,
         rigorousValidation          = rigorousValidation          x <|> rigorousValidation          y,
-        syntaxCutoff                = syntaxCutoff                x <|> syntaxCutoff                y
+        syntaxCutoff                = syntaxCutoff                x <|> syntaxCutoff                y,
+        suggestMaybeCaseOfUsage     = suggestMaybeCaseOfUsage     x <|> suggestMaybeCaseOfUsage     y
       }
 
 string :: String -> Doc
@@ -563,6 +571,25 @@ getHlintFeedback documentInfo config dir file selectHints = case hints of
       maybe id genericTake $ runIdentity $ configHlintSuggestionsLimit config
     hlintFeedback feedbackIdeas =
       hintLimit [documentInfo $ string $ editFeedback $ show comment | comment <- feedbackIdeas]
+
+getMaybeFeedback
+  :: MonadIO m
+  => (Doc -> m a)
+  -> String
+  -> m [a]
+getMaybeFeedback documentInfo file = do
+  code <- liftIO $ readFile file
+
+  case P.parse code of
+    P.ParseOk mod' -> do
+      sequence $ flip map (collectIfsWithMaybeChecks mod') $ \(foundIf,caseReplacement) ->
+        documentInfo $ vcat
+        [ "Found:"
+        , indent 2 $ text $ pack $ E.prettyPrint foundIf
+        , "Perhaps:"
+        , indent 2 $ text $ pack $ E.prettyPrint caseReplacement
+        ]
+    _ -> error "This really should not happen as GHC was able to compile the submission."
 
 editFeedback :: String -> String
 editFeedback xs = case elemIndex ':' xs of
@@ -967,6 +994,10 @@ testPhases reject inform template submissionFile modules config exts submission 
 
     -- Displays HLint suggestions configured as non-errors triggered by submission.
     void $ getHlintFeedback inform config dirname submissionFile configHlintSuggestions
+
+    -- Display suggestions involving checks on maybe values
+    when (runIdentity $ suggestMaybeCaseOfUsage config) $ do
+      void $ getMaybeFeedback inform submissionFile
   ]
   where
     noTest = delete "Test" modules
