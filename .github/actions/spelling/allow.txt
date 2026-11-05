@@ -2,6 +2,7 @@ Aeson
 autotool
 Bifunctor
 concat
+dotall
 elems
 finalise
 fmap
@@ -20,9 +21,11 @@ hyperlinks
 mempty
 mplus
 msum
+multiline
 mzero
 snd
 thd
 uncurry
 unlines
+utf
 yml
