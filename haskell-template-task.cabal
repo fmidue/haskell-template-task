@@ -1,10 +1,8 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.38.0.
+-- This file has been generated from package.yaml by hpack version 0.39.6.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: a3dd1a76204cb44c5c18d17a9f59895631572a2cbc4573d597af2b0c9d1f045f
 
 name:           haskell-template-task
 version:        0.2
@@ -38,6 +36,7 @@ library
   ghc-options: -Wall -Wwarn=incomplete-uni-patterns
   build-depends:
       HUnit
+    , aeson
     , base >=4.7 && <5
     , bytestring
     , extra
@@ -54,7 +53,6 @@ library
     , text
     , wl-pprint-text
     , yaml
-    , aeson
   default-language: Haskell2010
 
 test-suite haskell-template-task-test
@@ -71,6 +69,7 @@ test-suite haskell-template-task-test
       HUnit
     , IOTasks
     , QuickCheck
+    , aeson
     , base >=4.7 && <5
     , bytestring
     , deepseq
