@@ -366,7 +366,7 @@ check reject inform path i = do
   mapM_ (checkLineLength reject s) $ runIdentity maxLineLength
   void $ parseModule exts `mapM` ms
   case lookup "SampleSolution" ms of
-    Nothing -> reject "It is mandatory to provide a sample solution"
+    Nothing -> reject "It is mandatory to provide a sample solution."
     Just sampleSolution -> when (runIdentity rigorousValidation) $ do
       let stricterConfig = config
             { configGhcErrors = configGhcWarnings <> configGhcErrors
