@@ -34,6 +34,7 @@ dependencies:
   - text
   - wl-pprint-text
   - yaml
+  - aeson
 
 ghc-options:
   - -Wall

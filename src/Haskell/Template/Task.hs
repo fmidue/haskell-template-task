@@ -45,6 +45,7 @@ import Control.Applicative              ((<|>))
 import Control.Monad                    (forM, guard, msum, unless, void, when)
 import Control.Monad.Extra              ((&&^), whenJust)
 import Control.Monad.IO.Class           (MonadIO)
+import Data.Aeson (rejectUnknownFields, defaultOptions, genericParseJSON)
 import Data.Char                        (isUpper)
 import Data.Functor.Identity            (Identity (..))
 import Data.List
@@ -57,7 +58,7 @@ import Data.Maybe                       (fromMaybe)
 import Data.Text.Lazy                   (pack)
 import Data.Typeable                    (Typeable)
 import Data.Yaml
-  (FromJSON, ParseException, ToJSON, decodeEither')
+  (FromJSON (..), ParseException, ToJSON, decodeEither')
 import Data.Yaml.Pretty
   (defConfig, encodePretty, setConfCompare)
 import GHC.Generics                     (Generic (..))
@@ -239,8 +240,10 @@ data FSolutionConfig m = SolutionConfig {
 type SolutionConfigOpt = FSolutionConfig Maybe
 
 deriving instance Show SolutionConfigOpt
-deriving instance FromJSON SolutionConfigOpt
 deriving instance ToJSON SolutionConfigOpt
+
+instance FromJSON SolutionConfigOpt where
+  parseJSON = genericParseJSON defaultOptions {rejectUnknownFields = True}
 
 type SolutionConfig  = FSolutionConfig Identity
 
