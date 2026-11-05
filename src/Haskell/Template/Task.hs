@@ -81,7 +81,9 @@ import Test.HUnit                       (Counts (..))
 import Text.PrettyPrint.Leijen.Text
   (Doc, (<+>), empty, int, linebreak, nest, punctuate, text, vcat)
 import Text.Read                        (readMaybe)
-import Text.Regex.PCRE.Heavy            (re, sub)
+import Text.Regex.PCRE.Heavy            (re, sub, (=~), compileM)
+import Data.Either (fromRight)
+import Text.Regex.PCRE.Light (utf8, multiline, dotall)
 
 encode :: ToJSON a => a -> BS.ByteString
 encode = encodePretty $ setConfCompare compare defConfig
@@ -674,7 +676,7 @@ checkResult reject result handleError mErrorLimit handleResult = case result of
   Right result' -> handleResult result'
   Left (WontCompile msgs) -> handleError $ string
     $ intercalate "\n" $ amount
-      $ map (editFeedback . formatHyperlinks) $ filterWerrors msgs
+      $ map (addAdditionalInfo . editFeedback . formatHyperlinks) $ filterWerrors msgs
   Left err -> reject $
     vcat ["An unexpected error occurred.",
           "This is usually not caused by a fault within your submission.",
@@ -704,6 +706,20 @@ checkResult reject result handleError mErrorLimit handleResult = case result of
           (link:_) -> "[" ++ link ++ "]";
           []       -> []
       )
+
+addAdditionalInfo :: String -> String
+addAdditionalInfo errorMsg
+  | errorMsg =~ regex "Conflicting definition.*In an equation"
+    = errorMsg
+      ++ "    • Are you using pattern-matching with a pattern containing a variable with multiple occurrences?\n"
+  | errorMsg =~ regex ("Couldn't match expected type .Bool. with actual type .\\[[^\\]]+\\]"
+                        ++ ".*In a stmt of a list comprehension")
+    = errorMsg ++ "    • Are you trying to use '|' as a list constructor instead of ':'? \n"
+  | otherwise = errorMsg
+  where
+    regex r = fromRight (error "invalid regex")
+      $ compileM (BS.pack r) [utf8, multiline, dotall]
+
 
 interpreter
   :: MonadInterpreter m
