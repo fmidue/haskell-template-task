@@ -81,9 +81,7 @@ import Test.HUnit                       (Counts (..))
 import Text.PrettyPrint.Leijen.Text
   (Doc, (<+>), empty, int, linebreak, nest, punctuate, text, vcat)
 import Text.Read                        (readMaybe)
-import Text.Regex.PCRE.Heavy            (re, sub, (=~), compileM)
-import Data.Either (fromRight)
-import Text.Regex.PCRE.Light (utf8, multiline, dotall)
+import Text.Regex.PCRE.Heavy            (re, sub, (=~))
 
 encode :: ToJSON a => a -> BS.ByteString
 encode = encodePretty $ setConfCompare compare defConfig
@@ -709,16 +707,15 @@ checkResult reject result handleError mErrorLimit handleResult = case result of
 
 addAdditionalInfo :: String -> String
 addAdditionalInfo errorMsg
-  | errorMsg =~ regex "Conflicting definition.*In an equation"
+  | errorMsg =~ [re|(?s)Conflicting definition.*In an equation|]
     = errorMsg
       ++ "    • Are you using pattern-matching with a pattern containing a variable with multiple occurrences?\n"
-  | errorMsg =~ regex ("Couldn't match expected type .Bool. with actual type .\\[[^\\]]+\\]"
-                        ++ ".*In a stmt of a list comprehension")
+  -- | errorMsg =~ regex ("Couldn't match expected type .Bool. with actual type .\\[[^\\]]+\\]"
+  --                       ++ ".*In a stmt of a list comprehension")
+  | errorMsg =~
+    [re|(?s)Couldn't match expected type .Bool. with actual type .\[[^\]]+\].*In a stmt of a list comprehension|]
     = errorMsg ++ "    • Are you trying to use '|' as a list constructor instead of ':'?\n"
   | otherwise = errorMsg
-  where
-    regex r = fromRight (error "invalid regex")
-      $ compileM (BS.pack r) [utf8, multiline, dotall]
 
 
 interpreter

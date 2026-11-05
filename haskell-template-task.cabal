@@ -48,7 +48,6 @@ library
     , hlint >=3.1.6
     , mtl
     , pcre-heavy
-    , pcre-light
     , string-interpolate
     , syb
     , text
@@ -87,7 +86,6 @@ test-suite haskell-template-task-test
     , hspec
     , mtl
     , pcre-heavy
-    , pcre-light
     , random
     , string-interpolate
     , syb
