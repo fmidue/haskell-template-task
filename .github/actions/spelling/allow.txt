@@ -1,3 +1,4 @@
+Aeson
 autotool
 Bifunctor
 concat
