@@ -376,7 +376,7 @@ check reject inform path i = do
             , configGhcLimit = pure Nothing
             }
       let others = filter ((/="SampleSolution") . fst) ms
-      let content = replace "module SampleSolution" ("module " ++ m) sampleSolution
+      let content = replace "SampleSolution" m sampleSolution
       mapM_ (checkLineLength reject content) $ runIdentity maxLineLength
       (modules, solutionFile) <- writeModules (m, content) others path
       sequence_ $ testPhases reject inform s solutionFile modules stricterConfig exts content path
