@@ -227,6 +227,30 @@ Perhaps:
                  Patterns of type ‘[a]’ not matched: []
          |]
          ++ rejectLine
+    it "adds additional message when trying to pattern-match with variable occurring multiple times" $
+      exceptionToString (gradeIO completedDefaultCode patternWithDuplicateVariable)
+      `shouldReturn` [SI.__i|
+         Solution.hs:4:4: error:
+             • Conflicting definitions for ‘x’
+               Bound at: Solution.hs:4:4
+                         Solution.hs:4:6
+             • In an equation for ‘r’
+             • Are you using pattern-matching with a pattern containing a variable with multiple occurrences?
+         |] ++ "\n"
+    it "adds additional message when trying to use Prolog cons operator" $
+      exceptionToString (gradeIO completedDefaultCode prologListCons)
+      `shouldReturn` [SI.__i|
+         Solution.hs:4:15: error:
+             • Couldn't match expected type ‘Bool’ with actual type ‘[a]’
+             • In the expression: xs
+               In a stmt of a list comprehension: xs
+               In the expression: [x | xs]
+             • Relevant bindings include
+                 xs :: [a] (bound at Solution.hs:4:6)
+                 x :: a (bound at Solution.hs:4:4)
+                 r :: [a] -> [a] (bound at Solution.hs:4:1)
+             • Are you trying to use '|' as a list constructor instead of ':'?
+         |] ++ "\n"
     context "when submission is successful" $ do
       it "returns True and the configured custom message if a sample solution clone is submitted" $
         gradeIOWithRes withCloneMessage useImport `shouldReturn` (True, cloneMessage)
@@ -252,6 +276,18 @@ Perhaps:
       r :: [a] -> [a]
       r [] = []
       r (x:xs) = reverse xs ++ [x]
+      |]
+    patternWithDuplicateVariable = [SI.__i|
+      module Solution where
+      import Prelude
+      r :: [a] -> [a]
+      r (x:x:xs) = xs
+      |]
+    prologListCons = [SI.__i|
+      module Solution where
+      import Prelude
+      r :: [a] -> [a]
+      r (x:xs) = [x|xs]
       |]
     withCloneMessage = toCode cloneMessageSetting $ program : tests : remaining
     (_ : program : tests : remaining) =

@@ -82,7 +82,7 @@ import Test.HUnit                       (Counts (..))
 import Text.PrettyPrint.Leijen.Text
   (Doc, (<+>), empty, int, linebreak, nest, punctuate, text, vcat, indent)
 import Text.Read                        (readMaybe)
-import Text.Regex.PCRE.Heavy            (re, sub)
+import Text.Regex.PCRE.Heavy            (re, sub, (=~))
 import Language.Haskell.Names (loadBase, annotate)
 
 encode :: ToJSON a => a -> BS.ByteString
@@ -372,7 +372,7 @@ check reject inform path i = do
   checkUniqueness (m : map fst ms)
   inform $ string $ "Parsing template module " <> m
   void $ parse reject exts s
-  mapM_ (checkLineLength reject s) $ runIdentity maxLineLength
+  mapM_ (checkLineLength reject s . subtract 1) $ runIdentity maxLineLength
   void $ parseModule exts `mapM` ms
   case lookup "SampleSolution" ms of
     Nothing -> reject "It is mandatory to provide a sample solution."
@@ -386,7 +386,7 @@ check reject inform path i = do
             }
       let others = filter ((/="SampleSolution") . fst) ms
       let content = replace "SampleSolution" m sampleSolution
-      mapM_ (checkLineLength reject content) $ runIdentity maxLineLength
+      mapM_ (checkLineLength reject content . subtract 3) $ runIdentity maxLineLength
       (modules, solutionFile) <- writeModules (m, content) others path
       contentAST <- parse reject exts content
       sequence_ $ testPhases reject inform s solutionFile modules stricterConfig exts content contentAST path
@@ -694,7 +694,7 @@ checkResult reject result handleError mErrorLimit handleResult = case result of
   Right result' -> handleResult result'
   Left (WontCompile msgs) -> handleError $ string
     $ intercalate "\n" $ amount
-      $ map (editFeedback . formatHyperlinks) $ filterWerrors msgs
+      $ map (enhanceErrorMsgWithAdditionalInfos . editFeedback . formatHyperlinks) $ filterWerrors msgs
   Left err -> reject $
     vcat ["An unexpected error occurred.",
           "This is usually not caused by a fault within your submission.",
@@ -724,6 +724,17 @@ checkResult reject result handleError mErrorLimit handleResult = case result of
           (link:_) -> "[" ++ link ++ "]";
           []       -> []
       )
+
+enhanceErrorMsgWithAdditionalInfos :: String -> String
+enhanceErrorMsgWithAdditionalInfos errorMsg
+  | errorMsg =~ [re|(?s)Conflicting definition.*In an equation|]
+    = errorMsg
+      ++ "    • Are you using pattern-matching with a pattern containing a variable with multiple occurrences?\n"
+  | errorMsg =~
+    [re|(?s)Couldn't match expected type .Bool. with actual type .\[[^\]]+\].*In a stmt of a list comprehension|]
+    = errorMsg ++ "    • Are you trying to use '|' as a list constructor instead of ':'?\n"
+  | otherwise = errorMsg
+
 
 interpreter
   :: MonadInterpreter m
