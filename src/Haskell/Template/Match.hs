@@ -37,7 +37,7 @@ import Data.Generics (
   mkT,
   )
 import Data.List                        (insertBy, singleton)
-import Data.Maybe                       (isJust)
+import Data.Maybe                       (isJust, maybeToList)
 import Language.Haskell.Exts.Syntax
 
 data Where = OnlyTemplate | OnlySubmission
@@ -341,7 +341,7 @@ test m1 m2 =
   evalState (runM (matchModule m1 m2)) $ SrcSpanInfoPair CompleteModule S.noSrcSpan S.noSrcSpan
 
 collectIfsWithMaybeChecks :: Module S.SrcSpanInfo -> [(Exp S.SrcSpanInfo, Exp ())]
-collectIfsWithMaybeChecks = everything (++) $ mkQ [] (maybe [] singleton . exprToIfInfo)
+collectIfsWithMaybeChecks = everything (++) $ mkQ [] (maybeToList . exprToIfInfo)
 
 exprToIfInfo :: Exp S.SrcSpanInfo -> Maybe (Exp S.SrcSpanInfo, Exp ())
 exprToIfInfo expr@(If _ cond t e) = case removeParens cond of
