@@ -373,14 +373,8 @@ check reject inform path i = do
   void $ parse reject exts s
   mapM_ (checkLineLength reject s) $ runIdentity maxLineLength
   void $ parseModule exts `mapM` ms
-  let mSampleSolution = lookup "SampleSolution" ms
-  -- This step is currently optional and will not run if no sample solution is provided
-  case mSampleSolution of
-    Nothing -> do
-      when (runIdentity provideSampleSolution) $
-        reject "'provideSampleSolution' is set, but there is no sample solution in the config."
-      whenJust (runIdentity messageOnCloningSampleSolution) $ const $
-        reject "'messageOnCloningSampleSolution' is set, but there is no sample solution in the config."
+  case lookup "SampleSolution" ms of
+    Nothing -> reject "It is mandatory to provide a sample solution."
     Just sampleSolution -> when (runIdentity rigorousValidation) $ do
       let stricterConfig = config
             { configGhcErrors = configGhcWarnings <> configGhcErrors
@@ -390,7 +384,7 @@ check reject inform path i = do
             , configGhcLimit = pure Nothing
             }
       let others = filter ((/="SampleSolution") . fst) ms
-      let content = replace "module SampleSolution" ("module " ++ m) sampleSolution
+      let content = replace "SampleSolution" m sampleSolution
       mapM_ (checkLineLength reject content) $ runIdentity maxLineLength
       (modules, solutionFile) <- writeModules (m, content) others path
       sequence_ $ testPhases reject inform s solutionFile modules stricterConfig exts content path
@@ -401,7 +395,7 @@ check reject inform path i = do
     checkUniqueness xs = when (nubOrd xs /= xs) $ reject "duplicate module name"
 
 {- |
-Extract the sample solution if one was provided, 'provideSampleSolution' is enabled
+Extract the sample solution if 'provideSampleSolution' is enabled
 and 'disableSemantics' is not enabled.
 -}
 maybeSampleSolution :: String -> Maybe Doc
