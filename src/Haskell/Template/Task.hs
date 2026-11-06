@@ -668,7 +668,7 @@ checkResult reject result handleError mErrorLimit handleResult = case result of
   Right result' -> handleResult result'
   Left (WontCompile msgs) -> handleError $ string
     $ intercalate "\n" $ amount
-      $ map (addAdditionalInfo . editFeedback . formatHyperlinks) $ filterWerrors msgs
+      $ map (enhanceErrorMsgWithAdditionalInfos . editFeedback . formatHyperlinks) $ filterWerrors msgs
   Left err -> reject $
     vcat ["An unexpected error occurred.",
           "This is usually not caused by a fault within your submission.",
@@ -699,8 +699,8 @@ checkResult reject result handleError mErrorLimit handleResult = case result of
           []       -> []
       )
 
-addAdditionalInfo :: String -> String
-addAdditionalInfo errorMsg
+enhanceErrorMsgWithAdditionalInfos :: String -> String
+enhanceErrorMsgWithAdditionalInfos errorMsg
   | errorMsg =~ [re|(?s)Conflicting definition.*In an equation|]
     = errorMsg
       ++ "    • Are you using pattern-matching with a pattern containing a variable with multiple occurrences?\n"
