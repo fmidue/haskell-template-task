@@ -354,14 +354,14 @@ collectIfsWithMaybeChecks (Module _ _ _ _ decls) = concat $ mapMaybe process dec
       guard $ notNull opportunities
 
       let allSymbols = Set.fromList (mapMaybe declName decls) `Set.union` allNames d
-          freeName n symbs
-            | Set.member n symbs = freeName (n ++ "'") symbs
+          freeName n
+            | Set.member n allSymbols = freeName (n ++ "'")
             | otherwise = n
           rename :: String -> Name () -> Name ()
           rename n (Ident l "_valueNamePlaceholder") = Ident l n
           rename _ nExpr = nExpr
 
-      pure $ map (everywhere $ mkT (rename $ freeName "value" allSymbols)) opportunities
+      pure $ map (everywhere $ mkT (rename $ freeName "value")) opportunities
 collectIfsWithMaybeChecks _ = []
 
 declName :: Decl a -> Maybe String
