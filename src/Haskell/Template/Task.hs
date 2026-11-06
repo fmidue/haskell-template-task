@@ -363,7 +363,7 @@ check reject inform path i = do
   checkUniqueness (m : map fst ms)
   inform $ string $ "Parsing template module " <> m
   void $ parse reject exts s
-  mapM_ (checkLineLength reject s) $ runIdentity maxLineLength
+  mapM_ (checkLineLength reject s . subtract 1) $ runIdentity maxLineLength
   void $ parseModule exts `mapM` ms
   case lookup "SampleSolution" ms of
     Nothing -> reject "It is mandatory to provide a sample solution."
@@ -377,7 +377,7 @@ check reject inform path i = do
             }
       let others = filter ((/="SampleSolution") . fst) ms
       let content = replace "SampleSolution" m sampleSolution
-      mapM_ (checkLineLength reject content) $ runIdentity maxLineLength
+      mapM_ (checkLineLength reject content . subtract 3) $ runIdentity maxLineLength
       (modules, solutionFile) <- writeModules (m, content) others path
       sequence_ $ testPhases reject inform s solutionFile modules stricterConfig exts content path
   where
