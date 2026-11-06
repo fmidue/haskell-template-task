@@ -128,6 +128,59 @@ spec = do
   def mVal = if mVal == Just 5 then fromJust mVal else -3|]
 
         length result `shouldBe` 0
+    it "should not suggest replacing if with case-of when value is not used" $ do
+        result <- maybeCheckIO [SI.i|
+  module Main where
+
+  def :: Maybe Int -> Int
+  def mVal = if isJust mVal then 5 else -3|]
+
+        length result `shouldBe` 0
+    it "replacement should not introduce variable names that are already used or will be user later" $ do
+        result <- maybeCheckIO [SI.i|
+  module Main where
+
+  def :: Maybe Int -> Int
+  def mVal = let value = -3 in if isJust mVal then fromJust mVal else value
+  
+  def2 :: Maybe Int -> Int
+  def2 mVal = if isJust mVal then let value = 5 in fromJust mVal else -3|]
+
+        result `shouldBe` [
+          [SI.i|Found:
+  if isJust mVal then fromJust mVal else value
+Perhaps:
+  case mVal of
+    Nothing -> value
+    Just value' -> value'|],
+          [SI.i|Found:
+  if isJust mVal then let value = 5 in fromJust mVal else -3
+Perhaps:
+  case mVal of
+    Nothing -> -3
+    Just value' -> let value = 5 in value'|]
+          ]
+    it "should not suggest replacing if with case-of when isJust, fromJust, etc. are not from Data.Maybe" $ do
+        result <- maybeCheckIO [SI.i|
+  module Main where
+
+  def :: Maybe Int -> Int
+  def mVal = if isJust mVal then 5 else -3
+    where isJust _ = False
+  
+  def2 :: Maybe Int -> Int
+  def2 mVal = if isJust mVal then fromJust mVal else -3
+    where fromJust _ = 99|]
+
+        length result `shouldBe` 0
+    it "should not suggest replacing if with case-of when fromJust is used on shadowed maybe value" $ do
+        result <- maybeCheckIO [SI.i|
+  module Main where
+
+  def :: Maybe Int -> Int
+  def mVal = if isJust mVal then let mVal = Just 99 in fromJust mVal else -3|]
+
+        length result `shouldBe` 0
   describe "grade" $ do
     it "is running" $
       gradeIO completedDefaultCode useImport `shouldReturn` ""
