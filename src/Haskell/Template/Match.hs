@@ -20,6 +20,7 @@ import Control.Monad (
   unless,
   void,
   when,
+  guard,
   )
 import Control.Monad.State              (State, evalState, gets, put)
 import Data.Function                    (on)
@@ -35,10 +36,14 @@ import Data.Generics (
   mkQ,
   everywhere,
   mkT,
+  listify,
   )
-import Data.List                        (insertBy, singleton)
-import Data.Maybe                       (isJust, maybeToList)
+import Data.List                        (insertBy)
+import Data.Maybe                       (isJust, maybeToList, mapMaybe, listToMaybe)
 import Language.Haskell.Exts.Syntax
+import Data.List.Extra (notNull)
+import Data.Set (Set)
+import qualified Data.Set as Set (singleton, empty, union, fromList, member)
 
 data Where = OnlyTemplate | OnlySubmission
   deriving (Eq, Ord, Show)
@@ -341,16 +346,47 @@ test m1 m2 =
   evalState (runM (matchModule m1 m2)) $ SrcSpanInfoPair CompleteModule S.noSrcSpan S.noSrcSpan
 
 collectIfsWithMaybeChecks :: Module S.SrcSpanInfo -> [(Exp S.SrcSpanInfo, Exp ())]
-collectIfsWithMaybeChecks = everything (++) $ mkQ [] (maybeToList . exprToIfInfo)
+collectIfsWithMaybeChecks (Module _ _ _ _ decls) = concat $ mapMaybe process decls
+  where
+    process d = do
+      let opportunities = everything (++) (mkQ [] (maybeToList . exprToIfInfo)) d
+      guard $ notNull opportunities
+
+      let allSymbols = Set.fromList (mapMaybe declName decls) `Set.union` allNames d
+          freeName n symbs
+            | Set.member n symbs = freeName (n ++ "'") symbs
+            | otherwise = n
+          rename :: String -> Name () -> Name ()
+          rename n (Ident l "_valueNamePlaceholder") = Ident l n
+          rename _ nExpr = nExpr
+
+      pure $ map (everywhere $ mkT (rename $ freeName "value" allSymbols)) opportunities
+collectIfsWithMaybeChecks _ = []
+
+declName :: Decl a -> Maybe String
+declName (FunBind _ ms) = listToMaybe $ map fromMatch ms
+  where
+    fromMatch (Match _ (Ident _ n) _ _ _) = n
+    fromMatch (Match _ (Symbol _ n) _ _ _) = n
+    fromMatch (InfixMatch _ _ (Ident _ n) _ _ _) = n
+    fromMatch (InfixMatch _ _ (Symbol _ n) _ _ _) = n
+declName (PatBind _ (PVar _ pn) _ _) = Just $ fromName pn
+  where
+    fromName (Ident _ n) = n
+    fromName (Symbol _ n) = n
+
+declName _ = Nothing
 
 exprToIfInfo :: Exp S.SrcSpanInfo -> Maybe (Exp S.SrcSpanInfo, Exp ())
 exprToIfInfo expr@(If _ cond t e) = case removeParens cond of
   (App _ (Var _ vn) maybeVal)
-    | hasName "isJust" vn -> Just (expr,asCaseExpression maybeVal t e)
-    | hasName "isNothing" vn -> Just (expr,asCaseExpression maybeVal e t)
-  (InfixApp _ l (QVarOp _ opName) r)
-    | hasName "==" opName -> (\maybeVal -> (expr, asCaseExpression maybeVal e t)) <$> getMaybeVal l r
-    | hasName "/=" opName -> (\maybeVal -> (expr, asCaseExpression maybeVal t e)) <$> getMaybeVal l r
+    | hasName "isJust" vn -> transform maybeVal t e
+    | hasName "isNothing" vn -> transform maybeVal e t
+  (InfixApp _ l (QVarOp _ opName) r) -> case getMaybeVal l r of
+    Just maybeVal
+      | hasName "==" opName -> transform maybeVal e t
+      | hasName "/=" opName -> transform maybeVal t e
+    _ -> Nothing
   _ -> Nothing
   where
     isNothingExpression (Con _ vName) = hasName "Nothing" vName
@@ -361,20 +397,40 @@ exprToIfInfo expr@(If _ cond t e) = case removeParens cond of
       | isNothingExpression l = Just r
       | isNothingExpression r = Just l
       | otherwise = Nothing
+
+    transform mVal j n
+      | hasFromJust mVal j = Just (expr, asCaseExpression "_valueNamePlaceholder" mVal j n)
+      | otherwise = Nothing
+
 exprToIfInfo _ = Nothing
 
-asCaseExpression :: Exp a -> Exp a -> Exp a -> Exp ()
-asCaseExpression maybeValue justCase nothingCase = Case () (void maybeValue)
+allNames :: Data a => a -> Set String
+allNames = everything Set.union $ mkQ Set.empty extract
+  where
+    extract :: Name S.SrcSpanInfo -> Set String
+    extract (Ident _ n) = Set.singleton n
+    extract (Symbol _ n) = Set.singleton n
+
+
+hasFromJust :: Exp S.SrcSpanInfo -> Exp S.SrcSpanInfo -> Bool
+hasFromJust mExpr expr = notNull $ listify isFromJustApp expr
+  where
+    isFromJustApp :: Exp S.SrcSpanInfo -> Bool
+    isFromJustApp (App _ (Var _ vn) maybeVal) = hasName "fromJust" vn && void maybeVal == void mExpr
+    isFromJustApp _ = False
+
+asCaseExpression :: String -> Exp a -> Exp a -> Exp a -> Exp ()
+asCaseExpression valueName maybeValue justCase nothingCase = Case () (void maybeValue)
   [ Alt () (PApp () (UnQual () (Ident () "Nothing")) []) (UnGuardedRhs () $ void nothingCase) Nothing
-  , Alt () (PApp () (UnQual () (Ident () "Just")) [PVar () (Ident () "value")])
-      (UnGuardedRhs () $ replaceFromJustWithValue (void maybeValue) (void justCase)) Nothing
+  , Alt () (PApp () (UnQual () (Ident () "Just")) [PVar () (Ident () valueName)])
+      (UnGuardedRhs () $ replaceFromJustWithValue valueName (void maybeValue) (void justCase)) Nothing
   ]
 
-replaceFromJustWithValue :: Exp () -> Exp () -> Exp ()
-replaceFromJustWithValue maybeValue = everywhere $ mkT replace
+replaceFromJustWithValue :: String -> Exp () -> Exp () -> Exp ()
+replaceFromJustWithValue valueName maybeValue = everywhere $ mkT replace
   where
     replace (App () (Var () (UnQual _ (Ident () "fromJust"))) fnBody)
-      | fnBody == maybeValue = Var () (UnQual () (Ident () "value"))
+      | fnBody == maybeValue = Var () (UnQual () (Ident () valueName))
     replace expr = expr
 
 removeParens :: Exp a -> Exp a

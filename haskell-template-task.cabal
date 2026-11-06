@@ -39,6 +39,7 @@ library
     , aeson
     , base >=4.7 && <5
     , bytestring
+    , containers
     , extra
     , file-embed
     , filepath
@@ -72,6 +73,7 @@ test-suite haskell-template-task-test
     , aeson
     , base >=4.7 && <5
     , bytestring
+    , containers
     , deepseq
     , directory
     , exceptions
