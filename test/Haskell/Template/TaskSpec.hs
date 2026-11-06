@@ -83,6 +83,7 @@ spec = do
     it "should suggest replacing if with case-of when applicable (isJust)" $ do
         result <- maybeCheckIO [SI.i|
   module Main where
+  import Data.Maybe
 
   def :: Maybe Int -> Int
   def mVal = if isNothing mVal then -3 else fromJust mVal|]
@@ -91,6 +92,7 @@ spec = do
     it "should suggest replacing if with case-of when applicable (isNothing)" $ do
         result <- maybeCheckIO [SI.i|
   module Main where
+  import Data.Maybe
 
   def :: Maybe Int -> Int
   def mVal = if mVal == Nothing then -3 else fromJust mVal|]
@@ -99,6 +101,7 @@ spec = do
     it "should suggest replacing if with case-of when applicable (== Nothing)" $ do
         result <- maybeCheckIO [SI.i|
   module Main where
+  import Data.Maybe
 
   def :: Maybe Int -> Int
   def mVal = if mVal /= Nothing then fromJust mVal else -3|]
@@ -107,6 +110,7 @@ spec = do
     it "should suggest replacing if with case-of when applicable (/= Nothing)" $ do
         result <- maybeCheckIO [SI.i|
   module Main where
+  import Data.Maybe
 
   def :: Maybe Int -> Int
   def mVal = if isJust mVal then fromJust mVal else -3|]
@@ -115,6 +119,7 @@ spec = do
     it "should not suggest replacing if with case-of when condition is mixed" $ do
         result <- maybeCheckIO [SI.i|
   module Main where
+  import Data.Maybe
 
   def :: Maybe Int -> Int
   def mVal = if isJust mVal && True then fromJust mVal else -3|]
@@ -123,6 +128,7 @@ spec = do
     it "should not suggest replacing if with case-of when condition is comparison with Just value" $ do
         result <- maybeCheckIO [SI.i|
   module Main where
+  import Data.Maybe
 
   def :: Maybe Int -> Int
   def mVal = if mVal == Just 5 then fromJust mVal else -3|]
@@ -131,6 +137,7 @@ spec = do
     it "should not suggest replacing if with case-of when value is not used" $ do
         result <- maybeCheckIO [SI.i|
   module Main where
+  import Data.Maybe
 
   def :: Maybe Int -> Int
   def mVal = if isJust mVal then 5 else -3|]
@@ -139,10 +146,11 @@ spec = do
     it "replacement should not introduce variable names that are already used or will be user later" $ do
         result <- maybeCheckIO [SI.i|
   module Main where
+  import Data.Maybe
 
   def :: Maybe Int -> Int
   def mVal = let value = -3 in if isJust mVal then fromJust mVal else value
-  
+
   def2 :: Maybe Int -> Int
   def2 mVal = if isJust mVal then let value = 5 in fromJust mVal else -3|]
 
@@ -163,11 +171,12 @@ Perhaps:
     it "should not suggest replacing if with case-of when isJust, fromJust, etc. are not from Data.Maybe" $ do
         result <- maybeCheckIO [SI.i|
   module Main where
+  import Data.Maybe
 
   def :: Maybe Int -> Int
   def mVal = if isJust mVal then 5 else -3
     where isJust _ = False
-  
+
   def2 :: Maybe Int -> Int
   def2 mVal = if isJust mVal then fromJust mVal else -3
     where fromJust _ = 99|]
@@ -176,6 +185,7 @@ Perhaps:
     it "should not suggest replacing if with case-of when fromJust is used on shadowed maybe value" $ do
         result <- maybeCheckIO [SI.i|
   module Main where
+  import Data.Maybe
 
   def :: Maybe Int -> Int
   def mVal = if isJust mVal then let mVal = Just 99 in fromJust mVal else -3|]
