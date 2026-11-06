@@ -33,7 +33,15 @@ newtype CustomException = CustomException PP.Doc
 instance Exception CustomException
 
 defaultConfig :: SolutionConfig
-defaultConfig = fromJust $ finaliseConfigs [defaultSolutionConfig]
+defaultConfig = fromJust $ toMaybeSolutionConfig
+  ( defaultSolutionConfig {
+      addCodeWorldRenderButton = Just False,
+      configGhcErrors = Just [],
+      configGhcWarnings = Just [],
+      configHlintErrors = Just [],
+      configHlintSuggestions = Just [],
+      provideSampleSolution = Just True,
+      rigorousValidation = Just True } )
 
 withHlintSuggestions :: Monad m => FSolutionConfig m -> [String] -> FSolutionConfig m
 withHlintSuggestions config xs = config { configHlintSuggestions = return xs }
@@ -43,6 +51,10 @@ withHlintErrors config xs = config { configHlintErrors = return xs}
 
 withHlintRules :: Monad m => FSolutionConfig m -> [String] -> FSolutionConfig m
 withHlintRules config xs = config { configHlintRules = return xs}
+
+completedDefaultCode :: String
+completedDefaultCode = toCode defaultConfig . drop 1
+  $ map unlines $ split ("---" `isPrefixOf`) $ lines defaultCode
 
 spec :: Spec
 spec = do
@@ -69,10 +81,10 @@ spec = do
       `shouldReturn` [Left "Warning: Use dilated"]
   describe "grade" $ do
     it "is running" $
-      gradeIO defaultCode useImport `shouldReturn` ""
+      gradeIO completedDefaultCode useImport `shouldReturn` ""
     it "allows syntaxCheck" $
       gradeIO (withSyntaxCheck True) useImport `shouldReturn` ""
-    it "error on failing syntaxCheck" $
+    it "errors out on failing syntaxCheck" $
       exceptionToString (gradeIO (withSyntaxCheck False) useImport)
       `shouldReturn` [SI.__i|
           \#\#\# Failure in: 'r' does not use 'reverse'?
@@ -96,6 +108,7 @@ spec = do
              Pattern match(es) are non-exhaustive
              In an equation for ‘incomplete’:
                  Patterns of type ‘[a]’ not matched: (_:_)
+
          Solution.hs:6:1: error:
              Pattern match(es) are non-exhaustive
              In an equation for ‘incomplete2’:
@@ -106,11 +119,11 @@ spec = do
       it "returns True and the configured custom message if a sample solution clone is submitted" $
         gradeIOWithRes withCloneMessage useImport `shouldReturn` (True, cloneMessage)
       it "returns False and no additional message if a clone is submitted, but the option is not set" $
-        gradeIOWithRes defaultCode useImport `shouldReturn` (False, "")
+        gradeIOWithRes completedDefaultCode useImport `shouldReturn` (False, "")
       it "returns False and no additional message if option is set, but submission is no clone" $
         gradeIOWithRes withCloneMessage noClone `shouldReturn` (False, "")
   where
-    rejectLine = '\n' : render rejectHint
+    rejectLine = '\n' : '\n' : render rejectHint
     exceptionToString f = catch f (\(CustomException x) -> pure $ render x)
     withHlintError = toCode idError [useId]
     useImport = [SI.__i|
@@ -130,10 +143,10 @@ spec = do
       |]
     withCloneMessage = toCode cloneMessageSetting $ program : tests : remaining
     (_ : program : tests : remaining) =
-      map unlines $ split ("---" `isPrefixOf`) $ lines defaultCode
+      map unlines $ split ("---" `isPrefixOf`) $ lines completedDefaultCode
     withSyntaxCheck withReverse = unlines $ intercalate ["-------"] $
       let (config : program : _ : remaining) =
-            split ("---" `isPrefixOf`) $ lines defaultCode
+            split ("---" `isPrefixOf`) $ lines completedDefaultCode
       in config : program : [syntaxCheck withReverse] : remaining
     syntaxCheck :: Bool -> String
     syntaxCheck withReverse = [SI.__i|

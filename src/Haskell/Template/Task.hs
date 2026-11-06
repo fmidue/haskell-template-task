@@ -11,10 +11,10 @@
 module Haskell.Template.Task (
   FSolutionConfig (..),
   SolutionConfig,
+  SolutionConfigOpt,
   check,
   defaultCode,
   defaultSolutionConfig,
-  finaliseConfigs,
   getCodeWorldButtonOption,
   getCodeWorldRenderButtonOption,
   getCodeWorldPartialRenderButtonOption,
@@ -26,6 +26,7 @@ module Haskell.Template.Task (
   rejectHint,
   rejectMatch,
   toSolutionConfigOpt,
+  toMaybeSolutionConfig,
   unsafeTemplateSegment,
   ) where
 
@@ -33,7 +34,7 @@ import qualified Data.ByteString.Char8            as BS
 import qualified Language.Haskell.Exts            as E
 import qualified Language.Haskell.Exts.Parser     as P
 import qualified System.IO                        as IO {- required to avoid encoding problems -}
-import qualified Data.String.Interpolate          as SI (i, iii, iii'E)
+import qualified Data.String.Interpolate          as SI (i, iii)
 
 import Haskell.Template.FileContents    (testHelperContents, testHarnessContents)
 import Haskell.Template.Match
@@ -44,11 +45,11 @@ import Control.Applicative              ((<|>))
 import Control.Monad                    (forM, guard, msum, unless, void, when)
 import Control.Monad.Extra              ((&&^), whenJust)
 import Control.Monad.IO.Class           (MonadIO)
+import Data.Aeson (rejectUnknownFields, defaultOptions, genericParseJSON)
 import Data.Char                        (isUpper)
 import Data.Functor.Identity            (Identity (..))
 import Data.List
   (delete, elemIndex, groupBy, intercalate, isInfixOf, isPrefixOf,
-   singleton,
    union,
    )
 import Data.List.Extra
@@ -57,7 +58,7 @@ import Data.Maybe                       (fromMaybe)
 import Data.Text.Lazy                   (pack)
 import Data.Typeable                    (Typeable)
 import Data.Yaml
-  (FromJSON, ParseException, ToJSON, decodeEither')
+  (FromJSON (..), ParseException, ToJSON, decodeEither')
 import Data.Yaml.Pretty
   (defConfig, encodePretty, setConfCompare)
 import GHC.Generics                     (Generic (..))
@@ -88,33 +89,35 @@ encode = encodePretty $ setConfCompare compare defConfig
 defaultCode :: String
 defaultCode = BS.unpack (encode defaultSolutionConfig) ++
   [SI.i|\#\#\#\#\# parameter description:
-\# allowAdding                 - allow adding program parts
-\# allowModifying              - allow modifying program parts
-\# allowRemoving               - allow removing program parts
+\# allowAdding                 - allow adding program parts; defaults to true
+\# allowModifying              - allow modifying program parts; defaults to false
+\# allowRemoving               - allow removing program parts; defaults to false
 \# addCodeWorldButton          - adds a button to transfer student visible code
-\#                               into the CodeWorld editor
+\#                               into the CodeWorld editor; defaults to false
 \# addCodeWorldRenderButton    - adds a button to transfer student visible code
 \#                               into the CodeWorld runner
 \# addCodeWorldPartialRenderButton - adds a button to transfer student visible
 \#                                   code into the CodeWorld runner with
-\#                                   preview for code containing 'undefined'
-\# configGhcLimit              - caps amount of GHC warnings/errors to display
+\#                                   preview for code containing 'undefined'; defaults to false
+\# configGhcLimit              - caps amount of GHC warnings/errors to display; defaults to no cap
 \# configGhcErrors             - GHC warnings to enforce
 \# configGhcWarnings           - GHC warnings to provide as hints
-\# configHlintSuggestionsLimit - caps amount of hlint suggestions to display
+\# configHlintSuggestionsLimit - caps amount of hlint suggestions to display; defaults to no cap
 \# configHlintErrors           - hlint hints to enforce, only first one encountered is displayed
-\# configHlintGroups           - hlint extra hint groups to use
-\# configHlintRules            - hlint extra hint rules to use
+\# configHlintGroups           - hlint extra hint groups to use; defaults to none
+\# configHlintRules            - hlint extra hint rules to use; defaults to none
 \# configHlintSuggestions      - hlint hints to provide as suggestions
-\# configLanguageExtensions    - this sets LanguageExtensions for hlint as well
-\# maxLineLength               - submissions with lines longer than this value are rejected
+\# configLanguageExtensions    - this sets LanguageExtensions for hlint as well;
+\#                               defaults to NPlusKPatterns + ScopedTypeVariables
+\# maxLineLength               - submissions with lines longer than this value are rejected; defaults to no limit
 \# syntaxCutoff                - determines the last step in the syntax phase (later steps are considered semantics);
 \#                               possible values (and also the order of steps):
 \#                                 CodeWidth, Compilation, GhcErrors, HlintErrors, TemplateMatch, TestSuite
 \#                               default on omission is TemplateMatch; steps after TestSuite are (in this order):
 \#                                 GhcWarnings, HlintSuggestions
 \# disableSemantics            - will prevent the semantics phase (as determined by syntaxCutoff) from running;
-\#                               this means a submission will be accepted after passing the syntax phase
+\#                               this means a submission will be accepted after passing the syntax phase;
+\#                               defaults to false
 \# provideSampleSolution       - display provided sample solution to students after semantics feedback
 \# rigorousValidation          - will run all tests configured for submissions on the provided sample solution
 \#                               (no effect if there is none);
@@ -122,7 +125,8 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \#                               in order to reduce wait times for students
 \# messageOnCloningSampleSolution - compare provided sample solution with submission and output
 \#                                  this message as feedback if the submission contains the sample solution
-\#                                  (provideSampleSolution will be ignored if the submission is a clone)
+\#                                  (provideSampleSolution will be ignored if the submission is a clone);
+\#                                  default is to skip this
 ----------
 module Solution where
 import Prelude
@@ -236,8 +240,10 @@ data FSolutionConfig m = SolutionConfig {
 type SolutionConfigOpt = FSolutionConfig Maybe
 
 deriving instance Show SolutionConfigOpt
-deriving instance FromJSON SolutionConfigOpt
 deriving instance ToJSON SolutionConfigOpt
+
+instance FromJSON SolutionConfigOpt where
+  parseJSON = genericParseJSON defaultOptions {rejectUnknownFields = True}
 
 type SolutionConfig  = FSolutionConfig Identity
 
@@ -248,23 +254,23 @@ defaultSolutionConfig = SolutionConfig {
     allowAdding                 = Just True,
     allowModifying              = Just False,
     allowRemoving               = Just False,
-    addCodeWorldButton          = Just True,
-    addCodeWorldRenderButton    = Just True,
+    addCodeWorldButton          = Just False,
+    addCodeWorldRenderButton    = Nothing,
     addCodeWorldPartialRenderButton = Just False,
     configGhcLimit              = Just Nothing,
-    configGhcErrors             = Just [],
-    configGhcWarnings           = Just [],
+    configGhcErrors             = Nothing,
+    configGhcWarnings           = Nothing,
     configHlintSuggestionsLimit = Just Nothing,
-    configHlintErrors           = Just [],
+    configHlintErrors           = Nothing,
     configHlintGroups           = Just [],
     configHlintRules            = Just [],
-    configHlintSuggestions      = Just [],
+    configHlintSuggestions      = Nothing,
     configLanguageExtensions    = Just ["NPlusKPatterns","ScopedTypeVariables"],
     maxLineLength               = Just Nothing,
-    provideSampleSolution       = Just False,
+    provideSampleSolution       = Nothing,
     messageOnCloningSampleSolution = Just Nothing,
     disableSemantics            = Just False,
-    rigorousValidation          = Just False,
+    rigorousValidation          = Nothing,
     syntaxCutoff                = Just TemplateMatch
   }
 
@@ -292,11 +298,8 @@ toSolutionConfigOpt SolutionConfig {..} = runIdentity $ SolutionConfig
   <*> fmap Just rigorousValidation
   <*> fmap Just syntaxCutoff
 
-finaliseConfigs :: [SolutionConfigOpt] -> Maybe SolutionConfig
-finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
-  where
-    finaliseConfig :: SolutionConfigOpt -> Maybe SolutionConfig
-    finaliseConfig SolutionConfig {..} = SolutionConfig
+toMaybeSolutionConfig :: SolutionConfigOpt -> Maybe SolutionConfig
+toMaybeSolutionConfig SolutionConfig{..} = SolutionConfig
       <$> fmap Identity allowAdding
       <*> fmap Identity allowModifying
       <*> fmap Identity allowRemoving
@@ -318,7 +321,9 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
       <*> fmap Identity disableSemantics
       <*> fmap Identity rigorousValidation
       <*> fmap Identity syntaxCutoff
-    combineConfigs x y = SolutionConfig {
+
+combineConfigs :: SolutionConfigOpt -> SolutionConfigOpt -> SolutionConfigOpt
+combineConfigs x y = SolutionConfig {
         allowAdding                 = allowAdding                 x <|> allowAdding                 y,
         allowModifying              = allowModifying              x <|> allowModifying              y,
         allowRemoving               = allowRemoving               x <|> allowRemoving               y,
@@ -341,29 +346,6 @@ finaliseConfigs = finaliseConfig . foldl combineConfigs emptyConfig
         rigorousValidation          = rigorousValidation          x <|> rigorousValidation          y,
         syntaxCutoff                = syntaxCutoff                x <|> syntaxCutoff                y
       }
-    emptyConfig = SolutionConfig {
-        allowAdding                 = Nothing,
-        allowRemoving               = Nothing,
-        allowModifying              = Nothing,
-        addCodeWorldButton          = Nothing,
-        addCodeWorldRenderButton    = Nothing,
-        addCodeWorldPartialRenderButton = Nothing,
-        configGhcLimit              = Nothing,
-        configGhcErrors             = Nothing,
-        configGhcWarnings           = Nothing,
-        configHlintSuggestionsLimit = Nothing,
-        configHlintErrors           = Nothing,
-        configHlintGroups           = Nothing,
-        configHlintRules            = Nothing,
-        configHlintSuggestions      = Nothing,
-        configLanguageExtensions    = Nothing,
-        maxLineLength               = Nothing,
-        provideSampleSolution       = Nothing,
-        messageOnCloningSampleSolution = Nothing,
-        disableSemantics            = Nothing,
-        rigorousValidation          = Nothing,
-        syntaxCutoff                = Nothing
-      }
 
 string :: String -> Doc
 string = text . pack
@@ -383,14 +365,8 @@ check reject inform path i = do
   void $ parse reject exts s
   mapM_ (checkLineLength reject s . subtract 1) $ runIdentity maxLineLength
   void $ parseModule exts `mapM` ms
-  let mSampleSolution = lookup "SampleSolution" ms
-  -- This step is currently optional and will not run if no sample solution is provided
-  case mSampleSolution of
-    Nothing -> do
-      when (runIdentity provideSampleSolution) $
-        reject "'provideSampleSolution' is set, but there is no sample solution in the config."
-      whenJust (runIdentity messageOnCloningSampleSolution) $ const $
-        reject "'messageOnCloningSampleSolution' is set, but there is no sample solution in the config."
+  case lookup "SampleSolution" ms of
+    Nothing -> reject "It is mandatory to provide a sample solution."
     Just sampleSolution -> when (runIdentity rigorousValidation) $ do
       let stricterConfig = config
             { configGhcErrors = configGhcWarnings <> configGhcErrors
@@ -400,7 +376,7 @@ check reject inform path i = do
             , configGhcLimit = pure Nothing
             }
       let others = filter ((/="SampleSolution") . fst) ms
-      let content = replace "module SampleSolution" ("module " ++ m) sampleSolution
+      let content = replace "SampleSolution" m sampleSolution
       mapM_ (checkLineLength reject content . subtract 3) $ runIdentity maxLineLength
       (modules, solutionFile) <- writeModules (m, content) others path
       sequence_ $ testPhases reject inform s solutionFile modules stricterConfig exts content path
@@ -411,7 +387,7 @@ check reject inform path i = do
     checkUniqueness xs = when (nubOrd xs /= xs) $ reject "duplicate module name"
 
 {- |
-Extract the sample solution if one was provided, 'provideSampleSolution' is enabled
+Extract the sample solution if 'provideSampleSolution' is enabled
 and 'disableSemantics' is not enabled.
 -}
 maybeSampleSolution :: String -> Maybe Doc
@@ -539,7 +515,7 @@ grade withSyntax withSemantics reject inform dirname task submission = do
           submission
 
 rejectHint :: Doc
-rejectHint = [SI.iii'E|
+rejectHint = [SI.iii|
   Unless you fix the above,
   your submission will not be considered further
   (e.g., no tests being run on it).
@@ -589,8 +565,8 @@ editFeedback :: String -> String
 editFeedback xs = case elemIndex ':' xs of
       Just index ->
         let (path, position) = splitAt index xs
-        in takeWhileEnd (/= pathSeparator) path ++ position
-      Nothing    -> xs
+        in takeWhileEnd (/= pathSeparator) path ++ position ++ "\n"
+      Nothing    -> xs ++ "\n"
 
 hlintConfig :: [String] -> String
 hlintConfig rules = unlines ["- " ++ r | r <- rules]
@@ -744,9 +720,10 @@ prepareInterpreter dirname exts modules = do
   reset -- Make sure nothing is available
   set [installedModulesInScope := False]
   set [searchPath := [dirname]]
+  -- All modules can be imported in source files
   loadModules ("TestHarness" : modules)
-  setTopLevelModules modules
-  setImports ["Prelude", "Test.HUnit", "TestHarness"]
+  -- All export items from these modules are in scope for the interpreter evaluation
+  setImports $ ["Prelude", "Test.HUnit", "TestHarness"] ++ ["Test" | "Test" `elem` modules]
   where
     readExt input = fromMaybe (UnknownExtension input) $ readMaybe input
 
@@ -788,7 +765,7 @@ rejectMatch
 rejectMatch reject config context i b l = case l of
   SrcSpanInfoPair w sp1 sp2 ->
     unless (allowedOperation w allowModifying) $ reject $ vcat
-      ["Your submission does not fit the template:" , "",
+      ["Your submission does not fit the template:" , empty,
        "Template:"   , bloc $ highlight_ssi sp1 context i,
        "Submission:" , bloc $ highlight_ssi sp2 context b]
   SrcSpanInfo w OnlyTemplate sp ->
@@ -825,9 +802,9 @@ splitConfigAndModules reject configAndModules =
 
 addDefaults :: Monad m => (forall a. Doc -> m a) -> SolutionConfigOpt -> m SolutionConfig
 addDefaults reject f = maybe
-  (reject "There is a required configuration parameter missing")
+  (reject "There is a required configuration parameter missing.")
   return
-  $ finaliseConfigs [f, defaultSolutionConfig]
+  $ toMaybeSolutionConfig $ combineConfigs f defaultSolutionConfig
 
 splitModules :: Bool -> String -> [String]
 splitModules dropFirst = map unlines
@@ -901,7 +878,7 @@ informTutorMessage =
   [SI.i|Please inform a tutor about this issue providing your submission and this message.|]
 
 rejectWithMessage :: (forall a. Doc -> m a) -> Doc -> Doc -> m b
-rejectWithMessage reject m = reject . vcat . (: singleton m)
+rejectWithMessage reject m = reject . vcat . (: [empty, m])
 
 writeModules
   :: MonadIO m
@@ -995,7 +972,7 @@ testPhases reject inform template submissionFile modules config exts submission 
 
     signatureError = const $ rejectWithHint $ string [SI.iii|
       Your code is not compatible with the test suite.
-      Please do not change type signatures in the given code template.
+      Please do adhere to type requirements expressed in the given code template.
       |]
 
 checkLineLength :: Applicative m => (forall a. Doc -> m a) -> String -> Natural -> m ()
