@@ -704,8 +704,6 @@ addAdditionalInfo errorMsg
   | errorMsg =~ [re|(?s)Conflicting definition.*In an equation|]
     = errorMsg
       ++ "    • Are you using pattern-matching with a pattern containing a variable with multiple occurrences?\n"
-  -- | errorMsg =~ regex ("Couldn't match expected type .Bool. with actual type .\\[[^\\]]+\\]"
-  --                       ++ ".*In a stmt of a list comprehension")
   | errorMsg =~
     [re|(?s)Couldn't match expected type .Bool. with actual type .\[[^\]]+\].*In a stmt of a list comprehension|]
     = errorMsg ++ "    • Are you trying to use '|' as a list constructor instead of ':'?\n"
