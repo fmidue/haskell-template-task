@@ -349,11 +349,8 @@ hlintIO config content display selectHints = do
 
 maybeCheckIO :: String -> IO [String]
 maybeCheckIO code = do
-  tmp <- getTemporaryDirectory
-  withTempDirectory tmp "maybe-feedback-test" $ \dir -> do
-    let file = dir </> "Main.hs"
-    writeFile file code
-    liftIO $ getMaybeFeedback (pure . show) file
+  codeAST <- parse (fail . show) [] code
+  getMaybeFeedback (pure . show) codeAST
 
 render :: PP.Doc -> String
 render = unpack . PP.displayT . PP.renderPretty 1.0 100

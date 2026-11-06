@@ -388,7 +388,8 @@ check reject inform path i = do
       let content = replace "SampleSolution" m sampleSolution
       mapM_ (checkLineLength reject content) $ runIdentity maxLineLength
       (modules, solutionFile) <- writeModules (m, content) others path
-      sequence_ $ testPhases reject inform s solutionFile modules stricterConfig exts content path
+      contentAST <- parse reject exts content
+      sequence_ $ testPhases reject inform s solutionFile modules stricterConfig exts content contentAST path
   where
     parseModule exts (m, s) = do
       inform $ string $ "Parsing module " <> m
@@ -503,9 +504,10 @@ grade withSyntax withSemantics reject inform dirname task submission = do
       -- and semantics phase is disabled.
       then pure (undefined, undefined)
       else writeModules (moduleName', submission) others dirname
+    submissionAST <- parse reject exts submission
     let
      (syntax, semantics) = splitAt (fromEnum syntaxCutoff)
-      $ testPhases reject inform template submissionFile modules config exts submission dirname
+      $ testPhases reject inform template submissionFile modules config exts submission submissionAST dirname
     withSyntax $ sequence_ syntax
     if runIdentity disableSemantics
     then pure False
@@ -521,7 +523,7 @@ grade withSyntax withSemantics reject inform dirname task submission = do
           (inform $ string message)
           exts
           (replace "SampleSolution" moduleName' sampleSolution)
-          submission
+          submissionAST
 
 rejectHint :: Doc
 rejectHint = [SI.iii|
@@ -573,22 +575,17 @@ getHlintFeedback documentInfo config dir file selectHints = case hints of
 getMaybeFeedback
   :: MonadIO m
   => (Doc -> m a)
-  -> String
+  -> E.Module E.SrcSpanInfo
   -> m [a]
-getMaybeFeedback documentInfo file = do
-  code <- liftIO $ readFile file
+getMaybeFeedback documentInfo ast = do
   env <- liftIO loadBase
-
-  case P.parse code of
-    P.ParseOk mod' -> do
-      sequence $ flip map (collectIfsWithMaybeChecks (annotate env mod')) $ \(foundIf,caseReplacement) ->
-        documentInfo $ vcat
-        [ "Found:"
-        , indent 2 $ text $ pack $ E.prettyPrint foundIf
-        , "Perhaps:"
-        , indent 2 $ text $ pack $ E.prettyPrint caseReplacement
-        ]
-    _ -> error "This really should not happen as GHC was able to compile the submission."
+  sequence $ flip map (collectIfsWithMaybeChecks (annotate env ast)) $ \(foundIf,caseReplacement) ->
+    documentInfo $ vcat
+    [ "Found:"
+    , indent 2 $ text $ pack $ E.prettyPrint foundIf
+    , "Perhaps:"
+    , indent 2 $ text $ pack $ E.prettyPrint caseReplacement
+    ]
 
 editFeedback :: String -> String
 editFeedback xs = case elemIndex ':' xs of
@@ -628,9 +625,10 @@ matchTemplate
   -> [E.Extension]
   -> String
   -> String
+  -> E.Module E.SrcSpanInfo
   -> m ()
-matchTemplate reject config context exts template submission =
-  runMatchTestOn reject exts template submission $ \case
+matchTemplate reject config context exts template submission submissionAST =
+  runMatchTestOn reject exts template submissionAST $ \case
     Fail loc -> mapM_ (rejectMatch rejectWithHint config context template submission) loc
       where
         rejectWithHint = rejectWithMessage reject rejectHint
@@ -642,7 +640,7 @@ catchSampleSolutionClone
   -> m ()
   -> [E.Extension]
   -> String
-  -> String
+  -> E.Module E.SrcSpanInfo
   -> m Bool
 catchSampleSolutionClone reject displayMessage exts sample submission =
   runMatchTestOn reject exts sample submission $ \case
@@ -658,12 +656,11 @@ runMatchTestOn
   => (forall a. Doc -> m a)
   -> [E.Extension]
   -> String
-  -> String
+  -> E.Module E.SrcSpanInfo
   -> (Result () -> m b)
   -> m b
-runMatchTestOn reject exts rawTemplate rawSubmission whatToDo = do
+runMatchTestOn reject exts rawTemplate submission whatToDo = do
   template  <- parse reject exts rawTemplate
-  submission <- parse reject exts rawSubmission
   case Match.test template submission of
     Continue -> reject [SI.i|Haskell.Template.Central.matchTemplate:
 #{informTutorMessage}|]
@@ -952,9 +949,10 @@ testPhases
   -> SolutionConfig
   -> [E.Extension]
   -> String
+  -> E.Module E.SrcSpanInfo
   -> FilePath
   -> [m ()]
-testPhases reject inform template submissionFile modules config exts submission dirname =
+testPhases reject inform template submissionFile modules config exts submission submissionAST dirname =
   [
     do
     -- Reject if submission does not compile with provided hidden modules,
@@ -981,10 +979,10 @@ testPhases reject inform template submissionFile modules config exts submission 
   ,
     -- Reject if suggestions involving checks on maybe values are present
     when (runIdentity $ suggestMaybeCaseOfUsage config) $ do
-      void $ getMaybeFeedback inform submissionFile
+      void $ getMaybeFeedback inform submissionAST
   ,
     -- Reject on task template violations according to settings (modifying, adding, deleting).
-    matchTemplate reject config 2 exts template submission
+    matchTemplate reject config 2 exts template submission submissionAST
   ,
     do
     -- Reject if test suite fails for submission.
