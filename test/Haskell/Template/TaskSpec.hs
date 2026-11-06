@@ -125,7 +125,7 @@ spec = do
              • In an equation for ‘r’
              • Are you using pattern-matching with a pattern containing a variable with multiple occurrences?
          |] ++ "\n"
-    it "adds additional message when trying to use prolog cons operator" $
+    it "adds additional message when trying to use Prolog cons operator" $
       exceptionToString (gradeIO completedDefaultCode prologListCons)
       `shouldReturn` [SI.__i|
          Solution.hs:4:15: error:
