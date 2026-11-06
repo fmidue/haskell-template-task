@@ -36,6 +36,7 @@ dependencies:
   - yaml
   - aeson
   - containers
+  - haskell-names
 
 ghc-options:
   - -Wall

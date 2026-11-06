@@ -83,6 +83,7 @@ import Text.PrettyPrint.Leijen.Text
   (Doc, (<+>), empty, int, linebreak, nest, punctuate, text, vcat, indent)
 import Text.Read                        (readMaybe)
 import Text.Regex.PCRE.Heavy            (re, sub)
+import Language.Haskell.Names (loadBase, annotate)
 
 encode :: ToJSON a => a -> BS.ByteString
 encode = encodePretty $ setConfCompare compare defConfig
@@ -576,10 +577,11 @@ getMaybeFeedback
   -> m [a]
 getMaybeFeedback documentInfo file = do
   code <- liftIO $ readFile file
+  env <- liftIO loadBase
 
   case P.parse code of
     P.ParseOk mod' -> do
-      sequence $ flip map (collectIfsWithMaybeChecks mod') $ \(foundIf,caseReplacement) ->
+      sequence $ flip map (collectIfsWithMaybeChecks (annotate env mod')) $ \(foundIf,caseReplacement) ->
         documentInfo $ vcat
         [ "Found:"
         , indent 2 $ text $ pack $ E.prettyPrint foundIf

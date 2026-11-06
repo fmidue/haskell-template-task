@@ -43,6 +43,7 @@ library
     , extra
     , file-embed
     , filepath
+    , haskell-names
     , haskell-src-exts
     , haskell-template-task-raw
     , hint
@@ -80,6 +81,7 @@ test-suite haskell-template-task-test
     , extra
     , file-embed
     , filepath
+    , haskell-names
     , haskell-src-exts
     , haskell-template-task
     , haskell-template-task-raw

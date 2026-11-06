@@ -44,6 +44,7 @@ import Language.Haskell.Exts.Syntax
 import Data.List.Extra (notNull)
 import Data.Set (Set)
 import qualified Data.Set as Set (singleton, empty, union, fromList, member)
+import Language.Haskell.Names (Scoped (..), NameInfo (..), Symbol (..))
 
 data Where = OnlyTemplate | OnlySubmission
   deriving (Eq, Ord, Show)
@@ -345,7 +346,7 @@ test m1 m2 =
   -- ParseOk m2' = parseModule m2
   evalState (runM (matchModule m1 m2)) $ SrcSpanInfoPair CompleteModule S.noSrcSpan S.noSrcSpan
 
-collectIfsWithMaybeChecks :: Module S.SrcSpanInfo -> [(Exp S.SrcSpanInfo, Exp ())]
+collectIfsWithMaybeChecks :: Module (Scoped S.SrcSpanInfo) -> [(Exp (Scoped S.SrcSpanInfo), Exp ())]
 collectIfsWithMaybeChecks (Module _ _ _ _ decls) = concat $ mapMaybe process decls
   where
     process d = do
@@ -377,19 +378,20 @@ declName (PatBind _ (PVar _ pn) _ _) = Just $ fromName pn
 
 declName _ = Nothing
 
-exprToIfInfo :: Exp S.SrcSpanInfo -> Maybe (Exp S.SrcSpanInfo, Exp ())
+exprToIfInfo :: Exp (Scoped S.SrcSpanInfo) -> Maybe (Exp (Scoped S.SrcSpanInfo), Exp ())
 exprToIfInfo expr@(If _ cond t e) = case removeParens cond of
   (App _ (Var _ vn) maybeVal)
-    | hasName "isJust" vn -> transform maybeVal t e
-    | hasName "isNothing" vn -> transform maybeVal e t
+    | hasName maybeMod "isJust" vn -> transform maybeVal t e
+    | hasName maybeMod "isNothing" vn -> transform maybeVal e t
   (InfixApp _ l (QVarOp _ opName) r) -> case getMaybeVal l r of
     Just maybeVal
-      | hasName "==" opName -> transform maybeVal e t
-      | hasName "/=" opName -> transform maybeVal t e
+      | hasName Nothing "==" opName -> transform maybeVal e t
+      | hasName Nothing "/=" opName -> transform maybeVal t e
     _ -> Nothing
   _ -> Nothing
   where
-    isNothingExpression (Con _ vName) = hasName "Nothing" vName
+    maybeMod = Just "Data.Maybe"
+    isNothingExpression (Con _ vName) = hasName maybeMod "Nothing" vName
     isNothingExpression _ = False
 
     getMaybeVal l r
@@ -407,16 +409,17 @@ exprToIfInfo _ = Nothing
 allNames :: Data a => a -> Set String
 allNames = everything Set.union $ mkQ Set.empty extract
   where
-    extract :: Name S.SrcSpanInfo -> Set String
+    extract :: Name (Scoped S.SrcSpanInfo) -> Set String
     extract (Ident _ n) = Set.singleton n
     extract (Symbol _ n) = Set.singleton n
 
 
-hasFromJust :: Exp S.SrcSpanInfo -> Exp S.SrcSpanInfo -> Bool
+hasFromJust :: Exp (Scoped S.SrcSpanInfo) -> Exp (Scoped S.SrcSpanInfo) -> Bool
 hasFromJust mExpr expr = notNull $ listify isFromJustApp expr
   where
-    isFromJustApp :: Exp S.SrcSpanInfo -> Bool
-    isFromJustApp (App _ (Var _ vn) maybeVal) = hasName "fromJust" vn && void maybeVal == void mExpr
+    isFromJustApp :: Exp (Scoped S.SrcSpanInfo) -> Bool
+    isFromJustApp (App _ (Var _ vn) maybeVal) =
+        hasName (Just "Data.Maybe") "fromJust" vn && fmap void maybeVal == fmap void mExpr
     isFromJustApp _ = False
 
 asCaseExpression :: String -> Exp a -> Exp a -> Exp a -> Exp ()
@@ -437,12 +440,17 @@ removeParens :: Exp a -> Exp a
 removeParens (Paren _ e) = removeParens e
 removeParens e = e
 
-hasName :: String -> QName l -> Bool
-hasName qName (UnQual _ (Ident _ n)) = n == qName
-hasName qName (Qual _ _ (Ident _ n)) = n == qName
-hasName qName (UnQual _ (Symbol _ n)) = n == qName
-hasName qName (Qual _ _ (Symbol _ n)) = n == qName
-hasName _ _ = False
+hasName :: Maybe String -> String -> QName (Scoped l) -> Bool
+hasName mModuleName qName (UnQual scope (Ident _ n)) = n == qName && isGloballyScopedInModule mModuleName scope
+hasName mModuleName qName (Qual scope _ (Ident _ n)) = n == qName && isGloballyScopedInModule mModuleName scope
+hasName mModuleName qName (UnQual scope (Symbol _ n)) = n == qName && isGloballyScopedInModule mModuleName scope
+hasName mModuleName qName (Qual scope _ (Symbol _ n)) = n == qName && isGloballyScopedInModule mModuleName scope
+hasName _ _ _ = False
+
+isGloballyScopedInModule :: Maybe String -> Scoped l -> Bool
+isGloballyScopedInModule Nothing _ = True
+isGloballyScopedInModule (Just modName) (Scoped (GlobalSymbol sym _) _) = symbolModule sym == ModuleName () modName
+isGloballyScopedInModule (Just _) _ = False
 
 ------------------------------------------------------------------------------
 -- | Twin map for monadic transformation
