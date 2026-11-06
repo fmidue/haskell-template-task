@@ -977,6 +977,10 @@ testPhases reject inform template submissionFile modules config exts submission 
     -- Reject if HLint warnings configured as errors are triggered by submission.
     void $ getHlintFeedback rejectWithHint config dirname submissionFile configHlintErrors
   ,
+    -- Reject if suggestions involving checks on maybe values are present
+    when (runIdentity $ suggestMaybeCaseOfUsage config) $ do
+      void $ getMaybeFeedback inform submissionFile
+  ,
     -- Reject on task template violations according to settings (modifying, adding, deleting).
     matchTemplate reject config 2 exts template submission
   ,
@@ -991,10 +995,6 @@ testPhases reject inform template submissionFile modules config exts submission 
 
     -- Displays HLint suggestions configured as non-errors triggered by submission.
     void $ getHlintFeedback inform config dirname submissionFile configHlintSuggestions
-
-    -- Display suggestions involving checks on maybe values
-    when (runIdentity $ suggestMaybeCaseOfUsage config) $ do
-      void $ getMaybeFeedback inform submissionFile
   ]
   where
     noTest = delete "Test" modules
