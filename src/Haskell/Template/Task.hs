@@ -232,13 +232,13 @@ data FSolutionConfig m = SolutionConfig {
     configHlintRules            :: m [String],
     configHlintSuggestions      :: m [String],
     configLanguageExtensions    :: m [String],
+    suggestMaybeCaseOfUsage     :: m Bool,
     maxLineLength               :: m (Maybe Natural),
     provideSampleSolution       :: m Bool,
     messageOnCloningSampleSolution :: m (Maybe String),
     disableSemantics            :: m Bool,
     rigorousValidation          :: m Bool,
-    syntaxCutoff                :: m FeedbackPhase,
-    suggestMaybeCaseOfUsage     :: m Bool
+    syntaxCutoff                :: m FeedbackPhase
   } deriving Generic
 
 type SolutionConfigOpt = FSolutionConfig Maybe
@@ -270,13 +270,13 @@ defaultSolutionConfig = SolutionConfig {
     configHlintRules            = Just [],
     configHlintSuggestions      = Nothing,
     configLanguageExtensions    = Just ["NPlusKPatterns","ScopedTypeVariables"],
+    suggestMaybeCaseOfUsage     = Just False,
     maxLineLength               = Just Nothing,
     provideSampleSolution       = Nothing,
     messageOnCloningSampleSolution = Just Nothing,
     disableSemantics            = Just False,
     rigorousValidation          = Nothing,
-    syntaxCutoff                = Just TemplateMatch,
-    suggestMaybeCaseOfUsage     = Just False
+    syntaxCutoff                = Just TemplateMatch
   }
 
 toSolutionConfigOpt :: SolutionConfig -> SolutionConfigOpt
@@ -296,13 +296,13 @@ toSolutionConfigOpt SolutionConfig {..} = runIdentity $ SolutionConfig
   <*> fmap Just configHlintRules
   <*> fmap Just configHlintSuggestions
   <*> fmap Just configLanguageExtensions
+  <*> fmap Just suggestMaybeCaseOfUsage
   <*> fmap Just maxLineLength
   <*> fmap Just provideSampleSolution
   <*> fmap Just messageOnCloningSampleSolution
   <*> fmap Just disableSemantics
   <*> fmap Just rigorousValidation
   <*> fmap Just syntaxCutoff
-  <*> fmap Just suggestMaybeCaseOfUsage
 
 toMaybeSolutionConfig :: SolutionConfigOpt -> Maybe SolutionConfig
 toMaybeSolutionConfig SolutionConfig{..} = SolutionConfig
@@ -321,13 +321,13 @@ toMaybeSolutionConfig SolutionConfig{..} = SolutionConfig
       <*> fmap Identity configHlintRules
       <*> fmap Identity configHlintSuggestions
       <*> fmap Identity configLanguageExtensions
+      <*> fmap Identity suggestMaybeCaseOfUsage
       <*> fmap Identity maxLineLength
       <*> fmap Identity provideSampleSolution
       <*> fmap Identity messageOnCloningSampleSolution
       <*> fmap Identity disableSemantics
       <*> fmap Identity rigorousValidation
       <*> fmap Identity syntaxCutoff
-      <*> fmap Identity suggestMaybeCaseOfUsage
 
 combineConfigs :: SolutionConfigOpt -> SolutionConfigOpt -> SolutionConfigOpt
 combineConfigs x y = SolutionConfig {
