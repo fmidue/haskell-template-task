@@ -27,6 +27,7 @@ source-repository head
 
 library
   exposed-modules:
+      Haskell.Template.Detection
       Haskell.Template.Match
       Haskell.Template.Task
   other-modules:

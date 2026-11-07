@@ -39,7 +39,7 @@ import qualified Data.String.Interpolate          as SI (i, iii)
 
 import Haskell.Template.FileContents    (testHelperContents, testHarnessContents)
 import Haskell.Template.Match
-  (Location (..), Result (..), What (..), Where (..), highlight_ssi, collectIfsWithMaybeChecks)
+  (Location (..), Result (..), What (..), Where (..), highlight_ssi)
 import qualified Haskell.Template.Match as Match (test)
 
 import Control.Applicative              ((<|>))
@@ -84,6 +84,7 @@ import Text.PrettyPrint.Leijen.Text
 import Text.Read                        (readMaybe)
 import Text.Regex.PCRE.Heavy            (re, sub, (=~))
 import Language.Haskell.Names (loadBase, annotate)
+import Haskell.Template.Detection (collectIfsWithMaybeChecks)
 
 encode :: ToJSON a => a -> BS.ByteString
 encode = encodePretty $ setConfCompare compare defConfig
