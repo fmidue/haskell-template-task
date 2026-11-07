@@ -81,7 +81,7 @@ import System.FilePath (
   )
 import Test.HUnit                       (Counts (..))
 import Text.PrettyPrint.Leijen.Text
-  (Doc, (<+>), empty, int, linebreak, nest, punctuate, text, vcat, indent, (<$$>))
+  (Doc, (<+>), empty, int, linebreak, nest, punctuate, text, vcat, indent, (<$$>), enclose)
 import Text.Read                        (readMaybe)
 import Text.Regex.PCRE.Heavy            (re, sub, (=~))
 import Language.Haskell.Names (loadBase, annotate)
@@ -607,7 +607,7 @@ getMaybeFeedback documentInfo MaybeCaseOfOpportunityDetectionSetting{..} ast = d
     , if provideSuggestion
         then string "Perhaps:" <$$> indent 2 (text $ pack $ E.prettyPrint caseReplacement)
         else empty
-    , maybe empty ((linebreak <>). string) additionalMessage
+    , maybe empty (enclose linebreak linebreak . string) additionalMessage
     ]
 
 editFeedback :: String -> String
@@ -1013,7 +1013,7 @@ testPhases reject inform template submissionFile modules config exts submission 
 
     -- Reject if suggestions involving checks on maybe values are present
     when (enabled maybeDetectionConfig && rejectOnOpportunity maybeDetectionConfig) $ do
-      void $ getMaybeFeedback reject maybeDetectionConfig submissionAST
+      void $ getMaybeFeedback rejectWithHint maybeDetectionConfig submissionAST
   ,
     -- Reject on task template violations according to settings (modifying, adding, deleting).
     matchTemplate reject config 2 exts template submission submissionAST

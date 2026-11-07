@@ -93,7 +93,8 @@ spec = do
           [SI.i|Found:
   if isNothing mVal then -3 else fromJust mVal
 
-Is there maybe a better way to express this?|]
+Is there maybe a better way to express this?
+|]
           ]
     it "should suggest replacing if with case-of when applicable (isNothing)" $ do
         result <- maybeCheckIO True Nothing [SI.i|
