@@ -115,9 +115,11 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \#                               defaults to NPlusKPatterns + ScopedTypeVariables
 \#
 \# detectOpportunitiesToUseCaseOfWithMaybe - configuration for detection of opportunities to use
-\#                               case-of expressions with Maybe values (instead of if-expressions)
+\#                               case-of expressions with Maybe values (instead of if-expressions);
+\#                               this is part of the phase including hlint checks
 \#    enabled                 - whether the detection of opportunities should apply
-\#    rejectOnOpportunity     - whether to reject the submission when an opportunity is found
+\#    rejectOnOpportunity     - whether to reject the submission when an opportunity is found;
+\#                              the error will only surface if there are no hlint errors present
 \#    provideSuggestion       - whether to show the replacement using a case-of expression
 \#    additionalMessage       - optional message to show; defaults to no message
 \#
