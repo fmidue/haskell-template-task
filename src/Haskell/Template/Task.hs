@@ -347,13 +347,13 @@ combineConfigs x y = SolutionConfig {
         configHlintRules            = configHlintRules            x <|> configHlintRules            y,
         configHlintSuggestions      = configHlintSuggestions      x <|> configHlintSuggestions      y,
         configLanguageExtensions    = configLanguageExtensions    x <|> configLanguageExtensions    y,
+        suggestMaybeCaseOfUsage     = suggestMaybeCaseOfUsage     x <|> suggestMaybeCaseOfUsage     y,
         maxLineLength               = maxLineLength               x <|> maxLineLength               y,
         provideSampleSolution       = provideSampleSolution       x <|> provideSampleSolution       y,
         messageOnCloningSampleSolution = messageOnCloningSampleSolution x <|> messageOnCloningSampleSolution y,
         disableSemantics            = disableSemantics            x <|> disableSemantics            y,
         rigorousValidation          = rigorousValidation          x <|> rigorousValidation          y,
-        syntaxCutoff                = syntaxCutoff                x <|> syntaxCutoff                y,
-        suggestMaybeCaseOfUsage     = suggestMaybeCaseOfUsage     x <|> suggestMaybeCaseOfUsage     y
+        syntaxCutoff                = syntaxCutoff                x <|> syntaxCutoff                y
       }
 
 string :: String -> Doc
