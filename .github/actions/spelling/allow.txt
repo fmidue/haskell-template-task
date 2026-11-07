@@ -23,6 +23,7 @@ msum
 mzero
 PApp
 QName
+QOp
 QVar
 snd
 thd
