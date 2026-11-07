@@ -42,7 +42,7 @@ spec :: Spec
 spec =
   describe "template match" $ do
     it "accepts identical code" $ do
-      modUndefinedAST <- parse (error . show) [] modUndefined
+      modUndefinedAST <- parse errorP [] modUndefined
       matchTemplate errorP withAdding 0 [] modUndefined modUndefined modUndefinedAST
       `shouldBe` Right ()
     it "accepts identical code without comment" $
@@ -73,9 +73,10 @@ spec =
     it "accepts code with guards and parameter" $
       getComment withAdding modUndefinedParameter modGuardsParameter
       `shouldBe` Right []
-    it "rejects code where parts beside undefined are changed" $ do
-      mod43AST <- parse (fail . show) [] mod43
-      matchTemplate errorP withAdding 0 [] mod42 mod43 mod43AST `shouldSatisfy` isLeft
+    it "rejects code where parts beside undefined are changed" $ (do
+        mod43AST <- parse errorP [] mod43
+        matchTemplate errorP withAdding 0 [] mod42 mod43 mod43AST
+      ) `shouldSatisfy` isLeft
     it "marks not matching parts within functions" $
       getComment withAdding mod42 mod43
       `shouldBe` Right [Mismatch ["foo = 42"
