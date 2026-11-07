@@ -1031,7 +1031,7 @@ testPhases reject inform template submissionFile modules config exts submission 
     void $ getHlintFeedback inform config dirname submissionFile configHlintSuggestions
 
     -- Reject if suggestions involving checks on maybe values are present
-    when (enabled maybeDetectionConfig) $ do
+    when (enabled maybeDetectionConfig && not (rejectOnOpportunity maybeDetectionConfig)) $ do
       void $ getMaybeFeedback inform maybeDetectionConfig submissionAST
   ]
   where
