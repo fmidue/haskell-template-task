@@ -155,11 +155,31 @@ Is there maybe a better way to express this?
   module Main where
   import Data.Maybe
 
-  def :: Maybe Int -> Int
   def mVal = let value = -3 in if isJust mVal then fromJust mVal else value
 
-  def2 :: Maybe Int -> Int
-  def2 mVal = if isJust mVal then let value = 5 in fromJust mVal else -3|]
+  def2 mVal = if isJust mVal then let value = 5 in fromJust mVal else -3
+
+  def3 mVal = if isJust mVal then fromJust mVal * value else 0
+    where value = 17
+
+  def4 val = case val of
+    [value] -> if isJust value then 2 * fromJust value else -1
+    _ -> 0
+
+  def5 mVal f = if isJust mVal then f (\\value -> fromJust mVal value) else undefined
+
+  def6 mVal x = if isJust mVal then 2 - fromJust mVal else process x
+    where
+      process value = 3 * abs value
+
+  def7 mVal xs = if isJust mVal then [fromJust mVal value | value <- xs] else xs
+
+  def8 mVal xs = if isJust mVal
+    then do
+      value <- xs
+      pure $ fromJust mVal value
+    else xs
+  |]
 
         result `shouldBe` [
           [SI.i|Found:
@@ -173,7 +193,72 @@ Perhaps:
 Perhaps:
   case mVal of
     Nothing -> -3
-    Just value' -> let value = 5 in value'|]
+    Just value' -> let value = 5 in value'|],
+          [SI.i|Found:
+  if isJust mVal then fromJust mVal * value else 0
+Perhaps:
+  case mVal of
+    Nothing -> 0
+    Just value' -> value' * value|],
+          [SI.i|Found:
+  if isJust value then 2 * fromJust value else -1
+Perhaps:
+  case value of
+    Nothing -> -1
+    Just value' -> 2 * value'|],
+          [SI.i|Found:
+  if isJust mVal then f (\\ value -> fromJust mVal value) else
+  undefined
+Perhaps:
+  case mVal of
+    Nothing -> undefined
+    Just value' -> f (\\ value -> value' value)|],
+          [SI.i|Found:
+  if isJust mVal then 2 - fromJust mVal else process x
+Perhaps:
+  case mVal of
+    Nothing -> process x
+    Just value' -> 2 - value'|],
+          [SI.i|Found:
+  if isJust mVal then [fromJust mVal value | value <- xs] else xs
+Perhaps:
+  case mVal of
+    Nothing -> xs
+    Just value' -> [value' value | value <- xs]|],
+          [SI.i|Found:
+  if isJust mVal then
+  do value <- xs
+     pure $ fromJust mVal value
+  else xs
+Perhaps:
+  case mVal of
+    Nothing -> xs
+    Just value' -> do value <- xs
+                      pure $ value' value|]
+          ]
+    it "should suggest replacement even when nested" $ do
+        result <- maybeCheckIO True Nothing [SI.i|
+  module Main where
+  import Data.Maybe
+
+  def :: Maybe (Maybe Int) -> Int
+  def mVal = if isJust mVal then if isJust (fromJust mVal) then 2 * fromJust (fromJust mVal) else 0 else -1|]
+
+        result `shouldBe` [
+          [SI.i|Found:
+  if isJust mVal then
+  if isJust (fromJust mVal) then 2 * fromJust (fromJust mVal) else 0
+  else -1
+Perhaps:
+  case mVal of
+    Nothing -> -1
+    Just value -> if isJust (value) then 2 * fromJust (value) else 0|],
+          [SI.i|Found:
+  if isJust (fromJust mVal) then 2 * fromJust (fromJust mVal) else 0
+Perhaps:
+  case (fromJust mVal) of
+    Nothing -> 0
+    Just value -> 2 * value|]
           ]
     it "should not suggest replacing if with case-of when isJust, fromJust, etc. are not from Data.Maybe" $ do
         result <- maybeCheckIO True Nothing [SI.i|
