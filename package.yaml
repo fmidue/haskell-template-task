@@ -35,6 +35,8 @@ dependencies:
   - wl-pprint-text
   - yaml
   - aeson
+  - containers
+  - haskell-names
 
 ghc-options:
   - -Wall

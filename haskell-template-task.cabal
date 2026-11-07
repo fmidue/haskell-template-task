@@ -27,6 +27,7 @@ source-repository head
 
 library
   exposed-modules:
+      Haskell.Template.Detection
       Haskell.Template.Match
       Haskell.Template.Task
   other-modules:
@@ -39,9 +40,11 @@ library
     , aeson
     , base >=4.7 && <5
     , bytestring
+    , containers
     , extra
     , file-embed
     , filepath
+    , haskell-names
     , haskell-src-exts
     , haskell-template-task-raw
     , hint
@@ -72,12 +75,14 @@ test-suite haskell-template-task-test
     , aeson
     , base >=4.7 && <5
     , bytestring
+    , containers
     , deepseq
     , directory
     , exceptions
     , extra
     , file-embed
     , filepath
+    , haskell-names
     , haskell-src-exts
     , haskell-template-task
     , haskell-template-task-raw

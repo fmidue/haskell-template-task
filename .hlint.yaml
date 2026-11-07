@@ -1,0 +1,6 @@
+---
+# HLint configuration file
+# https://github.com/ndmitchell/hlint
+##########################
+
+- hint: {lhs: "maybe [] singleton", rhs: "maybeToList"}

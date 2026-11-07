@@ -28,6 +28,8 @@ module Haskell.Template.Task (
   toSolutionConfigOpt,
   toMaybeSolutionConfig,
   unsafeTemplateSegment,
+  getMaybeFeedback,
+  MaybeCaseOfOpportunityDetectionSetting (..)
   ) where
 
 import qualified Data.ByteString.Char8            as BS
@@ -79,9 +81,11 @@ import System.FilePath (
   )
 import Test.HUnit                       (Counts (..))
 import Text.PrettyPrint.Leijen.Text
-  (Doc, (<+>), empty, int, linebreak, nest, punctuate, text, vcat)
+  (Doc, (<+>), empty, int, linebreak, nest, punctuate, text, vcat, indent, (<$$>), enclose)
 import Text.Read                        (readMaybe)
 import Text.Regex.PCRE.Heavy            (re, sub, (=~))
+import Language.Haskell.Names (loadBase, annotate)
+import Haskell.Template.Detection (collectIfsWithMaybeChecks)
 
 encode :: ToJSON a => a -> BS.ByteString
 encode = encodePretty $ setConfCompare compare defConfig
@@ -109,6 +113,14 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \# configHlintSuggestions      - hlint hints to provide as suggestions
 \# configLanguageExtensions    - this sets LanguageExtensions for hlint as well;
 \#                               defaults to NPlusKPatterns + ScopedTypeVariables
+\#
+\# detectOpportunitiesToUseCaseOfWithMaybe - configuration for detection of opportunities to use
+\#                               case-of expressions with Maybe values (instead of if-expressions)
+\#    enabled                 - whether the detection of opportunities should apply
+\#    rejectOnOpportunity     - whether to reject the submission when an opportunity is found
+\#    provideSuggestion       - whether to show the replacement using a case-of expression
+\#    additionalMessage       - optional message to show; defaults to no message
+\#
 \# maxLineLength               - submissions with lines longer than this value are rejected; defaults to no limit
 \# syntaxCutoff                - determines the last step in the syntax phase (later steps are considered semantics);
 \#                               possible values (and also the order of steps):
@@ -213,6 +225,13 @@ data FeedbackPhase
   | TestSuite
   deriving (Enum, Eq, Generic, Show, FromJSON, ToJSON)
 
+data MaybeCaseOfOpportunityDetectionSetting = MaybeCaseOfOpportunityDetectionSetting {
+    enabled :: Bool,
+    rejectOnOpportunity :: Bool,
+    provideSuggestion :: Bool,
+    additionalMessage :: Maybe String
+  } deriving (Generic, Show, FromJSON, ToJSON)
+
 data FSolutionConfig m = SolutionConfig {
     allowAdding                 :: m Bool,
     allowModifying              :: m Bool,
@@ -229,6 +248,7 @@ data FSolutionConfig m = SolutionConfig {
     configHlintRules            :: m [String],
     configHlintSuggestions      :: m [String],
     configLanguageExtensions    :: m [String],
+    detectOpportunitiesToUseCaseOfWithMaybe :: m MaybeCaseOfOpportunityDetectionSetting,
     maxLineLength               :: m (Maybe Natural),
     provideSampleSolution       :: m Bool,
     messageOnCloningSampleSolution :: m (Maybe String),
@@ -266,6 +286,12 @@ defaultSolutionConfig = SolutionConfig {
     configHlintRules            = Just [],
     configHlintSuggestions      = Nothing,
     configLanguageExtensions    = Just ["NPlusKPatterns","ScopedTypeVariables"],
+    detectOpportunitiesToUseCaseOfWithMaybe = Just $ MaybeCaseOfOpportunityDetectionSetting {
+      enabled = False,
+      rejectOnOpportunity = False,
+      provideSuggestion = True,
+      additionalMessage = Nothing
+    },
     maxLineLength               = Just Nothing,
     provideSampleSolution       = Nothing,
     messageOnCloningSampleSolution = Just Nothing,
@@ -291,6 +317,7 @@ toSolutionConfigOpt SolutionConfig {..} = runIdentity $ SolutionConfig
   <*> fmap Just configHlintRules
   <*> fmap Just configHlintSuggestions
   <*> fmap Just configLanguageExtensions
+  <*> fmap Just detectOpportunitiesToUseCaseOfWithMaybe
   <*> fmap Just maxLineLength
   <*> fmap Just provideSampleSolution
   <*> fmap Just messageOnCloningSampleSolution
@@ -315,6 +342,7 @@ toMaybeSolutionConfig SolutionConfig{..} = SolutionConfig
       <*> fmap Identity configHlintRules
       <*> fmap Identity configHlintSuggestions
       <*> fmap Identity configLanguageExtensions
+      <*> fmap Identity detectOpportunitiesToUseCaseOfWithMaybe
       <*> fmap Identity maxLineLength
       <*> fmap Identity provideSampleSolution
       <*> fmap Identity messageOnCloningSampleSolution
@@ -339,6 +367,8 @@ combineConfigs x y = SolutionConfig {
         configHlintRules            = configHlintRules            x <|> configHlintRules            y,
         configHlintSuggestions      = configHlintSuggestions      x <|> configHlintSuggestions      y,
         configLanguageExtensions    = configLanguageExtensions    x <|> configLanguageExtensions    y,
+        detectOpportunitiesToUseCaseOfWithMaybe
+          = detectOpportunitiesToUseCaseOfWithMaybe x <|> detectOpportunitiesToUseCaseOfWithMaybe y,
         maxLineLength               = maxLineLength               x <|> maxLineLength               y,
         provideSampleSolution       = provideSampleSolution       x <|> provideSampleSolution       y,
         messageOnCloningSampleSolution = messageOnCloningSampleSolution x <|> messageOnCloningSampleSolution y,
@@ -379,7 +409,8 @@ check reject inform path i = do
       let content = replace "SampleSolution" m sampleSolution
       mapM_ (checkLineLength reject content . subtract 3) $ runIdentity maxLineLength
       (modules, solutionFile) <- writeModules (m, content) others path
-      sequence_ $ testPhases reject inform s solutionFile modules stricterConfig exts content path
+      contentAST <- parse reject exts content
+      sequence_ $ testPhases reject inform s solutionFile modules stricterConfig exts content contentAST path
   where
     parseModule exts (m, s) = do
       inform $ string $ "Parsing module " <> m
@@ -494,9 +525,10 @@ grade withSyntax withSemantics reject inform dirname task submission = do
       -- and semantics phase is disabled.
       then pure (undefined, undefined)
       else writeModules (moduleName', submission) others dirname
+    submissionAST <- parse reject exts submission
     let
      (syntax, semantics) = splitAt (fromEnum syntaxCutoff)
-      $ testPhases reject inform template submissionFile modules config exts submission dirname
+      $ testPhases reject inform template submissionFile modules config exts submission submissionAST dirname
     withSyntax $ sequence_ syntax
     if runIdentity disableSemantics
     then pure False
@@ -512,7 +544,7 @@ grade withSyntax withSemantics reject inform dirname task submission = do
           (inform $ string message)
           exts
           (replace "SampleSolution" moduleName' sampleSolution)
-          submission
+          submissionAST
 
 rejectHint :: Doc
 rejectHint = [SI.iii|
@@ -561,6 +593,23 @@ getHlintFeedback documentInfo config dir file selectHints = case hints of
     hlintFeedback feedbackIdeas =
       hintLimit [documentInfo $ string $ editFeedback $ show comment | comment <- feedbackIdeas]
 
+getMaybeFeedback
+  :: MonadIO m
+  => (Doc -> m a)
+  -> MaybeCaseOfOpportunityDetectionSetting
+  -> E.Module E.SrcSpanInfo
+  -> m [a]
+getMaybeFeedback documentInfo MaybeCaseOfOpportunityDetectionSetting{..} ast = do
+  env <- liftIO loadBase
+  sequence $ flip map (collectIfsWithMaybeChecks (annotate env ast)) $ \(foundIf,caseReplacement) ->
+    documentInfo $ vcat
+    [ string "Found:" <$$> indent 2 (text $ pack $ E.prettyPrint foundIf)
+    , if provideSuggestion
+        then string "Perhaps:" <$$> indent 2 (text $ pack $ E.prettyPrint caseReplacement)
+        else empty
+    , maybe empty (enclose linebreak linebreak . string) additionalMessage
+    ]
+
 editFeedback :: String -> String
 editFeedback xs = case elemIndex ':' xs of
       Just index ->
@@ -599,9 +648,10 @@ matchTemplate
   -> [E.Extension]
   -> String
   -> String
+  -> E.Module E.SrcSpanInfo
   -> m ()
-matchTemplate reject config context exts template submission =
-  runMatchTestOn reject exts template submission $ \case
+matchTemplate reject config context exts template submission submissionAST =
+  runMatchTestOn reject exts template submissionAST $ \case
     Fail loc -> mapM_ (rejectMatch rejectWithHint config context template submission) loc
       where
         rejectWithHint = rejectWithMessage reject rejectHint
@@ -613,7 +663,7 @@ catchSampleSolutionClone
   -> m ()
   -> [E.Extension]
   -> String
-  -> String
+  -> E.Module E.SrcSpanInfo
   -> m Bool
 catchSampleSolutionClone reject displayMessage exts sample submission =
   runMatchTestOn reject exts sample submission $ \case
@@ -629,12 +679,11 @@ runMatchTestOn
   => (forall a. Doc -> m a)
   -> [E.Extension]
   -> String
-  -> String
+  -> E.Module E.SrcSpanInfo
   -> (Result () -> m b)
   -> m b
-runMatchTestOn reject exts rawTemplate rawSubmission whatToDo = do
+runMatchTestOn reject exts rawTemplate submission whatToDo = do
   template  <- parse reject exts rawTemplate
-  submission <- parse reject exts rawSubmission
   case Match.test template submission of
     Continue -> reject [SI.i|Haskell.Template.Central.matchTemplate:
 #{informTutorMessage}|]
@@ -934,9 +983,10 @@ testPhases
   -> SolutionConfig
   -> [E.Extension]
   -> String
+  -> E.Module E.SrcSpanInfo
   -> FilePath
   -> [m ()]
-testPhases reject inform template submissionFile modules config exts submission dirname =
+testPhases reject inform template submissionFile modules config exts submission submissionAST dirname =
   [
     do
     -- Reject if submission does not compile with provided hidden modules,
@@ -957,12 +1007,16 @@ testPhases reject inform template submissionFile modules config exts submission 
   ,
     -- Reject if GHC warnings configured as errors are triggered by submission.
     compileWithArgsAndCheck dirname reject rejectWithHint config noTest configGhcErrors
-  ,
+  , do
     -- Reject if HLint warnings configured as errors are triggered by submission.
     void $ getHlintFeedback rejectWithHint config dirname submissionFile configHlintErrors
+
+    -- Reject if suggestions involving checks on maybe values are present
+    when (enabled maybeDetectionConfig && rejectOnOpportunity maybeDetectionConfig) $ do
+      void $ getMaybeFeedback rejectWithHint maybeDetectionConfig submissionAST
   ,
     -- Reject on task template violations according to settings (modifying, adding, deleting).
-    matchTemplate reject config 2 exts template submission
+    matchTemplate reject config 2 exts template submission submissionAST
   ,
     do
     -- Reject if test suite fails for submission.
@@ -975,8 +1029,13 @@ testPhases reject inform template submissionFile modules config exts submission 
 
     -- Displays HLint suggestions configured as non-errors triggered by submission.
     void $ getHlintFeedback inform config dirname submissionFile configHlintSuggestions
+
+    -- Reject if suggestions involving checks on maybe values are present
+    when (enabled maybeDetectionConfig) $ do
+      void $ getMaybeFeedback inform maybeDetectionConfig submissionAST
   ]
   where
+    maybeDetectionConfig = runIdentity $ detectOpportunitiesToUseCaseOfWithMaybe config
     noTest = delete "Test" modules
 
     rejectWithHint = rejectWithMessage reject rejectHint
