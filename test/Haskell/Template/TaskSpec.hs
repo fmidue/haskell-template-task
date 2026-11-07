@@ -1,4 +1,5 @@
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE NamedFieldPuns #-}
 module Haskell.Template.TaskSpec where
 
 import qualified Data.ByteString.Char8            as BS (unpack)
@@ -81,16 +82,21 @@ spec = do
       `shouldReturn` [Left "Warning: Use dilated"]
   describe "maybe feedback" $ do
     it "should suggest replacing if with case-of when applicable (isJust)" $ do
-        result <- maybeCheckIO [SI.i|
+        result <- maybeCheckIO False (Just "Is there maybe a better way to express this?") [SI.i|
   module Main where
   import Data.Maybe
 
   def :: Maybe Int -> Int
   def mVal = if isNothing mVal then -3 else fromJust mVal|]
 
-        length result `shouldBe` 1
+        result `shouldBe` [
+          [SI.i|Found:
+  if isNothing mVal then -3 else fromJust mVal
+
+Is there maybe a better way to express this?|]
+          ]
     it "should suggest replacing if with case-of when applicable (isNothing)" $ do
-        result <- maybeCheckIO [SI.i|
+        result <- maybeCheckIO True Nothing [SI.i|
   module Main where
   import Data.Maybe
 
@@ -99,7 +105,7 @@ spec = do
 
         length result `shouldBe` 1
     it "should suggest replacing if with case-of when applicable (== Nothing)" $ do
-        result <- maybeCheckIO [SI.i|
+        result <- maybeCheckIO True Nothing [SI.i|
   module Main where
   import Data.Maybe
 
@@ -108,7 +114,7 @@ spec = do
 
         length result `shouldBe` 1
     it "should suggest replacing if with case-of when applicable (/= Nothing)" $ do
-        result <- maybeCheckIO [SI.i|
+        result <- maybeCheckIO True Nothing [SI.i|
   module Main where
   import Data.Maybe
 
@@ -117,7 +123,7 @@ spec = do
 
         length result `shouldBe` 1
     it "should not suggest replacing if with case-of when condition is mixed" $ do
-        result <- maybeCheckIO [SI.i|
+        result <- maybeCheckIO True Nothing [SI.i|
   module Main where
   import Data.Maybe
 
@@ -126,7 +132,7 @@ spec = do
 
         length result `shouldBe` 0
     it "should not suggest replacing if with case-of when condition is comparison with Just value" $ do
-        result <- maybeCheckIO [SI.i|
+        result <- maybeCheckIO True Nothing [SI.i|
   module Main where
   import Data.Maybe
 
@@ -135,7 +141,7 @@ spec = do
 
         length result `shouldBe` 0
     it "should not suggest replacing if with case-of when value is not used" $ do
-        result <- maybeCheckIO [SI.i|
+        result <- maybeCheckIO True Nothing [SI.i|
   module Main where
   import Data.Maybe
 
@@ -144,7 +150,7 @@ spec = do
 
         length result `shouldBe` 0
     it "replacement should not introduce variable names that are already used or will be user later" $ do
-        result <- maybeCheckIO [SI.i|
+        result <- maybeCheckIO True Nothing [SI.i|
   module Main where
   import Data.Maybe
 
@@ -169,7 +175,7 @@ Perhaps:
     Just value' -> let value = 5 in value'|]
           ]
     it "should not suggest replacing if with case-of when isJust, fromJust, etc. are not from Data.Maybe" $ do
-        result <- maybeCheckIO [SI.i|
+        result <- maybeCheckIO True Nothing [SI.i|
   module Main where
   import Data.Maybe
 
@@ -183,7 +189,7 @@ Perhaps:
 
         length result `shouldBe` 0
     it "should not suggest replacing if with case-of when fromJust is used on shadowed maybe value" $ do
-        result <- maybeCheckIO [SI.i|
+        result <- maybeCheckIO True Nothing [SI.i|
   module Main where
   import Data.Maybe
 
@@ -383,10 +389,16 @@ hlintIO config content display selectHints = do
     firstLineOf (y:ys)            = y : firstLineOf ys
     firstLineOf []                = []
 
-maybeCheckIO :: String -> IO [String]
-maybeCheckIO code = do
+maybeCheckIO :: Bool -> Maybe String -> String -> IO [String]
+maybeCheckIO provideSuggestion additionalMessage code = do
   codeAST <- parse (fail . show) [] code
-  getMaybeFeedback (pure . show) codeAST
+  let config = MaybeCaseOfOpportunityDetectionSetting {
+      enabled = True,
+      rejectOnOpportunity = False,
+      provideSuggestion,
+      additionalMessage
+    }
+  getMaybeFeedback (pure . show) config codeAST
 
 render :: PP.Doc -> String
 render = unpack . PP.displayT . PP.renderPretty 1.0 100

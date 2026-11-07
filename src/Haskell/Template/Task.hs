@@ -29,6 +29,7 @@ module Haskell.Template.Task (
   toMaybeSolutionConfig,
   unsafeTemplateSegment,
   getMaybeFeedback,
+  MaybeCaseOfOpportunityDetectionSetting (..)
   ) where
 
 import qualified Data.ByteString.Char8            as BS
@@ -80,7 +81,7 @@ import System.FilePath (
   )
 import Test.HUnit                       (Counts (..))
 import Text.PrettyPrint.Leijen.Text
-  (Doc, (<+>), empty, int, linebreak, nest, punctuate, text, vcat, indent)
+  (Doc, (<+>), empty, int, linebreak, nest, punctuate, text, vcat, indent, (<$$>))
 import Text.Read                        (readMaybe)
 import Text.Regex.PCRE.Heavy            (re, sub, (=~))
 import Language.Haskell.Names (loadBase, annotate)
@@ -112,8 +113,14 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \# configHlintSuggestions      - hlint hints to provide as suggestions
 \# configLanguageExtensions    - this sets LanguageExtensions for hlint as well;
 \#                               defaults to NPlusKPatterns + ScopedTypeVariables
-\# suggestMaybeCaseOfUsage     - suggest if-statements containing checks on maybe values to be replaced with
-\#                               case-of expressions
+\#
+\# detectOpportunitiesToUseCaseOfWithMaybe - configuration for detection of opportunities to use
+\#                               case-of expressions with Maybe values (instead of if-expressions)
+\#    enabled                 - whether the detection of opportunities should apply
+\#    rejectOnOpportunity     - whether to reject the submission when an opportunity is found
+\#    provideSuggestion       - whether to show the replacement using a case-of expression
+\#    additionalMessage       - optional message to show; defaults to no message
+\#
 \# maxLineLength               - submissions with lines longer than this value are rejected; defaults to no limit
 \# syntaxCutoff                - determines the last step in the syntax phase (later steps are considered semantics);
 \#                               possible values (and also the order of steps):
@@ -218,6 +225,13 @@ data FeedbackPhase
   | TestSuite
   deriving (Enum, Eq, Generic, Show, FromJSON, ToJSON)
 
+data MaybeCaseOfOpportunityDetectionSetting = MaybeCaseOfOpportunityDetectionSetting {
+    enabled :: Bool,
+    rejectOnOpportunity :: Bool,
+    provideSuggestion :: Bool,
+    additionalMessage :: Maybe String
+  } deriving (Generic, Show, FromJSON, ToJSON)
+
 data FSolutionConfig m = SolutionConfig {
     allowAdding                 :: m Bool,
     allowModifying              :: m Bool,
@@ -234,7 +248,7 @@ data FSolutionConfig m = SolutionConfig {
     configHlintRules            :: m [String],
     configHlintSuggestions      :: m [String],
     configLanguageExtensions    :: m [String],
-    suggestMaybeCaseOfUsage     :: m Bool,
+    detectOpportunitiesToUseCaseOfWithMaybe :: m MaybeCaseOfOpportunityDetectionSetting,
     maxLineLength               :: m (Maybe Natural),
     provideSampleSolution       :: m Bool,
     messageOnCloningSampleSolution :: m (Maybe String),
@@ -272,7 +286,12 @@ defaultSolutionConfig = SolutionConfig {
     configHlintRules            = Just [],
     configHlintSuggestions      = Nothing,
     configLanguageExtensions    = Just ["NPlusKPatterns","ScopedTypeVariables"],
-    suggestMaybeCaseOfUsage     = Just False,
+    detectOpportunitiesToUseCaseOfWithMaybe = Just $ MaybeCaseOfOpportunityDetectionSetting {
+      enabled = False,
+      rejectOnOpportunity = False,
+      provideSuggestion = True,
+      additionalMessage = Nothing
+    },
     maxLineLength               = Just Nothing,
     provideSampleSolution       = Nothing,
     messageOnCloningSampleSolution = Just Nothing,
@@ -298,7 +317,7 @@ toSolutionConfigOpt SolutionConfig {..} = runIdentity $ SolutionConfig
   <*> fmap Just configHlintRules
   <*> fmap Just configHlintSuggestions
   <*> fmap Just configLanguageExtensions
-  <*> fmap Just suggestMaybeCaseOfUsage
+  <*> fmap Just detectOpportunitiesToUseCaseOfWithMaybe
   <*> fmap Just maxLineLength
   <*> fmap Just provideSampleSolution
   <*> fmap Just messageOnCloningSampleSolution
@@ -323,7 +342,7 @@ toMaybeSolutionConfig SolutionConfig{..} = SolutionConfig
       <*> fmap Identity configHlintRules
       <*> fmap Identity configHlintSuggestions
       <*> fmap Identity configLanguageExtensions
-      <*> fmap Identity suggestMaybeCaseOfUsage
+      <*> fmap Identity detectOpportunitiesToUseCaseOfWithMaybe
       <*> fmap Identity maxLineLength
       <*> fmap Identity provideSampleSolution
       <*> fmap Identity messageOnCloningSampleSolution
@@ -348,7 +367,8 @@ combineConfigs x y = SolutionConfig {
         configHlintRules            = configHlintRules            x <|> configHlintRules            y,
         configHlintSuggestions      = configHlintSuggestions      x <|> configHlintSuggestions      y,
         configLanguageExtensions    = configLanguageExtensions    x <|> configLanguageExtensions    y,
-        suggestMaybeCaseOfUsage     = suggestMaybeCaseOfUsage     x <|> suggestMaybeCaseOfUsage     y,
+        detectOpportunitiesToUseCaseOfWithMaybe
+          = detectOpportunitiesToUseCaseOfWithMaybe x <|> detectOpportunitiesToUseCaseOfWithMaybe y,
         maxLineLength               = maxLineLength               x <|> maxLineLength               y,
         provideSampleSolution       = provideSampleSolution       x <|> provideSampleSolution       y,
         messageOnCloningSampleSolution = messageOnCloningSampleSolution x <|> messageOnCloningSampleSolution y,
@@ -576,16 +596,18 @@ getHlintFeedback documentInfo config dir file selectHints = case hints of
 getMaybeFeedback
   :: MonadIO m
   => (Doc -> m a)
+  -> MaybeCaseOfOpportunityDetectionSetting
   -> E.Module E.SrcSpanInfo
   -> m [a]
-getMaybeFeedback documentInfo ast = do
+getMaybeFeedback documentInfo MaybeCaseOfOpportunityDetectionSetting{..} ast = do
   env <- liftIO loadBase
   sequence $ flip map (collectIfsWithMaybeChecks (annotate env ast)) $ \(foundIf,caseReplacement) ->
     documentInfo $ vcat
-    [ "Found:"
-    , indent 2 $ text $ pack $ E.prettyPrint foundIf
-    , "Perhaps:"
-    , indent 2 $ text $ pack $ E.prettyPrint caseReplacement
+    [ string "Found:" <$$> indent 2 (text $ pack $ E.prettyPrint foundIf)
+    , if provideSuggestion
+        then string "Perhaps:" <$$> indent 2 (text $ pack $ E.prettyPrint caseReplacement)
+        else empty
+    , maybe empty ((linebreak <>). string) additionalMessage
     ]
 
 editFeedback :: String -> String
@@ -985,13 +1007,13 @@ testPhases reject inform template submissionFile modules config exts submission 
   ,
     -- Reject if GHC warnings configured as errors are triggered by submission.
     compileWithArgsAndCheck dirname reject rejectWithHint config noTest configGhcErrors
-  ,
+  , do
     -- Reject if HLint warnings configured as errors are triggered by submission.
     void $ getHlintFeedback rejectWithHint config dirname submissionFile configHlintErrors
-  ,
+
     -- Reject if suggestions involving checks on maybe values are present
-    when (runIdentity $ suggestMaybeCaseOfUsage config) $ do
-      void $ getMaybeFeedback inform submissionAST
+    when (enabled maybeDetectionConfig && rejectOnOpportunity maybeDetectionConfig) $ do
+      void $ getMaybeFeedback reject maybeDetectionConfig submissionAST
   ,
     -- Reject on task template violations according to settings (modifying, adding, deleting).
     matchTemplate reject config 2 exts template submission submissionAST
@@ -1007,8 +1029,13 @@ testPhases reject inform template submissionFile modules config exts submission 
 
     -- Displays HLint suggestions configured as non-errors triggered by submission.
     void $ getHlintFeedback inform config dirname submissionFile configHlintSuggestions
+
+    -- Reject if suggestions involving checks on maybe values are present
+    when (enabled maybeDetectionConfig) $ do
+      void $ getMaybeFeedback inform maybeDetectionConfig submissionAST
   ]
   where
+    maybeDetectionConfig = runIdentity $ detectOpportunitiesToUseCaseOfWithMaybe config
     noTest = delete "Test" modules
 
     rejectWithHint = rejectWithMessage reject rejectHint
