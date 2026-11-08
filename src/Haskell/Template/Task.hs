@@ -56,7 +56,7 @@ import Data.List
    )
 import Data.List.Extra
   (genericTake, nubOrd, replace, takeEnd, takeWhileEnd)
-import Data.Maybe                       (fromMaybe)
+import Data.Maybe                       (fromMaybe, isJust)
 import Data.Text.Lazy                   (pack)
 import Data.Typeable                    (Typeable)
 import Data.Yaml
@@ -398,8 +398,19 @@ check reject inform path i = do
   (config@SolutionConfig{..}, exts, (m,s), ms) <- processConfig reject inform i
 
   let maybeDetectionConfig = runIdentity detectOpportunitiesToUseCaseOfWithMaybe
-  when (asSuggestion maybeDetectionConfig && Just True == asError maybeDetectionConfig)
-    $ reject "Cannot set both 'asSuggestion' and 'asError' to 'true' at 'detectOpportunitiesToUseCaseOfWithMaybe'."
+  case (asSuggestion maybeDetectionConfig, fromMaybe False $ asError maybeDetectionConfig) of
+    (True, True) ->
+      reject "Cannot set both 'asSuggestion' and 'asError' to 'true' at 'detectOpportunitiesToUseCaseOfWithMaybe'."
+    (False,False)
+      | isJust (provideSuggestion maybeDetectionConfig) ->
+          reject
+            $ "Cannot set 'provideSuggestion' to true when neither 'asSuggestion' nor 'asError'"
+            <> " is set to true at 'detectOpportunitiesToUseCaseOfWithMaybe'."
+      | isJust (additionalMessage maybeDetectionConfig) ->
+          reject
+            $ "Cannot set value for 'additionalMessage' neither 'asSuggestion' nor 'asError'"
+            <> " is set to true at 'detectOpportunitiesToUseCaseOfWithMaybe'."
+    _ -> pure ()
 
   checkUniqueness (m : map fst ms)
   inform $ string $ "Parsing template module " <> m
