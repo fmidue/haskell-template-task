@@ -123,7 +123,8 @@ defaultCode = BS.unpack (encode ( defaultSolutionConfig {
 \# disableSemantics            - will prevent the semantics phase (as determined by syntaxCutoff) from running;
 \#                               this means a submission will be accepted after passing the syntax phase;
 \#                               defaults to false
-\# provideSampleSolution       - display provided sample solution to students after semantics feedback
+\# provideSampleSolution       - display provided sample solution to students after semantics feedback;
+\#                               defaults to false
 \# rigorousValidation          - will run all tests configured for submissions on the provided sample solution
 \#                               (no effect if there is none);
 \#                               this should be set while configuring the task and disabled after,
