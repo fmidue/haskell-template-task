@@ -107,7 +107,7 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \# configGhcErrors             - GHC warnings to enforce
 \# configGhcWarnings           - GHC warnings to provide as hints
 \# configHlintSuggestionsLimit - caps amount of hlint suggestions to display; defaults to no cap
-\# configHlintErrors           - hlint hints to enforce, only first one encountered is displayed
+\# configHlintErrors           - hlint hints to enforce, only the first one encountered is displayed
 \# configHlintGroups           - hlint extra hint groups to use; defaults to none
 \# configHlintRules            - hlint extra hint rules to use; defaults to none
 \# configHlintSuggestions      - hlint hints to provide as suggestions
@@ -122,7 +122,7 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \#    asError                  - whether detected opportunities should be reported as errors;
 \#                               optional; defaults to false; cannot be enabled together
 \#                               with 'asSuggestion';
-\#                               an error will only surface if there are no hlint errors present
+\#                               an error (the first one) will only surface if there are no hlint errors present
 \#    provideSuggestion        - whether to show the replacement using a case-of expression;
 \#                               optional; defaults to true
 \#    additionalMessage        - optional message to show; defaults to no message
