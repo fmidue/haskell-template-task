@@ -25,6 +25,7 @@ PApp
 QName
 QOp
 QVar
+scrutinee
 snd
 thd
 uncurry
