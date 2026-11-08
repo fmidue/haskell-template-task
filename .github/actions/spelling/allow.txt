@@ -5,6 +5,7 @@ concat
 elems
 finalise
 fmap
+FMaybe
 fmidue
 foldl
 foldr
