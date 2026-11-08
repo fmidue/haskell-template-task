@@ -117,11 +117,15 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \# detectOpportunitiesToUseCaseOfWithMaybe - configuration for detection of opportunities to use
 \#                               case-of expressions with Maybe values (instead of if-expressions);
 \#                               this is part of the phase(s) including hlint checks
-\#    enabled                 - whether the detection of opportunities should apply
-\#    rejectOnOpportunity     - whether to reject the submission when an opportunity is found;
-\#                              an error will only surface if there are no hlint errors present
-\#    provideSuggestion       - whether to show the replacement using a case-of expression
-\#    additionalMessage       - optional message to show; defaults to no message
+\#    asSuggestion             - whether detected opportunities should be reported as suggestions;
+\#                               defaults to true
+\#    asError                  - whether detected opportunities should be reported as errors;
+\#                               optional; defaults to false; cannot be enabled together 
+\#                               with 'asSuggestion';
+\#                               an error will only surface if there are no hlint errors present
+\#    provideSuggestion        - whether to show the replacement using a case-of expression;
+\#                               optional; defaults to true
+\#    additionalMessage        - optional message to show; defaults to no message
 \#
 \# maxLineLength               - submissions with lines longer than this value are rejected; defaults to no limit
 \# syntaxCutoff                - determines the last step in the syntax phase (later steps are considered semantics);
