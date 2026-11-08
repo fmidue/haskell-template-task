@@ -120,7 +120,7 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \#    asSuggestion             - whether detected opportunities should be reported as suggestions;
 \#                               defaults to true
 \#    asError                  - whether detected opportunities should be reported as errors;
-\#                               optional; defaults to false; cannot be enabled together 
+\#                               optional; defaults to false; cannot be enabled together
 \#                               with 'asSuggestion';
 \#                               an error will only surface if there are no hlint errors present
 \#    provideSuggestion        - whether to show the replacement using a case-of expression;
