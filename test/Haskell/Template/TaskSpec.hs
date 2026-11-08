@@ -505,8 +505,7 @@ maybeCheckIO :: Bool -> Bool -> Maybe String -> String -> IO [String]
 maybeCheckIO asError provideSuggestion additionalMessage code = do
   codeAST <- parse (fail . show) [] code
   let config = MaybeCaseOfOpportunityDetectionSetting {
-      asSuggestion = not asError,
-      asError = Just asError,
+      status = if asError then Reject else Hint,
       provideSuggestion = Just provideSuggestion,
       additionalMessage
     }

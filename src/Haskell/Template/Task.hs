@@ -29,7 +29,8 @@ module Haskell.Template.Task (
   toMaybeSolutionConfig,
   unsafeTemplateSegment,
   getMaybeFeedback,
-  MaybeCaseOfOpportunityDetectionSetting (..)
+  MaybeCaseOfOpportunityDetectionSetting (..),
+  Status (..),
   ) where
 
 import qualified Data.ByteString.Char8            as BS
@@ -117,12 +118,11 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \# detectOpportunitiesToUseCaseOfWithMaybe - configuration for detection of opportunities to use
 \#                               case-of expressions with Maybe values (instead of if-expressions);
 \#                               this is part of the phase(s) including hlint checks
-\#    asSuggestion             - whether detected opportunities should be reported as suggestions;
-\#                               defaults to true
-\#    asError                  - whether detected opportunities should be reported as errors;
-\#                               optional; defaults to false; cannot be enabled together
-\#                               with 'asSuggestion';
-\#                               an error (the first one) will only surface if there are no hlint errors present
+\#    status                  - status of the checker; can be one of:
+\#                              `Ignore`: disable the detection
+\#                              `Hint`: display the opportunities but don't reject
+\#                              `Reject`: reject the submission and show the first suggestion
+\#                              defaults to `Hint`.
 \#    provideSuggestion        - whether to show the replacement using a case-of expression;
 \#                               optional; defaults to true
 \#    additionalMessage        - optional message to show; defaults to no message
@@ -231,9 +231,11 @@ data FeedbackPhase
   | TestSuite
   deriving (Enum, Eq, Generic, Show, FromJSON, ToJSON)
 
+data Status = Ignore | Hint | Reject
+  deriving (Eq, Generic, Show, FromJSON, ToJSON)
+
 data MaybeCaseOfOpportunityDetectionSetting = MaybeCaseOfOpportunityDetectionSetting {
-    asSuggestion :: Bool,
-    asError :: Maybe Bool,
+    status :: Status,
     provideSuggestion :: Maybe Bool,
     additionalMessage :: Maybe String
   } deriving (Generic, Show, FromJSON, ToJSON)
@@ -293,8 +295,7 @@ defaultSolutionConfig = SolutionConfig {
     configHlintSuggestions      = Nothing,
     configLanguageExtensions    = Just ["NPlusKPatterns","ScopedTypeVariables"],
     detectOpportunitiesToUseCaseOfWithMaybe = Just $ MaybeCaseOfOpportunityDetectionSetting {
-      asSuggestion = True,
-      asError = Nothing,
+      status = Hint,
       provideSuggestion = Just True,
       additionalMessage = Nothing
     },
@@ -398,18 +399,16 @@ check reject inform path i = do
   (config@SolutionConfig{..}, exts, (m,s), ms) <- processConfig reject inform i
 
   let maybeDetectionConfig = runIdentity detectOpportunitiesToUseCaseOfWithMaybe
-  case (asSuggestion maybeDetectionConfig, fromMaybe False $ asError maybeDetectionConfig) of
-    (True, True) ->
-      reject "Cannot set both 'asSuggestion' and 'asError' to 'true' at 'detectOpportunitiesToUseCaseOfWithMaybe'."
-    (False,False)
+  case status maybeDetectionConfig of
+    Ignore
       | isJust (provideSuggestion maybeDetectionConfig) ->
           reject
-            $ "Cannot set 'provideSuggestion' to true when neither 'asSuggestion' nor 'asError'"
-            <> " is set to true at 'detectOpportunitiesToUseCaseOfWithMaybe'."
+            $ "Cannot set 'provideSuggestion' to true when 'status' is 'Ignore'"
+            <>  " at 'detectOpportunitiesToUseCaseOfWithMaybe'."
       | isJust (additionalMessage maybeDetectionConfig) ->
           reject
-            $ "Cannot set value for 'additionalMessage' neither 'asSuggestion' nor 'asError'"
-            <> " is set to true at 'detectOpportunitiesToUseCaseOfWithMaybe'."
+            $ "Cannot set 'provideSuggestion' to true when 'status' is 'Ignore'"
+            <>  " at 'detectOpportunitiesToUseCaseOfWithMaybe'."
     _ -> pure ()
 
   checkUniqueness (m : map fst ms)
@@ -1034,7 +1033,7 @@ testPhases reject inform template submissionFile modules config exts submission 
     void $ getHlintFeedback rejectWithHint config dirname submissionFile configHlintErrors
 
     -- Reject if suggestions involving checks on maybe values are present
-    when (fromMaybe False $ asError maybeDetectionConfig) $ do
+    when (Reject == status maybeDetectionConfig) $ do
       void $ getMaybeFeedback rejectWithHint maybeDetectionConfig submissionAST
   ,
     -- Reject on task template violations according to settings (modifying, adding, deleting).
@@ -1053,7 +1052,7 @@ testPhases reject inform template submissionFile modules config exts submission 
     void $ getHlintFeedback inform config dirname submissionFile configHlintSuggestions
 
     -- Display suggestions involving checks on maybe values are present
-    when (asSuggestion maybeDetectionConfig) $ do
+    when (Hint == status maybeDetectionConfig) $ do
       void $ getMaybeFeedback inform maybeDetectionConfig submissionAST
   ]
   where
