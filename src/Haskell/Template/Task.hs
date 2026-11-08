@@ -108,7 +108,7 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \# configGhcErrors             - GHC warnings to enforce
 \# configGhcWarnings           - GHC warnings to provide as hints
 \# configHlintSuggestionsLimit - caps amount of hlint suggestions to display; defaults to no cap
-\# configHlintErrors           - hlint hints to enforce, only the first one encountered is displayed
+\# configHlintErrors           - hlint hints to enforce; only the first one encountered is displayed
 \# configHlintGroups           - hlint extra hint groups to use; defaults to none
 \# configHlintRules            - hlint extra hint rules to use; defaults to none
 \# configHlintSuggestions      - hlint hints to provide as suggestions
@@ -120,13 +120,13 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \#                               this is part of the phase(s) including hlint checks
 \#    status                  - status of the checker; can be one of:
 \#                              `Ignore`: disable the detection
-\#                              `Hint`: display the opportunities but don't reject
-\#                              `Reject`: reject the submission and show the first suggestion if
-\#                              there are no hlint errors present
-\#                               defaults to `Hint`.
+\#                              `Hint`: display the opportunities (directly after hlint suggestions) but don't reject
+\#                              `Reject`: reject the submission and show the first detection, but only if
+\#                              no errors were reported by hlint, and then at that point;
+\#                              defaults to `Hint`
 \#    provideSuggestion        - whether to show the replacement using a case-of expression;
-\#                               optional; defaults to true
-\#    additionalMessage        - optional message to show; defaults to no message
+\#                               defaults to true
+\#    additionalMessage        - potential message to show; defaults to no message
 \#
 \# maxLineLength               - submissions with lines longer than this value are rejected; defaults to no limit
 \# syntaxCutoff                - determines the last step in the syntax phase (later steps are considered semantics);
@@ -408,7 +408,7 @@ check reject inform path i = do
             <>  " at 'detectOpportunitiesToUseCaseOfWithMaybe'."
       | isJust (additionalMessage maybeDetectionConfig) ->
           reject
-            $ "Cannot set 'additionalMessage' to true when 'status' is 'Ignore'"
+            $ "Cannot set an 'additionalMessage' when 'status' is 'Ignore'"
             <>  " at 'detectOpportunitiesToUseCaseOfWithMaybe'."
     _ -> pure ()
 
@@ -1033,7 +1033,7 @@ testPhases reject inform template submissionFile modules config exts submission 
     -- Reject if HLint warnings configured as errors are triggered by submission.
     void $ getHlintFeedback rejectWithHint config dirname submissionFile configHlintErrors
 
-    -- Reject if suggestions involving checks on maybe values are present
+    -- Reject if checks on maybe values encounter a hit and were configured to reject.
     when (Reject == status maybeDetectionConfig) $ do
       void $ getMaybeFeedback rejectWithHint maybeDetectionConfig submissionAST
   ,
@@ -1052,7 +1052,7 @@ testPhases reject inform template submissionFile modules config exts submission 
     -- Displays HLint suggestions configured as non-errors triggered by submission.
     void $ getHlintFeedback inform config dirname submissionFile configHlintSuggestions
 
-    -- Display suggestions involving checks on maybe values are present
+    -- Display suggestions involving checks on maybe values if configured as hints.
     when (Hint == status maybeDetectionConfig) $ do
       void $ getMaybeFeedback inform maybeDetectionConfig submissionAST
   ]
