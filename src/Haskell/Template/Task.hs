@@ -87,7 +87,14 @@ encode :: ToJSON a => a -> BS.ByteString
 encode = encodePretty $ setConfCompare compare defConfig
 
 defaultCode :: String
-defaultCode = BS.unpack (encode defaultSolutionConfig) ++
+defaultCode = BS.unpack (encode ( defaultSolutionConfig {
+       addCodeWorldRenderButton = Just False,
+       configGhcErrors = Just [],
+       configGhcWarnings = Just [],
+       configHlintErrors = Just [],
+       configHlintSuggestions = Just [],
+       provideSampleSolution = Just False,
+       rigorousValidation = Just True } )) ++
   [SI.i|\#\#\#\#\# parameter description:
 \# allowAdding                 - allow adding program parts; defaults to true
 \# allowModifying              - allow modifying program parts; defaults to false
