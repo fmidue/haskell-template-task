@@ -293,6 +293,22 @@ Perhaps:
   def mVal = if isJust mVal then let mVal = Just 99 in fromJust mVal else -3|]
 
         length result `shouldBe` 0
+    it "replacement should not use redundant brackets" $ do
+        result <- maybeCheckIO True Nothing [SI.i|
+  module Main where
+  import Data.Maybe
+
+  def :: Maybe Int -> Int
+  def mVal = if (isJust (mVal)) then 1 + (fromJust ((mVal))) else -3|]
+
+        result `shouldBe` [
+          [SI.i|Found:
+  if (isJust (mVal)) then 1 + (fromJust ((mVal))) else -3
+Perhaps:
+  case mVal of
+    Nothing -> -3
+    Just value -> 1 + value|]
+          ]
   describe "grade" $ do
     it "is running" $
       gradeIO completedDefaultCode useImport `shouldReturn` ""

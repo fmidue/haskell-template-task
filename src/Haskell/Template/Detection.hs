@@ -2,7 +2,7 @@ module Haskell.Template.Detection (collectIfsWithMaybeChecks) where
 
 import Control.Monad (guard, void)
 import Data.Data (Data)
-import Data.Generics (everything, everywhere, listify, mkQ, mkT)
+import Data.Generics (everything, everywhere, listify, mkQ, mkT, everywhere')
 import Data.List.Extra (notNull)
 import Data.Maybe (listToMaybe, mapMaybe, maybeToList)
 import Data.Set (Set)
@@ -96,7 +96,7 @@ hasFromJust mExpr expr = notNull $ listify isFromJustApp expr
   where
     isFromJustApp :: Exp (Scoped SrcSpanInfo) -> Bool
     isFromJustApp (App _ (Var _ vn) maybeVal) =
-      hasName (Just "Data.Maybe") "fromJust" vn && fmap void maybeVal == fmap void mExpr
+      hasName (Just "Data.Maybe") "fromJust" vn && fmap void (removeParens maybeVal) == fmap void mExpr
     isFromJustApp _ = False
 
 asCaseExpression :: String -> Exp a -> Exp a -> Exp a -> Exp ()
@@ -113,11 +113,12 @@ asCaseExpression valueName maybeValue justCase nothingCase =
     ]
 
 replaceFromJustWithValue :: String -> Exp () -> Exp () -> Exp ()
-replaceFromJustWithValue valueName maybeValue = everywhere $ mkT replace
+replaceFromJustWithValue valueName maybeValue = everywhere' $ mkT replace
   where
-    replace (App () (Var () (UnQual _ (Ident () "fromJust"))) fnBody)
-      | fnBody == maybeValue = Var () (UnQual () (Ident () valueName))
-    replace expr = expr
+    replace expr = case removeParens expr of
+      App () (Var () (UnQual _ (Ident () "fromJust"))) fnBody
+        | removeParens fnBody == maybeValue -> Var () (UnQual () (Ident () valueName))
+      _ -> expr
 
 removeParens :: Exp a -> Exp a
 removeParens (Paren _ e) = removeParens e
