@@ -1052,7 +1052,7 @@ testPhases reject inform template submissionFile modules config exts submission 
     -- Displays HLint suggestions configured as non-errors triggered by submission.
     void $ getHlintFeedback inform config dirname submissionFile configHlintSuggestions
 
-    -- Reject if suggestions involving checks on maybe values are present
+    -- Display suggestions involving checks on maybe values are present
     when (asSuggestion maybeDetectionConfig) $ do
       void $ getMaybeFeedback inform maybeDetectionConfig submissionAST
   ]
