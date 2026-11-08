@@ -408,7 +408,7 @@ check reject inform path i = do
             <>  " at 'detectOpportunitiesToUseCaseOfWithMaybe'."
       | isJust (additionalMessage maybeDetectionConfig) ->
           reject
-            $ "Cannot set 'provideSuggestion' to true when 'status' is 'Ignore'"
+            $ "Cannot set 'additionalMessage' to true when 'status' is 'Ignore'"
             <>  " at 'detectOpportunitiesToUseCaseOfWithMaybe'."
     _ -> pure ()
 
