@@ -150,7 +150,7 @@ Is there maybe a better way to express this?
   def mVal = if isJust mVal then 5 else -3|]
 
         length result `shouldBe` 0
-    it "replacement should not introduce variable names that are already used or will be user later" $ do
+    it "replacement should not introduce variable names that are already used or will be used later" $ do
         result <- maybeCheckIO False True Nothing [SI.i|
   module Main where
   import Data.Maybe
