@@ -77,9 +77,11 @@ exprToIfInfo expr@(If _ cond t e) = case removeParens cond of
       | isNothingExpression r = Just l
       | otherwise = Nothing
 
-    transform mVal j n
-      | hasFromJust mVal j = Just (expr, asCaseExpression "_valueNamePlaceholder" mVal j n)
-      | otherwise = Nothing
+    transform mValExpr j n = case removeParens mValExpr of
+      mVal@(Var _ _)
+        | hasFromJust mVal j -> Just (expr, asCaseExpression "_valueNamePlaceholder" mVal j n)
+        | otherwise -> Nothing
+      _ -> Nothing
 exprToIfInfo _ = Nothing
 
 allNames :: Data a => a -> Set String
