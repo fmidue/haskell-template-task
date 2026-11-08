@@ -88,12 +88,10 @@ encode = encodePretty $ setConfCompare compare defConfig
 
 defaultCode :: String
 defaultCode = BS.unpack (encode ( defaultSolutionConfig {
-       addCodeWorldRenderButton = Just False,
        configGhcErrors = Just [],
        configGhcWarnings = Just [],
        configHlintErrors = Just [],
        configHlintSuggestions = Just [],
-       provideSampleSolution = Just False,
        rigorousValidation = Just True } )) ++
   [SI.i|\#\#\#\#\# parameter description:
 \# allowAdding                 - allow adding program parts; defaults to true
@@ -262,7 +260,7 @@ defaultSolutionConfig = SolutionConfig {
     allowModifying              = Just False,
     allowRemoving               = Just False,
     addCodeWorldButton          = Just False,
-    addCodeWorldRenderButton    = Nothing,
+    addCodeWorldRenderButton    = Just False,
     addCodeWorldPartialRenderButton = Just False,
     configGhcLimit              = Just Nothing,
     configGhcErrors             = Nothing,
@@ -274,7 +272,7 @@ defaultSolutionConfig = SolutionConfig {
     configHlintSuggestions      = Nothing,
     configLanguageExtensions    = Just ["NPlusKPatterns","ScopedTypeVariables"],
     maxLineLength               = Just Nothing,
-    provideSampleSolution       = Nothing,
+    provideSampleSolution       = Just False,
     messageOnCloningSampleSolution = Just Nothing,
     disableSemantics            = Just False,
     rigorousValidation          = Nothing,
