@@ -82,7 +82,7 @@ spec = do
       `shouldReturn` [Left "Warning: Use dilated"]
   describe "maybe feedback" $ do
     it "should suggest replacing if with case-of when applicable (isJust)" $ do
-        result <- maybeCheckIO False (Just "Is there maybe a better way to express this?") [SI.i|
+        result <- maybeCheckIO False False (Just "Is there maybe a better way to express this?") [SI.i|
   module Main where
   import Data.Maybe
 
@@ -97,7 +97,7 @@ Is there maybe a better way to express this?
 |]
           ]
     it "should suggest replacing if with case-of when applicable (isNothing)" $ do
-        result <- maybeCheckIO True Nothing [SI.i|
+        result <- maybeCheckIO False True Nothing [SI.i|
   module Main where
   import Data.Maybe
 
@@ -106,7 +106,7 @@ Is there maybe a better way to express this?
 
         length result `shouldBe` 1
     it "should suggest replacing if with case-of when applicable (== Nothing)" $ do
-        result <- maybeCheckIO True Nothing [SI.i|
+        result <- maybeCheckIO False True Nothing [SI.i|
   module Main where
   import Data.Maybe
 
@@ -115,7 +115,7 @@ Is there maybe a better way to express this?
 
         length result `shouldBe` 1
     it "should suggest replacing if with case-of when applicable (/= Nothing)" $ do
-        result <- maybeCheckIO True Nothing [SI.i|
+        result <- maybeCheckIO False True Nothing [SI.i|
   module Main where
   import Data.Maybe
 
@@ -124,7 +124,7 @@ Is there maybe a better way to express this?
 
         length result `shouldBe` 1
     it "should not suggest replacing if with case-of when condition is mixed" $ do
-        result <- maybeCheckIO True Nothing [SI.i|
+        result <- maybeCheckIO False True Nothing [SI.i|
   module Main where
   import Data.Maybe
 
@@ -133,7 +133,7 @@ Is there maybe a better way to express this?
 
         length result `shouldBe` 0
     it "should not suggest replacing if with case-of when condition is comparison with Just value" $ do
-        result <- maybeCheckIO True Nothing [SI.i|
+        result <- maybeCheckIO False True Nothing [SI.i|
   module Main where
   import Data.Maybe
 
@@ -142,7 +142,7 @@ Is there maybe a better way to express this?
 
         length result `shouldBe` 0
     it "should not suggest replacing if with case-of when value is not used" $ do
-        result <- maybeCheckIO True Nothing [SI.i|
+        result <- maybeCheckIO False True Nothing [SI.i|
   module Main where
   import Data.Maybe
 
@@ -151,7 +151,7 @@ Is there maybe a better way to express this?
 
         length result `shouldBe` 0
     it "replacement should not introduce variable names that are already used or will be user later" $ do
-        result <- maybeCheckIO True Nothing [SI.i|
+        result <- maybeCheckIO False True Nothing [SI.i|
   module Main where
   import Data.Maybe
 
@@ -237,7 +237,7 @@ Perhaps:
                       pure $ value' value|]
           ]
     it "should suggest replacement even when nested" $ do
-        result <- maybeCheckIO True Nothing [SI.i|
+        result <- maybeCheckIO False True Nothing [SI.i|
   module Main where
   import Data.Maybe
 
@@ -262,7 +262,7 @@ Perhaps:
     Just value -> 2 * value|]
           ]
     it "should not suggest replacing if with case-of when isJust, fromJust, etc. are not from Data.Maybe" $ do
-        result <- maybeCheckIO True Nothing [SI.i|
+        result <- maybeCheckIO False True Nothing [SI.i|
   module Main where
   import Data.Maybe
 
@@ -276,7 +276,7 @@ Perhaps:
 
         length result `shouldBe` 0
     it "should not suggest replacing if with case-of when scrutinee is not a variable" $ do
-        result <- maybeCheckIO True Nothing [SI.i|
+        result <- maybeCheckIO False True Nothing [SI.i|
   module Main where
   import Data.Maybe
 
@@ -285,7 +285,7 @@ Perhaps:
 
         length result `shouldBe` 0
     it "should not suggest replacing if with case-of when fromJust is used on shadowed maybe value" $ do
-        result <- maybeCheckIO True Nothing [SI.i|
+        result <- maybeCheckIO False True Nothing [SI.i|
   module Main where
   import Data.Maybe
 
@@ -294,7 +294,7 @@ Perhaps:
 
         length result `shouldBe` 0
     it "replacement should not use redundant brackets" $ do
-        result <- maybeCheckIO True Nothing [SI.i|
+        result <- maybeCheckIO False True Nothing [SI.i|
   module Main where
   import Data.Maybe
 
@@ -501,13 +501,13 @@ hlintIO config content display selectHints = do
     firstLineOf (y:ys)            = y : firstLineOf ys
     firstLineOf []                = []
 
-maybeCheckIO :: Bool -> Maybe String -> String -> IO [String]
-maybeCheckIO provideSuggestion additionalMessage code = do
+maybeCheckIO :: Bool -> Bool -> Maybe String -> String -> IO [String]
+maybeCheckIO asError provideSuggestion additionalMessage code = do
   codeAST <- parse (fail . show) [] code
   let config = MaybeCaseOfOpportunityDetectionSetting {
-      enabled = True,
-      rejectOnOpportunity = False,
-      provideSuggestion,
+      asSuggestion = Just $ not asError,
+      asError = Just asError,
+      provideSuggestion = Just provideSuggestion,
       additionalMessage
     }
   getMaybeFeedback (pure . show) config codeAST

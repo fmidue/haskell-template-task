@@ -228,9 +228,9 @@ data FeedbackPhase
   deriving (Enum, Eq, Generic, Show, FromJSON, ToJSON)
 
 data MaybeCaseOfOpportunityDetectionSetting = MaybeCaseOfOpportunityDetectionSetting {
-    enabled :: Bool,
-    rejectOnOpportunity :: Bool,
-    provideSuggestion :: Bool,
+    asSuggestion :: Maybe Bool,
+    asError :: Maybe Bool,
+    provideSuggestion :: Maybe Bool,
     additionalMessage :: Maybe String
   } deriving (Generic, Show, FromJSON, ToJSON)
 
@@ -289,9 +289,9 @@ defaultSolutionConfig = SolutionConfig {
     configHlintSuggestions      = Nothing,
     configLanguageExtensions    = Just ["NPlusKPatterns","ScopedTypeVariables"],
     detectOpportunitiesToUseCaseOfWithMaybe = Just $ MaybeCaseOfOpportunityDetectionSetting {
-      enabled = False,
-      rejectOnOpportunity = False,
-      provideSuggestion = True,
+      asSuggestion = Just True,
+      asError = Nothing,
+      provideSuggestion = Just True,
       additionalMessage = Nothing
     },
     maxLineLength               = Just Nothing,
@@ -392,6 +392,11 @@ check
 check reject inform path i = do
   checkUnsafe reject i
   (config@SolutionConfig{..}, exts, (m,s), ms) <- processConfig reject inform i
+
+  let maybeDetectionConfig = runIdentity detectOpportunitiesToUseCaseOfWithMaybe
+  when (Just True == asSuggestion maybeDetectionConfig && Just True == asError maybeDetectionConfig)
+    $ reject "Cannot set both 'asSuggestion' and 'asError' to 'true' at 'detectOpportunitiesToUseCaseOfWithMaybe'."
+
   checkUniqueness (m : map fst ms)
   inform $ string $ "Parsing template module " <> m
   void $ parse reject exts s
@@ -606,7 +611,7 @@ getMaybeFeedback documentInfo MaybeCaseOfOpportunityDetectionSetting{..} ast = d
   sequence $ flip map (collectIfsWithMaybeChecks (annotate env ast)) $ \(foundIf,caseReplacement) ->
     documentInfo $ vcat
     [ string "Found:" <$$> indent 2 (text $ pack $ E.prettyPrint foundIf)
-    , if provideSuggestion
+    , if fromMaybe False provideSuggestion
         then string "Perhaps:" <$$> indent 2 (text $ pack $ E.prettyPrint caseReplacement)
         else empty
     , maybe empty (enclose linebreak linebreak . string) additionalMessage
@@ -1014,7 +1019,7 @@ testPhases reject inform template submissionFile modules config exts submission 
     void $ getHlintFeedback rejectWithHint config dirname submissionFile configHlintErrors
 
     -- Reject if suggestions involving checks on maybe values are present
-    when (enabled maybeDetectionConfig && rejectOnOpportunity maybeDetectionConfig) $ do
+    when (fromMaybe False $ asError maybeDetectionConfig) $ do
       void $ getMaybeFeedback rejectWithHint maybeDetectionConfig submissionAST
   ,
     -- Reject on task template violations according to settings (modifying, adding, deleting).
@@ -1033,7 +1038,7 @@ testPhases reject inform template submissionFile modules config exts submission 
     void $ getHlintFeedback inform config dirname submissionFile configHlintSuggestions
 
     -- Reject if suggestions involving checks on maybe values are present
-    when (enabled maybeDetectionConfig && not (rejectOnOpportunity maybeDetectionConfig)) $ do
+    when (fromMaybe False $ asSuggestion maybeDetectionConfig) $ do
       void $ getMaybeFeedback inform maybeDetectionConfig submissionAST
   ]
   where
