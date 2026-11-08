@@ -232,7 +232,7 @@ data FeedbackPhase
   deriving (Enum, Eq, Generic, Show, FromJSON, ToJSON)
 
 data MaybeCaseOfOpportunityDetectionSetting = MaybeCaseOfOpportunityDetectionSetting {
-    asSuggestion :: Maybe Bool,
+    asSuggestion :: Bool,
     asError :: Maybe Bool,
     provideSuggestion :: Maybe Bool,
     additionalMessage :: Maybe String
@@ -293,7 +293,7 @@ defaultSolutionConfig = SolutionConfig {
     configHlintSuggestions      = Nothing,
     configLanguageExtensions    = Just ["NPlusKPatterns","ScopedTypeVariables"],
     detectOpportunitiesToUseCaseOfWithMaybe = Just $ MaybeCaseOfOpportunityDetectionSetting {
-      asSuggestion = Just True,
+      asSuggestion = True,
       asError = Nothing,
       provideSuggestion = Just True,
       additionalMessage = Nothing
@@ -398,7 +398,7 @@ check reject inform path i = do
   (config@SolutionConfig{..}, exts, (m,s), ms) <- processConfig reject inform i
 
   let maybeDetectionConfig = runIdentity detectOpportunitiesToUseCaseOfWithMaybe
-  when (Just True == asSuggestion maybeDetectionConfig && Just True == asError maybeDetectionConfig)
+  when (asSuggestion maybeDetectionConfig && Just True == asError maybeDetectionConfig)
     $ reject "Cannot set both 'asSuggestion' and 'asError' to 'true' at 'detectOpportunitiesToUseCaseOfWithMaybe'."
 
   checkUniqueness (m : map fst ms)
@@ -1042,7 +1042,7 @@ testPhases reject inform template submissionFile modules config exts submission 
     void $ getHlintFeedback inform config dirname submissionFile configHlintSuggestions
 
     -- Reject if suggestions involving checks on maybe values are present
-    when (fromMaybe False $ asSuggestion maybeDetectionConfig) $ do
+    when (asSuggestion maybeDetectionConfig) $ do
       void $ getMaybeFeedback inform maybeDetectionConfig submissionAST
   ]
   where
