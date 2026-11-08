@@ -121,8 +121,9 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \#    status                  - status of the checker; can be one of:
 \#                              `Ignore`: disable the detection
 \#                              `Hint`: display the opportunities but don't reject
-\#                              `Reject`: reject the submission and show the first suggestion
-\#                              defaults to `Hint`.
+\#                              `Reject`: reject the submission and show the first suggestion if
+\#                              there are no hlint errors present
+\#                               defaults to `Hint`.
 \#    provideSuggestion        - whether to show the replacement using a case-of expression;
 \#                               optional; defaults to true
 \#    additionalMessage        - optional message to show; defaults to no message
