@@ -87,7 +87,13 @@ encode :: ToJSON a => a -> BS.ByteString
 encode = encodePretty $ setConfCompare compare defConfig
 
 defaultCode :: String
-defaultCode = BS.unpack (encode defaultSolutionConfig) ++
+defaultCode = BS.unpack (encode ( defaultSolutionConfig {
+       addCodeWorldRenderButton = Just False,
+       configGhcErrors = Just [],
+       configGhcWarnings = Just [],
+       configHlintErrors = Just [],
+       configHlintSuggestions = Just [],
+       rigorousValidation = Just True } )) ++
   [SI.i|\#\#\#\#\# parameter description:
 \# allowAdding                 - allow adding program parts; defaults to true
 \# allowModifying              - allow modifying program parts; defaults to false
@@ -118,7 +124,8 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \# disableSemantics            - will prevent the semantics phase (as determined by syntaxCutoff) from running;
 \#                               this means a submission will be accepted after passing the syntax phase;
 \#                               defaults to false
-\# provideSampleSolution       - display provided sample solution to students after semantics feedback
+\# provideSampleSolution       - display provided sample solution to students after semantics feedback;
+\#                               defaults to false
 \# rigorousValidation          - will run all tests configured for submissions on the provided sample solution
 \#                               (no effect if there is none);
 \#                               this should be set while configuring the task and disabled after,
@@ -267,7 +274,7 @@ defaultSolutionConfig = SolutionConfig {
     configHlintSuggestions      = Nothing,
     configLanguageExtensions    = Just ["NPlusKPatterns","ScopedTypeVariables"],
     maxLineLength               = Just Nothing,
-    provideSampleSolution       = Nothing,
+    provideSampleSolution       = Just False,
     messageOnCloningSampleSolution = Just Nothing,
     disableSemantics            = Just False,
     rigorousValidation          = Nothing,
