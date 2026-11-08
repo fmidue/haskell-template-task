@@ -88,6 +88,7 @@ encode = encodePretty $ setConfCompare compare defConfig
 
 defaultCode :: String
 defaultCode = BS.unpack (encode ( defaultSolutionConfig {
+       addCodeWorldRenderButton = Just False,
        configGhcErrors = Just [],
        configGhcWarnings = Just [],
        configHlintErrors = Just [],
@@ -261,7 +262,7 @@ defaultSolutionConfig = SolutionConfig {
     allowModifying              = Just False,
     allowRemoving               = Just False,
     addCodeWorldButton          = Just False,
-    addCodeWorldRenderButton    = Just False,
+    addCodeWorldRenderButton    = Nothing,
     addCodeWorldPartialRenderButton = Just False,
     configGhcLimit              = Just Nothing,
     configGhcErrors             = Nothing,
