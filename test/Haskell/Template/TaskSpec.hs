@@ -241,22 +241,23 @@ Perhaps:
   module Main where
   import Data.Maybe
 
-  def :: Maybe (Maybe Int) -> Int
-  def mVal = if isJust mVal then if isJust (fromJust mVal) then 2 * fromJust (fromJust mVal) else 0 else -1|]
+  def :: Maybe Int -> Maybe Int -> Int
+  def mVal1 mVal 2 = if isJust mVal1 then fromJust mVal1 + if isJust mVal2 then 2 * fromJust mVal2 else 0 else -1|]
 
         result `shouldBe` [
           [SI.i|Found:
-  if isJust mVal then
-  if isJust (fromJust mVal) then 2 * fromJust (fromJust mVal) else 0
+  if isJust mVal1 then
+  fromJust mVal1 + if isJust mVal2 then 2 * fromJust mVal2 else 0
   else -1
 Perhaps:
-  case mVal of
+  case mVal1 of
     Nothing -> -1
-    Just value -> if isJust (value) then 2 * fromJust (value) else 0|],
+    Just value -> value +
+                    if isJust mVal2 then 2 * fromJust mVal2 else 0|],
           [SI.i|Found:
-  if isJust (fromJust mVal) then 2 * fromJust (fromJust mVal) else 0
+  if isJust mVal2 then 2 * fromJust mVal2 else 0
 Perhaps:
-  case (fromJust mVal) of
+  case mVal2 of
     Nothing -> 0
     Just value -> 2 * value|]
           ]
@@ -266,12 +267,21 @@ Perhaps:
   import Data.Maybe
 
   def :: Maybe Int -> Int
-  def mVal = if isJust mVal then 5 else -3
+  def mVal = if isJust mVal then fromJust mVal else -3
     where isJust _ = False
 
   def2 :: Maybe Int -> Int
   def2 mVal = if isJust mVal then fromJust mVal else -3
     where fromJust _ = 99|]
+
+        length result `shouldBe` 0
+    it "should not suggest replacing if with case-of when scrutinee is not a variable" $ do
+        result <- maybeCheckIO True Nothing [SI.i|
+  module Main where
+  import Data.Maybe
+
+  def :: a -> (a -> Maybe Int) -> Int
+  def val f = if isJust (f val) then fromMaybe (f val) else -3|]
 
         length result `shouldBe` 0
     it "should not suggest replacing if with case-of when fromJust is used on shadowed maybe value" $ do
