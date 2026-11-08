@@ -7,6 +7,7 @@
 
 # acceptable duplicates
 linebreak linebreak
+False False
 
 # ls directory listings
 [-bcdlpsw](?:[-r][-w][-Ssx]){3}\s+\d+\s+\S+\s+\S+\s+\d+\s+
