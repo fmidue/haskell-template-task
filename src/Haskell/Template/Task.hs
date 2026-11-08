@@ -29,7 +29,8 @@ module Haskell.Template.Task (
   toMaybeSolutionConfig,
   unsafeTemplateSegment,
   getMaybeFeedback,
-  MaybeCaseOfOpportunityDetectionSetting (..),
+  FMaybeCaseOfOpportunityDetectionSetting (..),
+  MaybeCaseOfOpportunityDetectionSettingOpt,
   Status (..),
   ) where
 
@@ -125,7 +126,8 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \#                              no errors were reported by hlint, and then at that point;
 \#                              defaults to `Hint`
 \#    provideSuggestion        - whether to show the replacement using a case-of expression;
-\#                               defaults to true
+\#                               defaults to true if status is not set to `Ignore`;
+\#                               otherwise defaults to false
 \#    additionalMessage        - potential message to show; defaults to no message
 \#
 \# maxLineLength               - submissions with lines longer than this value are rejected; defaults to no limit
@@ -235,11 +237,51 @@ data FeedbackPhase
 data Status = Ignore | Hint | Reject
   deriving (Eq, Generic, Show, FromJSON, ToJSON)
 
-data MaybeCaseOfOpportunityDetectionSetting = MaybeCaseOfOpportunityDetectionSetting {
-    status :: Status,
-    provideSuggestion :: Maybe Bool,
-    additionalMessage :: Maybe String
-  } deriving (Generic, Show, FromJSON, ToJSON)
+data FMaybeCaseOfOpportunityDetectionSetting m = MaybeCaseOfOpportunityDetectionSetting {
+    status :: m Status,
+    provideSuggestion :: m Bool,
+    additionalMessage :: m (Maybe String)
+  } deriving (Generic)
+
+type MaybeCaseOfOpportunityDetectionSettingOpt = FMaybeCaseOfOpportunityDetectionSetting Maybe
+
+deriving instance Show MaybeCaseOfOpportunityDetectionSettingOpt
+deriving instance ToJSON MaybeCaseOfOpportunityDetectionSettingOpt
+deriving instance FromJSON MaybeCaseOfOpportunityDetectionSettingOpt
+
+type MaybeCaseOfOpportunityDetectionSetting = FMaybeCaseOfOpportunityDetectionSetting Identity
+
+deriving instance Show MaybeCaseOfOpportunityDetectionSetting
+
+toMaybeCaseOfOpportunityDetectionSettingOpt
+  :: MaybeCaseOfOpportunityDetectionSetting
+  -> MaybeCaseOfOpportunityDetectionSettingOpt
+toMaybeCaseOfOpportunityDetectionSettingOpt MaybeCaseOfOpportunityDetectionSetting{..} = runIdentity $
+  MaybeCaseOfOpportunityDetectionSetting
+    <$> fmap Just status
+    <*> fmap Just provideSuggestion
+    <*> fmap Just additionalMessage
+
+maybeToMaybeCaseOfOpportunityDetectionSetting
+  :: MaybeCaseOfOpportunityDetectionSettingOpt
+  -> Maybe MaybeCaseOfOpportunityDetectionSetting
+maybeToMaybeCaseOfOpportunityDetectionSetting MaybeCaseOfOpportunityDetectionSetting{..} =
+    MaybeCaseOfOpportunityDetectionSetting
+      <$> fmap Identity status
+      <*> fmap Identity provideSuggestion
+      <*> fmap Identity additionalMessage
+
+
+combineMaybeCaseOfOpportunityDetectionSetting
+  :: MaybeCaseOfOpportunityDetectionSettingOpt
+  -> MaybeCaseOfOpportunityDetectionSettingOpt
+  -> MaybeCaseOfOpportunityDetectionSettingOpt
+combineMaybeCaseOfOpportunityDetectionSetting x y = MaybeCaseOfOpportunityDetectionSetting {
+  status = status x <|> status y,
+  -- automatically ignore default values when status was explicitly set to ignore
+  provideSuggestion = provideSuggestion x <|> (if status x == Just Ignore then Just False else provideSuggestion y),
+  additionalMessage = additionalMessage x <|> (if status x == Just Ignore then Just Nothing else additionalMessage y)
+  }
 
 data FSolutionConfig m = SolutionConfig {
     allowAdding                 :: m Bool,
@@ -257,7 +299,7 @@ data FSolutionConfig m = SolutionConfig {
     configHlintRules            :: m [String],
     configHlintSuggestions      :: m [String],
     configLanguageExtensions    :: m [String],
-    detectOpportunitiesToUseCaseOfWithMaybe :: m MaybeCaseOfOpportunityDetectionSetting,
+    detectOpportunitiesToUseCaseOfWithMaybe :: m (FMaybeCaseOfOpportunityDetectionSetting m),
     maxLineLength               :: m (Maybe Natural),
     provideSampleSolution       :: m Bool,
     messageOnCloningSampleSolution :: m (Maybe String),
@@ -296,9 +338,9 @@ defaultSolutionConfig = SolutionConfig {
     configHlintSuggestions      = Nothing,
     configLanguageExtensions    = Just ["NPlusKPatterns","ScopedTypeVariables"],
     detectOpportunitiesToUseCaseOfWithMaybe = Just $ MaybeCaseOfOpportunityDetectionSetting {
-      status = Hint,
+      status = Just Hint,
       provideSuggestion = Just True,
-      additionalMessage = Nothing
+      additionalMessage = Just Nothing
     },
     maxLineLength               = Just Nothing,
     provideSampleSolution       = Nothing,
@@ -325,7 +367,7 @@ toSolutionConfigOpt SolutionConfig {..} = runIdentity $ SolutionConfig
   <*> fmap Just configHlintRules
   <*> fmap Just configHlintSuggestions
   <*> fmap Just configLanguageExtensions
-  <*> fmap Just detectOpportunitiesToUseCaseOfWithMaybe
+  <*> fmap (Just . toMaybeCaseOfOpportunityDetectionSettingOpt) detectOpportunitiesToUseCaseOfWithMaybe
   <*> fmap Just maxLineLength
   <*> fmap Just provideSampleSolution
   <*> fmap Just messageOnCloningSampleSolution
@@ -350,7 +392,7 @@ toMaybeSolutionConfig SolutionConfig{..} = SolutionConfig
       <*> fmap Identity configHlintRules
       <*> fmap Identity configHlintSuggestions
       <*> fmap Identity configLanguageExtensions
-      <*> fmap Identity detectOpportunitiesToUseCaseOfWithMaybe
+      <*> fmap Identity (detectOpportunitiesToUseCaseOfWithMaybe >>= maybeToMaybeCaseOfOpportunityDetectionSetting)
       <*> fmap Identity maxLineLength
       <*> fmap Identity provideSampleSolution
       <*> fmap Identity messageOnCloningSampleSolution
@@ -376,7 +418,9 @@ combineConfigs x y = SolutionConfig {
         configHlintSuggestions      = configHlintSuggestions      x <|> configHlintSuggestions      y,
         configLanguageExtensions    = configLanguageExtensions    x <|> configLanguageExtensions    y,
         detectOpportunitiesToUseCaseOfWithMaybe
-          = detectOpportunitiesToUseCaseOfWithMaybe x <|> detectOpportunitiesToUseCaseOfWithMaybe y,
+          = combineDetectOpportunitiesToUseCaseOfWithMaybe
+              (detectOpportunitiesToUseCaseOfWithMaybe x)
+              (detectOpportunitiesToUseCaseOfWithMaybe y),
         maxLineLength               = maxLineLength               x <|> maxLineLength               y,
         provideSampleSolution       = provideSampleSolution       x <|> provideSampleSolution       y,
         messageOnCloningSampleSolution = messageOnCloningSampleSolution x <|> messageOnCloningSampleSolution y,
@@ -384,6 +428,11 @@ combineConfigs x y = SolutionConfig {
         rigorousValidation          = rigorousValidation          x <|> rigorousValidation          y,
         syntaxCutoff                = syntaxCutoff                x <|> syntaxCutoff                y
       }
+      where
+        combineDetectOpportunitiesToUseCaseOfWithMaybe (Just a) (Just b)
+          = Just $ combineMaybeCaseOfOpportunityDetectionSetting a b
+        combineDetectOpportunitiesToUseCaseOfWithMaybe Nothing b = b
+        combineDetectOpportunitiesToUseCaseOfWithMaybe a Nothing = a
 
 string :: String -> Doc
 string = text . pack
@@ -400,13 +449,13 @@ check reject inform path i = do
   (config@SolutionConfig{..}, exts, (m,s), ms) <- processConfig reject inform i
 
   let maybeDetectionConfig = runIdentity detectOpportunitiesToUseCaseOfWithMaybe
-  case status maybeDetectionConfig of
+  case runIdentity $ status maybeDetectionConfig of
     Ignore
-      | isJust (provideSuggestion maybeDetectionConfig) ->
+      | runIdentity $ provideSuggestion maybeDetectionConfig ->
           reject
             $ "Cannot set 'provideSuggestion' to true when 'status' is 'Ignore'"
             <>  " at 'detectOpportunitiesToUseCaseOfWithMaybe'."
-      | isJust (additionalMessage maybeDetectionConfig) ->
+      | isJust (runIdentity $ additionalMessage maybeDetectionConfig) ->
           reject
             $ "Cannot set an 'additionalMessage' when 'status' is 'Ignore'"
             <>  " at 'detectOpportunitiesToUseCaseOfWithMaybe'."
@@ -626,10 +675,10 @@ getMaybeFeedback documentInfo MaybeCaseOfOpportunityDetectionSetting{..} ast = d
   sequence $ flip map (collectIfsWithMaybeChecks (annotate env ast)) $ \(foundIf,caseReplacement) ->
     documentInfo $ vcat
     [ string "Found:" <$$> indent 2 (text $ pack $ E.prettyPrint foundIf)
-    , if fromMaybe False provideSuggestion
+    , if runIdentity provideSuggestion
         then string "Perhaps:" <$$> indent 2 (text $ pack $ E.prettyPrint caseReplacement)
         else empty
-    , maybe empty (enclose linebreak linebreak . string) additionalMessage
+    , maybe empty (enclose linebreak linebreak . string) $ runIdentity additionalMessage
     ]
 
 editFeedback :: String -> String
@@ -1034,7 +1083,7 @@ testPhases reject inform template submissionFile modules config exts submission 
     void $ getHlintFeedback rejectWithHint config dirname submissionFile configHlintErrors
 
     -- Reject if checks on maybe values encounter a hit and were configured to reject.
-    when (Reject == status maybeDetectionConfig) $ do
+    when (Reject == runIdentity (status maybeDetectionConfig)) $ do
       void $ getMaybeFeedback rejectWithHint maybeDetectionConfig submissionAST
   ,
     -- Reject on task template violations according to settings (modifying, adding, deleting).
@@ -1053,7 +1102,7 @@ testPhases reject inform template submissionFile modules config exts submission 
     void $ getHlintFeedback inform config dirname submissionFile configHlintSuggestions
 
     -- Display suggestions involving checks on maybe values if configured as hints.
-    when (Hint == status maybeDetectionConfig) $ do
+    when (Hint == runIdentity (status maybeDetectionConfig)) $ do
       void $ getMaybeFeedback inform maybeDetectionConfig submissionAST
   ]
   where

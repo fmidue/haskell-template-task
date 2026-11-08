@@ -16,7 +16,7 @@ import Control.Monad.Catch (
   )
 import Control.Monad.IO.Class           (liftIO)
 import Control.Monad.Trans.Writer       (runWriterT, tell)
-import Data.Functor.Identity            (Identity)
+import Data.Functor.Identity            (Identity (..))
 import Data.List                        (intercalate, isPrefixOf)
 import Data.List.Extra                  (split)
 import Data.Maybe                       (fromJust)
@@ -505,9 +505,9 @@ maybeCheckIO :: Bool -> Bool -> Maybe String -> String -> IO [String]
 maybeCheckIO asError provideSuggestion additionalMessage code = do
   codeAST <- parse (fail . show) [] code
   let config = MaybeCaseOfOpportunityDetectionSetting {
-      status = if asError then Reject else Hint,
-      provideSuggestion = Just provideSuggestion,
-      additionalMessage
+      status = Identity $ if asError then Reject else Hint,
+      provideSuggestion = Identity provideSuggestion,
+      additionalMessage = Identity additionalMessage
     }
   getMaybeFeedback (pure . show) config codeAST
 
