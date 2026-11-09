@@ -80,7 +80,7 @@ detectOpportunitiesToUseCaseOfWithMaybe:
   status: Reject
 |]
 
-      let expectedConfig = MaybeCaseOfOpportunityDetectionSetting Reject (Identity True) (Identity Nothing)
+      let expectedConfig = MaybeCaseOfOpportunityDetectionSetting (Identity Reject) (Identity True) (Identity Nothing)
 
       result `shouldSatisfy` \(mRejection, infos) ->
         isRight mRejection && any (isInfixOf (show expectedConfig)) infos
@@ -119,7 +119,7 @@ detectOpportunitiesToUseCaseOfWithMaybe:
   offerReplacement: false
 |]
 
-      let expectedConfig = MaybeCaseOfOpportunityDetectionSetting Reject (Identity False) (Identity Nothing)
+      let expectedConfig = MaybeCaseOfOpportunityDetectionSetting (Identity Reject) (Identity False) (Identity Nothing)
 
       result `shouldSatisfy` \(mRejection, infos) ->
         isRight mRejection && any (isInfixOf (show expectedConfig)) infos
@@ -133,7 +133,7 @@ detectOpportunitiesToUseCaseOfWithMaybe:
   status: Ignore
 |]
 
-      let expectedConfig = MaybeCaseOfOpportunityDetectionSetting Ignore (Identity False) (Identity Nothing)
+      let expectedConfig = MaybeCaseOfOpportunityDetectionSetting (Identity Ignore) (Identity False) (Identity Nothing)
 
       result `shouldSatisfy` \(mRejection, infos) ->
         isRight mRejection && any (isInfixOf (show expectedConfig)) infos
