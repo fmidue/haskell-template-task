@@ -502,11 +502,11 @@ hlintIO config content display selectHints = do
     firstLineOf []                = []
 
 maybeCheckIO :: Bool -> Bool -> Maybe String -> String -> IO [String]
-maybeCheckIO asError provideSuggestion additionalMessage code = do
+maybeCheckIO asError offerReplacement additionalMessage code = do
   codeAST <- parse (fail . show) [] code
   let config = MaybeCaseOfOpportunityDetectionSetting {
       status = Identity $ if asError then Reject else Hint,
-      provideSuggestion = Identity provideSuggestion,
+      offerReplacement = Identity offerReplacement,
       additionalMessage = Identity additionalMessage
     }
   getMaybeFeedback (pure . show) config codeAST

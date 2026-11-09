@@ -131,9 +131,8 @@ defaultCode = BS.unpack (encode ( defaultSolutionConfig {
 \#                              `Reject`: reject the submission and show the first detection, but only if
 \#                              no errors were reported by hlint, and then at that point;
 \#                              defaults to `Hint`
-\#    provideSuggestion        - whether to show the replacement using a case-of expression;
-\#                               defaults to true if status is not set to `Ignore`;
-\#                               otherwise defaults to false
+\#    offerReplacement        - whether to offer the replacement using a case-of expression;
+\#                               defaults to true if status is not set to `Ignore`
 \#    additionalMessage        - potential message to show; defaults to no message
 \#
 \# maxLineLength               - submissions with lines longer than this value are rejected; defaults to no limit
@@ -245,7 +244,7 @@ data Status = Ignore | Hint | Reject
 
 data FMaybeCaseOfOpportunityDetectionSetting m = MaybeCaseOfOpportunityDetectionSetting {
     status :: m Status,
-    provideSuggestion :: m Bool,
+    offerReplacement :: m Bool,
     additionalMessage :: m (Maybe String)
   } deriving (Generic)
 
@@ -265,7 +264,7 @@ toMaybeCaseOfOpportunityDetectionSettingOpt
 toMaybeCaseOfOpportunityDetectionSettingOpt MaybeCaseOfOpportunityDetectionSetting{..} = runIdentity $
   MaybeCaseOfOpportunityDetectionSetting
     <$> fmap Just status
-    <*> fmap Just provideSuggestion
+    <*> fmap Just offerReplacement
     <*> fmap Just additionalMessage
 
 maybeToMaybeCaseOfOpportunityDetectionSetting
@@ -274,7 +273,7 @@ maybeToMaybeCaseOfOpportunityDetectionSetting
 maybeToMaybeCaseOfOpportunityDetectionSetting MaybeCaseOfOpportunityDetectionSetting{..} =
     MaybeCaseOfOpportunityDetectionSetting
       <$> fmap Identity status
-      <*> fmap Identity provideSuggestion
+      <*> fmap Identity offerReplacement
       <*> fmap Identity additionalMessage
 
 
@@ -285,7 +284,7 @@ combineMaybeCaseOfOpportunityDetectionSetting
 combineMaybeCaseOfOpportunityDetectionSetting x y = MaybeCaseOfOpportunityDetectionSetting {
   status = status x <|> status y,
   -- automatically ignore default values when status was explicitly set to ignore
-  provideSuggestion = provideSuggestion x <|> (if status x == Just Ignore then Just False else provideSuggestion y),
+  offerReplacement = offerReplacement x <|> (if status x == Just Ignore then Just False else offerReplacement y),
   additionalMessage = additionalMessage x <|> (if status x == Just Ignore then Just Nothing else additionalMessage y)
   }
 
@@ -345,7 +344,7 @@ defaultSolutionConfig = SolutionConfig {
     configLanguageExtensions    = Just ["NPlusKPatterns","ScopedTypeVariables"],
     detectOpportunitiesToUseCaseOfWithMaybe = Just $ MaybeCaseOfOpportunityDetectionSetting {
       status = Just Hint,
-      provideSuggestion = Just True,
+      offerReplacement = Just True,
       additionalMessage = Just Nothing
     },
     maxLineLength               = Just Nothing,
@@ -457,9 +456,9 @@ check reject inform path i = do
   let maybeDetectionConfig = runIdentity detectOpportunitiesToUseCaseOfWithMaybe
   case runIdentity $ status maybeDetectionConfig of
     Ignore
-      | runIdentity $ provideSuggestion maybeDetectionConfig ->
+      | runIdentity $ offerReplacement maybeDetectionConfig ->
           reject
-            $ "Cannot set 'provideSuggestion' to true when 'status' is 'Ignore'"
+            $ "Cannot set 'offerReplacement' to true when 'status' is 'Ignore'"
             <>  " at 'detectOpportunitiesToUseCaseOfWithMaybe'."
       | isJust (runIdentity $ additionalMessage maybeDetectionConfig) ->
           reject
@@ -681,7 +680,7 @@ getMaybeFeedback documentInfo MaybeCaseOfOpportunityDetectionSetting{..} ast = d
   sequence $ flip map (collectIfsWithMaybeChecks (annotate env ast)) $ \(foundIf,caseReplacement) ->
     documentInfo $ vcat
     [ string "Found:" <$$> indent 2 (text $ pack $ E.prettyPrint foundIf)
-    , if runIdentity provideSuggestion
+    , if runIdentity offerReplacement
         then string "Perhaps:" <$$> indent 2 (text $ pack $ E.prettyPrint caseReplacement)
         else empty
     , maybe empty (enclose linebreak linebreak . string) $ runIdentity additionalMessage
