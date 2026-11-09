@@ -1,8 +1,8 @@
 module Haskell.Template.Detection (collectIfsWithMaybeChecks) where
 
-import Control.Monad (guard, void)
+import Control.Monad (void)
 import Data.Data (Data)
-import Data.Generics (everything, everywhere, listify, mkQ, mkT, everywhere')
+import Data.Generics (everything, listify, mkQ, mkT, everywhere')
 import Data.List.Extra (notNull)
 import Data.Maybe (listToMaybe, mapMaybe, maybeToList)
 import Data.Set (Set)
@@ -27,19 +27,13 @@ collectIfsWithMaybeChecks :: Module (Scoped SrcSpanInfo) -> [(Exp (Scoped SrcSpa
 collectIfsWithMaybeChecks (Module _ _ _ _ decls) = concat $ mapMaybe process decls
   where
     process d = do
-      let opportunities = everything (++) (mkQ [] (maybeToList . exprToIfInfo)) d
-      guard $ notNull opportunities
-
       let
         allSymbols = Set.fromList (mapMaybe declName decls) `Set.union` allNames d
         freeName n
           | Set.member n allSymbols = freeName (n ++ "'")
           | otherwise = n
-        rename :: String -> Name () -> Name ()
-        rename n (Ident l "_valueNamePlaceholder") = Ident l n
-        rename _ nExpr = nExpr
 
-      pure $ map (everywhere $ mkT (rename $ freeName "value")) opportunities
+      pure $ everything (++) (mkQ [] (maybeToList . exprToIfInfo (freeName "value"))) d
 collectIfsWithMaybeChecks _ = []
 
 declName :: Decl a -> Maybe String
@@ -55,8 +49,8 @@ declName (PatBind _ (PVar _ pn) _ _) = Just $ fromName pn
     fromName (Symbol _ n) = n
 declName _ = Nothing
 
-exprToIfInfo :: Exp (Scoped SrcSpanInfo) -> Maybe (Exp (Scoped SrcSpanInfo), Exp ())
-exprToIfInfo expr@(If _ cond t e) = case removeParens cond of
+exprToIfInfo :: String -> Exp (Scoped SrcSpanInfo) -> Maybe (Exp (Scoped SrcSpanInfo), Exp ())
+exprToIfInfo valueName expr@(If _ cond t e) = case removeParens cond of
   (App _ (Var _ vn) maybeVal)
     | hasName maybeMod "isJust" vn -> transform maybeVal t e
     | hasName maybeMod "isNothing" vn -> transform maybeVal e t
@@ -80,10 +74,10 @@ exprToIfInfo expr@(If _ cond t e) = case removeParens cond of
 
     transform mValExpr j n = case removeParens mValExpr of
       mVal@(Var _ _)
-        | hasFromJust mVal j -> Just (expr, asCaseExpression "_valueNamePlaceholder" mVal j n)
+        | hasFromJust mVal j -> Just (expr, asCaseExpression valueName mVal j n)
         | otherwise -> Nothing
       _ -> Nothing
-exprToIfInfo _ = Nothing
+exprToIfInfo _ _ = Nothing
 
 allNames :: Data a => a -> Set String
 allNames = everything Set.union $ mkQ Set.empty extract
