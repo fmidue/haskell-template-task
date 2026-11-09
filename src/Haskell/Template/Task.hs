@@ -243,7 +243,7 @@ data Status = Ignore | Hint | Reject
   deriving (Eq, Generic, Show, FromJSON, ToJSON)
 
 data FMaybeCaseOfOpportunityDetectionSetting m = MaybeCaseOfOpportunityDetectionSetting {
-    status :: m Status,
+    status :: Status,
     offerReplacement :: m Bool,
     additionalMessage :: m (Maybe String)
   } deriving (Generic)
@@ -263,7 +263,7 @@ toMaybeCaseOfOpportunityDetectionSettingOpt
   -> MaybeCaseOfOpportunityDetectionSettingOpt
 toMaybeCaseOfOpportunityDetectionSettingOpt MaybeCaseOfOpportunityDetectionSetting{..} = runIdentity $
   MaybeCaseOfOpportunityDetectionSetting
-    <$> fmap Just status
+    <$> Identity status
     <*> fmap Just offerReplacement
     <*> fmap Just additionalMessage
 
@@ -272,7 +272,7 @@ maybeToMaybeCaseOfOpportunityDetectionSetting
   -> Maybe MaybeCaseOfOpportunityDetectionSetting
 maybeToMaybeCaseOfOpportunityDetectionSetting MaybeCaseOfOpportunityDetectionSetting{..} =
     MaybeCaseOfOpportunityDetectionSetting
-      <$> fmap Identity status
+      <$> Just status
       <*> fmap Identity offerReplacement
       <*> fmap Identity additionalMessage
 
@@ -282,10 +282,10 @@ combineMaybeCaseOfOpportunityDetectionSetting
   -> MaybeCaseOfOpportunityDetectionSettingOpt
   -> MaybeCaseOfOpportunityDetectionSettingOpt
 combineMaybeCaseOfOpportunityDetectionSetting x y = MaybeCaseOfOpportunityDetectionSetting {
-  status = status x <|> status y,
+  status = status x,
   -- automatically ignore default values when status was explicitly set to ignore
-  offerReplacement = offerReplacement x <|> (if status x == Just Ignore then Just False else offerReplacement y),
-  additionalMessage = additionalMessage x <|> (if status x == Just Ignore then Just Nothing else additionalMessage y)
+  offerReplacement = offerReplacement x <|> (if status x == Ignore then Just False else offerReplacement y),
+  additionalMessage = additionalMessage x <|> (if status x == Ignore then Just Nothing else additionalMessage y)
   }
 
 data FSolutionConfig m = SolutionConfig {
@@ -343,7 +343,7 @@ defaultSolutionConfig = SolutionConfig {
     configHlintSuggestions      = Nothing,
     configLanguageExtensions    = Just ["NPlusKPatterns","ScopedTypeVariables"],
     detectOpportunitiesToUseCaseOfWithMaybe = Just $ MaybeCaseOfOpportunityDetectionSetting {
-      status = Just Hint,
+      status = Hint,
       offerReplacement = Just True,
       additionalMessage = Just Nothing
     },
@@ -454,7 +454,7 @@ check reject inform path i = do
   (config@SolutionConfig{..}, exts, (m,s), ms) <- processConfig reject inform i
 
   let maybeDetectionConfig = runIdentity detectOpportunitiesToUseCaseOfWithMaybe
-  case runIdentity $ status maybeDetectionConfig of
+  case status maybeDetectionConfig of
     Ignore
       | runIdentity $ offerReplacement maybeDetectionConfig ->
           reject
@@ -1088,7 +1088,7 @@ testPhases reject inform template submissionFile modules config exts submission 
     void $ getHlintFeedback rejectWithHint config dirname submissionFile configHlintErrors
 
     -- Reject if checks on maybe values encounter a hit and were configured to reject.
-    when (Reject == runIdentity (status maybeDetectionConfig)) $ do
+    when (Reject == status maybeDetectionConfig) $ do
       void $ getMaybeFeedback rejectWithHint maybeDetectionConfig submissionAST
   ,
     -- Reject on task template violations according to settings (modifying, adding, deleting).
@@ -1107,7 +1107,7 @@ testPhases reject inform template submissionFile modules config exts submission 
     void $ getHlintFeedback inform config dirname submissionFile configHlintSuggestions
 
     -- Display suggestions involving checks on maybe values if configured as hints.
-    when (Hint == runIdentity (status maybeDetectionConfig)) $ do
+    when (Hint == status maybeDetectionConfig) $ do
       void $ getMaybeFeedback inform maybeDetectionConfig submissionAST
   ]
   where
