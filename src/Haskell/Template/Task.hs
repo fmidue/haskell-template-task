@@ -93,7 +93,13 @@ encode :: ToJSON a => a -> BS.ByteString
 encode = encodePretty $ setConfCompare compare defConfig
 
 defaultCode :: String
-defaultCode = BS.unpack (encode defaultSolutionConfig) ++
+defaultCode = BS.unpack (encode ( defaultSolutionConfig {
+       addCodeWorldRenderButton = Just False,
+       configGhcErrors = Just [],
+       configGhcWarnings = Just [],
+       configHlintErrors = Just [],
+       configHlintSuggestions = Just [],
+       rigorousValidation = Just True } )) ++
   [SI.i|\#\#\#\#\# parameter description:
 \# allowAdding                 - allow adding program parts; defaults to true
 \# allowModifying              - allow modifying program parts; defaults to false
@@ -139,12 +145,12 @@ defaultCode = BS.unpack (encode defaultSolutionConfig) ++
 \# disableSemantics            - will prevent the semantics phase (as determined by syntaxCutoff) from running;
 \#                               this means a submission will be accepted after passing the syntax phase;
 \#                               defaults to false
-\# provideSampleSolution       - display provided sample solution to students after semantics feedback
-\# rigorousValidation          - will run all tests configured for submissions on the provided sample solution
-\#                               (no effect if there is none);
+\# provideSampleSolution       - display provided sample solution to students after semantics feedback;
+\#                               defaults to false
+\# rigorousValidation          - will run all tests configured for submissions on the sample solution;
 \#                               this should be set while configuring the task and disabled after,
 \#                               in order to reduce wait times for students
-\# messageOnCloningSampleSolution - compare provided sample solution with submission and output
+\# messageOnCloningSampleSolution - compare sample solution with submission and output
 \#                                  this message as feedback if the submission contains the sample solution
 \#                                  (provideSampleSolution will be ignored if the submission is a clone);
 \#                                  default is to skip this
@@ -343,7 +349,7 @@ defaultSolutionConfig = SolutionConfig {
       additionalMessage = Just Nothing
     },
     maxLineLength               = Just Nothing,
-    provideSampleSolution       = Nothing,
+    provideSampleSolution       = Just False,
     messageOnCloningSampleSolution = Just Nothing,
     disableSemantics            = Just False,
     rigorousValidation          = Nothing,

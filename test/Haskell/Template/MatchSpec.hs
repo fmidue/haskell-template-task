@@ -28,7 +28,6 @@ completedDefaultSolutionConfig =
       configGhcWarnings = Just [],
       configHlintErrors = Just [],
       configHlintSuggestions = Just [],
-      provideSampleSolution = Just False,
       rigorousValidation = Just True }
 
 withAdding :: SolutionConfig
