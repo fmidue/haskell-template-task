@@ -99,9 +99,11 @@ defaultCode = BS.unpack (encode ( defaultSolutionConfig {
        configGhcWarnings = Just [],
        configHlintErrors = Just [],
        configHlintSuggestions = Just [],
-       detectOpportunitiesToUseCaseOfWithMaybe = Just $ (fromJust $ detectOpportunitiesToUseCaseOfWithMaybe defaultSolutionConfig) {
-          status = Just Hint
-       },
+       detectOpportunitiesToUseCaseOfWithMaybe =
+         Just $
+         (fromJust $ detectOpportunitiesToUseCaseOfWithMaybe defaultSolutionConfig) {
+           status = Just Hint
+         },
        rigorousValidation = Just True } )) ++
   [SI.i|\#\#\#\#\# parameter description:
 \# allowAdding                 - allow adding program parts; defaults to true
