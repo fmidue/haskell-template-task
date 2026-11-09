@@ -607,7 +607,7 @@ grade withSyntax withSemantics reject inform dirname task submission = do
       then pure (undefined, undefined)
       else writeModules (moduleName', submission) others dirname
     submissionAST <- case runIdentity syntaxCutoff of
-      CodeWidth -> pure undefined
+      CodeWidth | runIdentity disableSemantics -> pure undefined
       _ -> parse reject exts submission
     let
      (syntax, semantics) = splitAt (fromEnum syntaxCutoff)
