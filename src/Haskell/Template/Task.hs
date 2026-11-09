@@ -606,7 +606,9 @@ grade withSyntax withSemantics reject inform dirname task submission = do
       -- and semantics phase is disabled.
       then pure (undefined, undefined)
       else writeModules (moduleName', submission) others dirname
-    submissionAST <- parse reject exts submission
+    submissionAST <- case runIdentity syntaxCutoff of
+      CodeWidth -> pure undefined
+      _ -> parse reject exts submission
     let
      (syntax, semantics) = splitAt (fromEnum syntaxCutoff)
       $ testPhases reject inform template submissionFile modules config exts submission submissionAST dirname
