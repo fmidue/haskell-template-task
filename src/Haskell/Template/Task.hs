@@ -126,11 +126,10 @@ defaultCode = BS.unpack (encode ( defaultSolutionConfig {
 \#                               defaults to false
 \# provideSampleSolution       - display provided sample solution to students after semantics feedback;
 \#                               defaults to false
-\# rigorousValidation          - will run all tests configured for submissions on the provided sample solution
-\#                               (no effect if there is none);
+\# rigorousValidation          - will run all tests configured for submissions on the sample solution;
 \#                               this should be set while configuring the task and disabled after,
 \#                               in order to reduce wait times for students
-\# messageOnCloningSampleSolution - compare provided sample solution with submission and output
+\# messageOnCloningSampleSolution - compare sample solution with submission and output
 \#                                  this message as feedback if the submission contains the sample solution
 \#                                  (provideSampleSolution will be ignored if the submission is a clone);
 \#                                  default is to skip this
