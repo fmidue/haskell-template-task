@@ -173,9 +173,8 @@ module SampleSolution where
 import Prelude
 
 {-
-This module may provide a sample solution.
-Including it is currently optional, but strongly encouraged,
-as the sample will be validated the same way a student's submission would,
+This module has to provide a sample solution.
+The sample solution will be validated the same way a student's submission would,
 thus preventing a broken configuration or impossible task.
 -}
 
