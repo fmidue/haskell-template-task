@@ -277,7 +277,11 @@ Perhaps:
 
   def2 :: Maybe Int -> Int
   def2 mVal = if isJust mVal then fromJust mVal else -3
-    where fromJust _ = 99|]
+    where fromJust _ = 99
+
+  def3 :: Maybe Int -> Int
+  def3 mVal = if mVal /= Nothing then fromJust mVal else -3
+    where (/=) _ _ = True|]
 
         length result `shouldBe` 0
     it "should not suggest replacing if with case-of when scrutinee is not a variable" $ do

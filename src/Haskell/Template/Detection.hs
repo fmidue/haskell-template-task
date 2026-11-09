@@ -62,11 +62,12 @@ exprToIfInfo expr@(If _ cond t e) = case removeParens cond of
     | hasName maybeMod "isNothing" vn -> transform maybeVal e t
   (InfixApp _ l (QVarOp _ opName) r) -> case getMaybeVal l r of
     Just maybeVal
-      | hasName Nothing "==" opName -> transform maybeVal e t
-      | hasName Nothing "/=" opName -> transform maybeVal t e
+      | hasName eqMod "==" opName -> transform maybeVal e t
+      | hasName eqMod "/=" opName -> transform maybeVal t e
     _ -> Nothing
   _ -> Nothing
   where
+    eqMod = Just "GHC.Classes"
     maybeMod = Just "Data.Maybe"
     isNothingExpression (Con _ vName) = hasName maybeMod "Nothing" vName
     isNothingExpression _ = False
