@@ -198,7 +198,7 @@ import Prelude
 
 {-
 This module has to provide a sample solution.
-The sample will be validated the same way a student's submission would,
+The sample solution will be validated the same way a student's submission would,
 thus preventing a broken configuration or impossible task.
 -}
 
