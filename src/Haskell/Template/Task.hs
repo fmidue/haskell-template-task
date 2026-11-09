@@ -123,17 +123,16 @@ defaultCode = BS.unpack (encode ( defaultSolutionConfig {
 \#                               defaults to NPlusKPatterns + ScopedTypeVariables
 \#
 \# detectOpportunitiesToUseCaseOfWithMaybe - configuration for detection of opportunities to use
-\#                               case-of expressions with Maybe values (instead of if-expressions);
-\#                               this is part of the phase(s) including hlint checks
-\#    status                  - status of the checker; can be one of:
-\#                              `Ignore`: disable the detection
-\#                              `Hint`: display the opportunities (directly after hlint suggestions) but don't reject
-\#                              `Reject`: reject the submission and show the first detection, but only if
-\#                              no errors were reported by hlint, and then at that point;
-\#                              defaults to `Hint`
-\#    offerReplacement        - whether to offer the replacement using a case-of expression;
-\#                               defaults to true if status is not set to `Ignore`
-\#    additionalMessage        - potential message to show; defaults to no message
+\#                                           case-of expressions with Maybe values (instead of if-expressions);
+\#                                           this is part of the phase(s) including hlint checks
+\#    status            - status of the checker; can be one of:
+\#                        `Ignore`: disable the detection
+\#                        `Hint`: display the opportunities (directly after hlint suggestions) but don't reject
+\#                        `Reject`: reject the submission and show the first detection, but only if
+\#                                  no errors were reported by hlint, and then at that point
+\#    offerReplacement  - whether to offer the replacement expression;
+\#                        defaults to true if status is not set to `Ignore`
+\#    additionalMessage - potential message to show; defaults to no message
 \#
 \# maxLineLength               - submissions with lines longer than this value are rejected; defaults to no limit
 \# syntaxCutoff                - determines the last step in the syntax phase (later steps are considered semantics);
@@ -193,9 +192,8 @@ module SampleSolution where
 import Prelude
 
 {-
-This module may provide a sample solution.
-Including it is currently optional, but strongly encouraged,
-as the sample will be validated the same way a student's submission would,
+This module has to provide a sample solution.
+The sample will be validated the same way a student's submission would,
 thus preventing a broken configuration or impossible task.
 -}
 
