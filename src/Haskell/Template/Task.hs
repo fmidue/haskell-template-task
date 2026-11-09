@@ -58,7 +58,7 @@ import Data.List
    )
 import Data.List.Extra
   (genericTake, nubOrd, replace, takeEnd, takeWhileEnd)
-import Data.Maybe                       (fromMaybe, isJust)
+import Data.Maybe                       (fromJust, fromMaybe, isJust)
 import Data.Text.Lazy                   (pack)
 import Data.Typeable                    (Typeable)
 import Data.Yaml
