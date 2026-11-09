@@ -173,8 +173,8 @@ detectOpportunitiesToUseCaseOfWithMaybe:
             [SI.i|
 detectOpportunitiesToUseCaseOfWithMaybe:
   status: Hint
-  aditionalMessage: "hello world"
+  aditionalMessage: "hello world" \# no-spell-check
 |]
       result `shouldSatisfy` \(mRejection, _) -> case mRejection of
         Right () -> False
-        Left errorMsg -> "unknown fields: [\\\"aditionalMessage\\\"]" `isInfixOf` errorMsg
+        Left errorMsg -> "unknown fields: [\\\"aditionalMessage\\\"]" `isInfixOf` errorMsg -- no-spell-check
