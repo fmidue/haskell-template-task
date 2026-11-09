@@ -252,7 +252,9 @@ type MaybeCaseOfOpportunityDetectionSettingOpt = FMaybeCaseOfOpportunityDetectio
 
 deriving instance Show MaybeCaseOfOpportunityDetectionSettingOpt
 deriving instance ToJSON MaybeCaseOfOpportunityDetectionSettingOpt
-deriving instance FromJSON MaybeCaseOfOpportunityDetectionSettingOpt
+
+instance FromJSON MaybeCaseOfOpportunityDetectionSettingOpt where
+  parseJSON = genericParseJSON defaultOptions {rejectUnknownFields = True}
 
 type MaybeCaseOfOpportunityDetectionSetting = FMaybeCaseOfOpportunityDetectionSetting Identity
 

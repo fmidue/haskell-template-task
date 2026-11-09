@@ -163,3 +163,16 @@ detectOpportunitiesToUseCaseOfWithMaybe:
       result `shouldSatisfy` \(mRejection, _) -> case mRejection of
         Right () -> False
         Left errorMsg -> "Cannot set an 'additionalMessage' when 'status' is 'Ignore'" `isInfixOf` errorMsg
+    it "should reject config with misspelled field" $ do
+      result <-
+        evaluateCheck
+          $ encode adjustedDefaultConfig
+          $ Just
+            [SI.i|
+detectOpportunitiesToUseCaseOfWithMaybe:
+  status: Hint
+  aditionalMessage: "hello world"
+|]
+      result `shouldSatisfy` \(mRejection, _) -> case mRejection of
+        Right () -> False
+        Left errorMsg -> "unknown fields: [\\\"aditionalMessage\\\"]" `isInfixOf` errorMsg
