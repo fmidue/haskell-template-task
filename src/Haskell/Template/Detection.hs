@@ -100,7 +100,12 @@ hasFromJust mExpr expr = notNull $ listify isFromJustApp expr
       hasName (Just "Data.Maybe") "fromJust" vn && fmap void (removeParens maybeVal) == fmap void mExpr
     isFromJustApp _ = False
 
-asCaseExpression :: String -> Exp a -> Exp a -> Exp a -> Exp ()
+asCaseExpression
+  :: String
+  -> Exp (Scoped SrcSpanInfo)
+  -> Exp (Scoped SrcSpanInfo)
+  -> Exp (Scoped SrcSpanInfo)
+  -> Exp ()
 asCaseExpression valueName maybeValue justCase nothingCase =
   Case
     ()
@@ -109,16 +114,17 @@ asCaseExpression valueName maybeValue justCase nothingCase =
     , Alt
         ()
         (PApp () (UnQual () (Ident () "Just")) [PVar () (Ident () valueName)])
-        (UnGuardedRhs () $ replaceFromJustWithValue valueName (void maybeValue) (void justCase))
+        (UnGuardedRhs () $ replaceFromJustWithValue valueName maybeValue justCase)
         Nothing
     ]
 
-replaceFromJustWithValue :: String -> Exp () -> Exp () -> Exp ()
-replaceFromJustWithValue valueName maybeValue = everywhere' $ mkT replace
+replaceFromJustWithValue :: String -> Exp (Scoped SrcSpanInfo) -> Exp (Scoped SrcSpanInfo) -> Exp ()
+replaceFromJustWithValue valueName maybeValue = void . everywhere' (mkT replace)
   where
+    replace :: Exp (Scoped SrcSpanInfo) -> Exp (Scoped SrcSpanInfo)
     replace expr = case removeParens expr of
-      App () (Var () (UnQual _ (Ident () "fromJust"))) fnBody
-        | removeParens fnBody == maybeValue -> Var () (UnQual () (Ident () valueName))
+      App l (Var _ (UnQual _ (Ident _ "fromJust"))) fnBody
+        | fmap void (removeParens fnBody) == fmap void maybeValue -> Var l (UnQual l (Ident l valueName))
       _ -> expr
 
 removeParens :: Exp a -> Exp a

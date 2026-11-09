@@ -318,6 +318,23 @@ Perhaps:
     Nothing -> -3
     Just value -> 1 + value|]
           ]
+    it "replacement should not replace unrelated fromJust expressions" $ do
+        result <- maybeCheckIO False True Nothing [SI.i|
+  module Main where
+  import Data.Maybe
+
+  def :: Maybe Int -> Int
+  def mVal = if isJust m then fromJust m + (let m = Just 99 in fromJust m) else 0|]
+
+        result `shouldBe` [
+          [SI.i|Found:
+  if isJust m then fromJust m + (let m = Just 99 in fromJust m) else
+  0
+Perhaps:
+  case m of
+    Nothing -> 0
+    Just value -> value + (let m = Just 99 in fromJust m)|]
+          ]
   describe "grade" $ do
     it "is running" $
       gradeIO completedDefaultCode useImport `shouldReturn` ""
