@@ -63,6 +63,7 @@ test-suite haskell-template-task-test
   main-is: Spec.hs
   other-modules:
       Haskell.Template.ConfigSpec
+      Haskell.Template.GradingSpec
       Haskell.Template.MatchSpec
       Haskell.Template.TaskSpec
       Paths_haskell_template_task
