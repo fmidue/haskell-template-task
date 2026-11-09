@@ -41,6 +41,11 @@ defaultConfig = fromJust $ toMaybeSolutionConfig
       configGhcWarnings = Just [],
       configHlintErrors = Just [],
       configHlintSuggestions = Just [],
+      detectOpportunitiesToUseCaseOfWithMaybe = Just $ MaybeCaseOfOpportunityDetectionSetting {
+        status = Just Hint,
+        offerReplacement = Just True,
+        additionalMessage = Just Nothing
+      },
       provideSampleSolution = Just True,
       rigorousValidation = Just True } )
 

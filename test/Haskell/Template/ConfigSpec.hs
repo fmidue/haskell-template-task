@@ -61,16 +61,18 @@ evaluateCheck configString = withSystemTempDirectory "haskell-template-task" $ \
 spec :: Spec
 spec = describe "Task config" $ do
   describe "detectOpportunitiesToUseCaseOfWithMaybe" $ do
-    it "should be configured by default" $ do
-      (mRejection, _) <-
+    it "should reject config where status is not specified" $ do
+      result <-
         evaluateCheck
           $ flip encode Nothing
           $ adjustedDefaultConfig {
             detectOpportunitiesToUseCaseOfWithMaybe = detectOpportunitiesToUseCaseOfWithMaybe defaultSolutionConfig
             }
 
-      mRejection `shouldSatisfy` isRight
-    it "should allow to override the status while preserving other default values" $ do
+      result `shouldSatisfy` \(mRejection, _) -> case mRejection of
+        Right () -> False
+        Left errorMsg -> "There is a required configuration parameter missing" `isInfixOf` errorMsg
+    it "provides default values for 'offerReplacement' and 'additionalMessage'" $ do
       result <-
         evaluateCheck
           $ encode adjustedDefaultConfig
@@ -95,7 +97,7 @@ detectOpportunitiesToUseCaseOfWithMaybe:
 |]
       result `shouldSatisfy` \(mRejection, _) -> case mRejection of
         Right () -> False
-        Left errorMsg -> "key \\\"status\\\" not found" `isInfixOf` errorMsg
+        Left errorMsg -> "There is a required configuration parameter missing" `isInfixOf` errorMsg
     it "should not allow to provide additionalMessage without setting status" $ do
       result <-
         evaluateCheck
@@ -107,7 +109,7 @@ detectOpportunitiesToUseCaseOfWithMaybe:
 |]
       result `shouldSatisfy` \(mRejection, _) -> case mRejection of
         Right () -> False
-        Left errorMsg -> "key \\\"status\\\" not found" `isInfixOf` errorMsg
+        Left errorMsg -> "There is a required configuration parameter missing" `isInfixOf` errorMsg
     it "should prefer explicit value over default" $ do
       result <-
         evaluateCheck

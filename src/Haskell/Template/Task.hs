@@ -345,7 +345,7 @@ defaultSolutionConfig = SolutionConfig {
     configHlintSuggestions      = Nothing,
     configLanguageExtensions    = Just ["NPlusKPatterns","ScopedTypeVariables"],
     detectOpportunitiesToUseCaseOfWithMaybe = Just $ MaybeCaseOfOpportunityDetectionSetting {
-      status = Just Hint,
+      status = Nothing,
       offerReplacement = Just True,
       additionalMessage = Just Nothing
     },
