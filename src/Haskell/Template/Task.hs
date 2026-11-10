@@ -574,11 +574,6 @@ whileOpen :: IO.Handle -> IO ()
 whileOpen h =
   IO.hIsClosed h >>= flip unless (whileOpen h)
 
-dummySyntax :: MonadIO m => m () -> m ()
-dummySyntax m = do
-  liftIO $ putStrLn "withSyntax was called"
-  m
-
 {-|
 Generate consecutive syntax and possible semantics feedback in the context of an evaluation Monad.
 
