@@ -3,9 +3,9 @@ autotool
 Bifunctor
 concat
 elems
+FCase
 finalise
 fmap
-FMaybe
 fmidue
 foldl
 foldr
