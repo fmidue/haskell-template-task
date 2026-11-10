@@ -28,6 +28,10 @@ module Haskell.Template.Task (
   toSolutionConfigOpt,
   toMaybeSolutionConfig,
   unsafeTemplateSegment,
+  getMaybeFeedback,
+  FCaseOfWithMaybeConfig (..),
+  CaseOfWithMaybeConfigOpt,
+  Status (..),
   ) where
 
 import qualified Data.ByteString.Char8            as BS
@@ -54,7 +58,7 @@ import Data.List
    )
 import Data.List.Extra
   (genericTake, nubOrd, replace, takeEnd, takeWhileEnd)
-import Data.Maybe                       (fromMaybe)
+import Data.Maybe                       (fromJust, fromMaybe, isJust)
 import Data.Text.Lazy                   (pack)
 import Data.Typeable                    (Typeable)
 import Data.Yaml
@@ -79,9 +83,11 @@ import System.FilePath (
   )
 import Test.HUnit                       (Counts (..))
 import Text.PrettyPrint.Leijen.Text
-  (Doc, (<+>), empty, int, linebreak, nest, punctuate, text, vcat)
+  (Doc, (<+>), empty, int, linebreak, nest, punctuate, text, vcat, indent, (<$$>), enclose)
 import Text.Read                        (readMaybe)
 import Text.Regex.PCRE.Heavy            (re, sub, (=~))
+import Language.Haskell.Names (loadBase, annotate)
+import Haskell.Template.Detection (collectIfsWithMaybeChecks)
 
 encode :: ToJSON a => a -> BS.ByteString
 encode = encodePretty $ setConfCompare compare defConfig
@@ -93,6 +99,11 @@ defaultCode = BS.unpack (encode ( defaultSolutionConfig {
        configGhcWarnings = Just [],
        configHlintErrors = Just [],
        configHlintSuggestions = Just [],
+       detectOpportunitiesToUseCaseOfWithMaybe =
+         Just $
+         (fromJust $ detectOpportunitiesToUseCaseOfWithMaybe defaultSolutionConfig) {
+           status = Just Hint
+         },
        rigorousValidation = Just True } )) ++
   [SI.i|\#\#\#\#\# parameter description:
 \# allowAdding                 - allow adding program parts; defaults to true
@@ -109,18 +120,35 @@ defaultCode = BS.unpack (encode ( defaultSolutionConfig {
 \# configGhcErrors             - GHC warnings to enforce
 \# configGhcWarnings           - GHC warnings to provide as hints
 \# configHlintSuggestionsLimit - caps amount of hlint suggestions to display; defaults to no cap
-\# configHlintErrors           - hlint hints to enforce, only first one encountered is displayed
+\# configHlintErrors           - hlint hints to enforce; only the first one encountered is displayed
 \# configHlintGroups           - hlint extra hint groups to use; defaults to none
 \# configHlintRules            - hlint extra hint rules to use; defaults to none
 \# configHlintSuggestions      - hlint hints to provide as suggestions
 \# configLanguageExtensions    - this sets LanguageExtensions for hlint as well;
 \#                               defaults to NPlusKPatterns + ScopedTypeVariables
+\#
+\# detectOpportunitiesToUseCaseOfWithMaybe - configuration for detection of opportunities to use
+\#                                           case-of expressions with Maybe values (instead of if-expressions);
+\#                                           this is part of the phase(s) including hlint checks
+\#    status            - status of the checker; can be one of:
+\#                          Ignore: disable the detection
+\#                          Hint: display the opportunities (directly after hlint suggestions) but don't reject
+\#                          Reject: reject the submission and show the first detection, but only if
+\#                                  no errors were reported by hlint, and then at that point
+\#    offerReplacement  - whether to offer the replacement expression;
+\#                        defaults to true if status is not set to Ignore,
+\#                        otherwise is optional but can only be set to false
+\#    additionalMessage - potential message to show; defaults to no message,
+\#                        and cannot be set to anything if status is set to Ignore
+\#
 \# maxLineLength               - submissions with lines longer than this value are rejected; defaults to no limit
 \# syntaxCutoff                - determines the last step in the syntax phase (later steps are considered semantics);
 \#                               possible values (and also the order of steps):
 \#                                 CodeWidth, Compilation, GhcErrors, HlintErrors, TemplateMatch, TestSuite
 \#                               default on omission is TemplateMatch; steps after TestSuite are (in this order):
 \#                                 GhcWarnings, HlintSuggestions
+\#                               one subtlety of the Compilation phase is that there is a generic syntax error shown
+\#                               when haskell-src-exts is unable to parse a program, the GHC error will not surface
 \# disableSemantics            - will prevent the semantics phase (as determined by syntaxCutoff) from running;
 \#                               this means a submission will be accepted after passing the syntax phase;
 \#                               defaults to false
@@ -218,6 +246,57 @@ data FeedbackPhase
   | TestSuite
   deriving (Enum, Eq, Generic, Show, FromJSON, ToJSON)
 
+data Status = Ignore | Hint | Reject
+  deriving (Eq, Generic, Show, FromJSON, ToJSON)
+
+data FCaseOfWithMaybeConfig m = CaseOfWithMaybeConfig {
+    status :: m Status,
+    offerReplacement :: m Bool,
+    additionalMessage :: m (Maybe String)
+  } deriving (Generic)
+
+type CaseOfWithMaybeConfigOpt = FCaseOfWithMaybeConfig Maybe
+
+deriving instance Show CaseOfWithMaybeConfigOpt
+deriving instance ToJSON CaseOfWithMaybeConfigOpt
+
+instance FromJSON CaseOfWithMaybeConfigOpt where
+  parseJSON = genericParseJSON defaultOptions {rejectUnknownFields = True}
+
+type CaseOfWithMaybeConfig = FCaseOfWithMaybeConfig Identity
+
+deriving instance Show CaseOfWithMaybeConfig
+
+toCaseOfWithMaybeConfigOpt
+  :: CaseOfWithMaybeConfig
+  -> CaseOfWithMaybeConfigOpt
+toCaseOfWithMaybeConfigOpt CaseOfWithMaybeConfig{..} = runIdentity $
+  CaseOfWithMaybeConfig
+    <$> fmap Just status
+    <*> fmap Just offerReplacement
+    <*> fmap Just additionalMessage
+
+toMaybeCaseOfWithMaybeConfig
+  :: CaseOfWithMaybeConfigOpt
+  -> Maybe CaseOfWithMaybeConfig
+toMaybeCaseOfWithMaybeConfig CaseOfWithMaybeConfig{..} =
+    CaseOfWithMaybeConfig
+      <$> fmap Identity status
+      <*> fmap Identity offerReplacement
+      <*> fmap Identity additionalMessage
+
+
+combineCaseOfWithMaybeConfigs
+  :: CaseOfWithMaybeConfigOpt
+  -> CaseOfWithMaybeConfigOpt
+  -> CaseOfWithMaybeConfigOpt
+combineCaseOfWithMaybeConfigs x y = CaseOfWithMaybeConfig {
+  status = status x <|> status y,
+  -- automatically ignore default values when status was explicitly set to ignore
+  offerReplacement = offerReplacement x <|> (if status x == Just Ignore then Just False else offerReplacement y),
+  additionalMessage = additionalMessage x <|> (if status x == Just Ignore then Just Nothing else additionalMessage y)
+  }
+
 data FSolutionConfig m = SolutionConfig {
     allowAdding                 :: m Bool,
     allowModifying              :: m Bool,
@@ -234,6 +313,7 @@ data FSolutionConfig m = SolutionConfig {
     configHlintRules            :: m [String],
     configHlintSuggestions      :: m [String],
     configLanguageExtensions    :: m [String],
+    detectOpportunitiesToUseCaseOfWithMaybe :: m (FCaseOfWithMaybeConfig m),
     maxLineLength               :: m (Maybe Natural),
     provideSampleSolution       :: m Bool,
     messageOnCloningSampleSolution :: m (Maybe String),
@@ -271,6 +351,11 @@ defaultSolutionConfig = SolutionConfig {
     configHlintRules            = Just [],
     configHlintSuggestions      = Nothing,
     configLanguageExtensions    = Just ["NPlusKPatterns","ScopedTypeVariables"],
+    detectOpportunitiesToUseCaseOfWithMaybe = Just $ CaseOfWithMaybeConfig {
+      status = Nothing,
+      offerReplacement = Just True,
+      additionalMessage = Just Nothing
+    },
     maxLineLength               = Just Nothing,
     provideSampleSolution       = Just False,
     messageOnCloningSampleSolution = Just Nothing,
@@ -296,6 +381,7 @@ toSolutionConfigOpt SolutionConfig {..} = runIdentity $ SolutionConfig
   <*> fmap Just configHlintRules
   <*> fmap Just configHlintSuggestions
   <*> fmap Just configLanguageExtensions
+  <*> fmap (Just . toCaseOfWithMaybeConfigOpt) detectOpportunitiesToUseCaseOfWithMaybe
   <*> fmap Just maxLineLength
   <*> fmap Just provideSampleSolution
   <*> fmap Just messageOnCloningSampleSolution
@@ -320,6 +406,7 @@ toMaybeSolutionConfig SolutionConfig{..} = SolutionConfig
       <*> fmap Identity configHlintRules
       <*> fmap Identity configHlintSuggestions
       <*> fmap Identity configLanguageExtensions
+      <*> fmap Identity (detectOpportunitiesToUseCaseOfWithMaybe >>= toMaybeCaseOfWithMaybeConfig)
       <*> fmap Identity maxLineLength
       <*> fmap Identity provideSampleSolution
       <*> fmap Identity messageOnCloningSampleSolution
@@ -344,6 +431,10 @@ combineConfigs x y = SolutionConfig {
         configHlintRules            = configHlintRules            x <|> configHlintRules            y,
         configHlintSuggestions      = configHlintSuggestions      x <|> configHlintSuggestions      y,
         configLanguageExtensions    = configLanguageExtensions    x <|> configLanguageExtensions    y,
+        detectOpportunitiesToUseCaseOfWithMaybe
+          = combineDetectOpportunitiesToUseCaseOfWithMaybe
+              (detectOpportunitiesToUseCaseOfWithMaybe x)
+              (detectOpportunitiesToUseCaseOfWithMaybe y),
         maxLineLength               = maxLineLength               x <|> maxLineLength               y,
         provideSampleSolution       = provideSampleSolution       x <|> provideSampleSolution       y,
         messageOnCloningSampleSolution = messageOnCloningSampleSolution x <|> messageOnCloningSampleSolution y,
@@ -351,6 +442,11 @@ combineConfigs x y = SolutionConfig {
         rigorousValidation          = rigorousValidation          x <|> rigorousValidation          y,
         syntaxCutoff                = syntaxCutoff                x <|> syntaxCutoff                y
       }
+      where
+        combineDetectOpportunitiesToUseCaseOfWithMaybe (Just a) (Just b)
+          = Just $ combineCaseOfWithMaybeConfigs a b
+        combineDetectOpportunitiesToUseCaseOfWithMaybe Nothing b = b
+        combineDetectOpportunitiesToUseCaseOfWithMaybe a Nothing = a
 
 string :: String -> Doc
 string = text . pack
@@ -365,6 +461,20 @@ check
 check reject inform path i = do
   checkUnsafe reject i
   (config@SolutionConfig{..}, exts, (m,s), ms) <- processConfig reject inform i
+
+  let maybeDetectionConfig = runIdentity detectOpportunitiesToUseCaseOfWithMaybe
+  case runIdentity $ status maybeDetectionConfig of
+    Ignore
+      | runIdentity $ offerReplacement maybeDetectionConfig ->
+          reject
+            $ "Cannot set 'offerReplacement' to true when 'status' is 'Ignore'"
+            <>  " at 'detectOpportunitiesToUseCaseOfWithMaybe'."
+      | isJust (runIdentity $ additionalMessage maybeDetectionConfig) ->
+          reject
+            $ "Cannot set an 'additionalMessage' when 'status' is 'Ignore'"
+            <>  " at 'detectOpportunitiesToUseCaseOfWithMaybe'."
+    _ -> pure ()
+
   checkUniqueness (m : map fst ms)
   inform $ string $ "Parsing template module " <> m
   void $ parse reject exts s
@@ -384,7 +494,8 @@ check reject inform path i = do
       let content = replace "SampleSolution" m sampleSolution
       mapM_ (checkLineLength reject content . subtract 3) $ runIdentity maxLineLength
       (modules, solutionFile) <- writeModules (m, content) others path
-      sequence_ $ testPhases reject inform s solutionFile modules stricterConfig exts content path
+      contentAST <- parse reject exts content
+      sequence_ $ testPhases reject inform s solutionFile modules stricterConfig exts content contentAST path
   where
     parseModule exts (m, s) = do
       inform $ string $ "Parsing module " <> m
@@ -499,9 +610,12 @@ grade withSyntax withSemantics reject inform dirname task submission = do
       -- and semantics phase is disabled.
       then pure (undefined, undefined)
       else writeModules (moduleName', submission) others dirname
+    submissionAST <- case runIdentity syntaxCutoff of
+      CodeWidth | runIdentity disableSemantics -> pure undefined
+      _ -> parse (fmap undefined . withSyntax . reject) exts submission
     let
      (syntax, semantics) = splitAt (fromEnum syntaxCutoff)
-      $ testPhases reject inform template submissionFile modules config exts submission dirname
+      $ testPhases reject inform template submissionFile modules config exts submission submissionAST dirname
     withSyntax $ sequence_ syntax
     if runIdentity disableSemantics
     then pure False
@@ -517,7 +631,7 @@ grade withSyntax withSemantics reject inform dirname task submission = do
           (inform $ string message)
           exts
           (replace "SampleSolution" moduleName' sampleSolution)
-          submission
+          submissionAST
 
 rejectHint :: Doc
 rejectHint = [SI.iii|
@@ -566,6 +680,23 @@ getHlintFeedback documentInfo config dir file selectHints = case hints of
     hlintFeedback feedbackIdeas =
       hintLimit [documentInfo $ string $ editFeedback $ show comment | comment <- feedbackIdeas]
 
+getMaybeFeedback
+  :: MonadIO m
+  => (Doc -> m a)
+  -> CaseOfWithMaybeConfig
+  -> E.Module E.SrcSpanInfo
+  -> m [a]
+getMaybeFeedback documentInfo CaseOfWithMaybeConfig{..} ast = do
+  env <- liftIO loadBase
+  sequence $ flip map (collectIfsWithMaybeChecks (annotate env ast)) $ \(foundIf,caseReplacement) ->
+    documentInfo $ vcat
+    [ string "Found:" <$$> indent 2 (text $ pack $ E.prettyPrint foundIf)
+    , if runIdentity offerReplacement
+        then string "Perhaps:" <$$> indent 2 (text $ pack $ E.prettyPrint caseReplacement)
+        else empty
+    , maybe empty (enclose linebreak linebreak . string) $ runIdentity additionalMessage
+    ]
+
 editFeedback :: String -> String
 editFeedback xs = case elemIndex ':' xs of
       Just index ->
@@ -604,9 +735,10 @@ matchTemplate
   -> [E.Extension]
   -> String
   -> String
+  -> E.Module E.SrcSpanInfo
   -> m ()
-matchTemplate reject config context exts template submission =
-  runMatchTestOn reject exts template submission $ \case
+matchTemplate reject config context exts template submission submissionAST =
+  runMatchTestOn reject exts template submissionAST $ \case
     Fail loc -> mapM_ (rejectMatch rejectWithHint config context template submission) loc
       where
         rejectWithHint = rejectWithMessage reject rejectHint
@@ -618,7 +750,7 @@ catchSampleSolutionClone
   -> m ()
   -> [E.Extension]
   -> String
-  -> String
+  -> E.Module E.SrcSpanInfo
   -> m Bool
 catchSampleSolutionClone reject displayMessage exts sample submission =
   runMatchTestOn reject exts sample submission $ \case
@@ -634,12 +766,11 @@ runMatchTestOn
   => (forall a. Doc -> m a)
   -> [E.Extension]
   -> String
-  -> String
+  -> E.Module E.SrcSpanInfo
   -> (Result () -> m b)
   -> m b
-runMatchTestOn reject exts rawTemplate rawSubmission whatToDo = do
+runMatchTestOn reject exts rawTemplate submission whatToDo = do
   template  <- parse reject exts rawTemplate
-  submission <- parse reject exts rawSubmission
   case Match.test template submission of
     Continue -> reject [SI.i|Haskell.Template.Central.matchTemplate:
 #{informTutorMessage}|]
@@ -756,18 +887,17 @@ parse reject' exts' m = case E.readExtensions m of
                     { P.extensions = exts ++ exts' }
     in case P.parseModuleWithMode parseMode m of
          P.ParseOk a -> return a
-         P.ParseFailed loc msg ->
-           rejectParse reject' m loc msg
+         P.ParseFailed loc _ ->
+           rejectParse reject' m loc
 
-rejectParse :: (Doc -> t) -> String -> E.SrcLoc -> String -> t
-rejectParse reject' m loc msg =
+rejectParse :: (Doc -> t) -> String -> E.SrcLoc -> t
+rejectParse reject' m loc =
   let (lPre, _) = splitAt (E.srcLine loc) $ lines m
       lPre'     = takeEnd 3 lPre
       tag       = replicate (E.srcColumn loc - 1) '.' ++ "^"
   in reject' $ vcat
        ["Syntax error (your submission is no Haskell program):",
-        bloc $ lPre' ++ [tag],
-        string msg]
+        bloc $ lPre' ++ [tag]]
 
 rejectMatch
   :: Applicative m
@@ -939,9 +1069,10 @@ testPhases
   -> SolutionConfig
   -> [E.Extension]
   -> String
+  -> E.Module E.SrcSpanInfo
   -> FilePath
   -> [m ()]
-testPhases reject inform template submissionFile modules config exts submission dirname =
+testPhases reject inform template submissionFile modules config exts submission submissionAST dirname =
   [
     do
     -- Reject if submission does not compile with provided hidden modules,
@@ -962,12 +1093,16 @@ testPhases reject inform template submissionFile modules config exts submission 
   ,
     -- Reject if GHC warnings configured as errors are triggered by submission.
     compileWithArgsAndCheck dirname reject rejectWithHint config noTest configGhcErrors
-  ,
+  , do
     -- Reject if HLint warnings configured as errors are triggered by submission.
     void $ getHlintFeedback rejectWithHint config dirname submissionFile configHlintErrors
+
+    -- Reject if checks on maybe values encounter a hit and were configured to reject.
+    when (Reject == runIdentity (status maybeDetectionConfig)) $ do
+      void $ getMaybeFeedback rejectWithHint maybeDetectionConfig submissionAST
   ,
     -- Reject on task template violations according to settings (modifying, adding, deleting).
-    matchTemplate reject config 2 exts template submission
+    matchTemplate reject config 2 exts template submission submissionAST
   ,
     do
     -- Reject if test suite fails for submission.
@@ -980,8 +1115,13 @@ testPhases reject inform template submissionFile modules config exts submission 
 
     -- Displays HLint suggestions configured as non-errors triggered by submission.
     void $ getHlintFeedback inform config dirname submissionFile configHlintSuggestions
+
+    -- Display suggestions involving checks on maybe values if configured as hints.
+    when (Hint == runIdentity (status maybeDetectionConfig)) $ do
+      void $ getMaybeFeedback inform maybeDetectionConfig submissionAST
   ]
   where
+    maybeDetectionConfig = runIdentity $ detectOpportunitiesToUseCaseOfWithMaybe config
     noTest = delete "Test" modules
 
     rejectWithHint = rejectWithMessage reject rejectHint

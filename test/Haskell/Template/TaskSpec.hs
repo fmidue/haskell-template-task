@@ -1,4 +1,5 @@
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE NamedFieldPuns #-}
 module Haskell.Template.TaskSpec where
 
 import qualified Data.ByteString.Char8            as BS (unpack)
@@ -15,7 +16,7 @@ import Control.Monad.Catch (
   )
 import Control.Monad.IO.Class           (liftIO)
 import Control.Monad.Trans.Writer       (runWriterT, tell)
-import Data.Functor.Identity            (Identity)
+import Data.Functor.Identity            (Identity (..))
 import Data.List                        (intercalate, isPrefixOf)
 import Data.List.Extra                  (split)
 import Data.Maybe                       (fromJust)
@@ -40,6 +41,11 @@ defaultConfig = fromJust $ toMaybeSolutionConfig
       configGhcWarnings = Just [],
       configHlintErrors = Just [],
       configHlintSuggestions = Just [],
+      detectOpportunitiesToUseCaseOfWithMaybe = Just $ CaseOfWithMaybeConfig {
+        status = Just Hint,
+        offerReplacement = Just True,
+        additionalMessage = Just Nothing
+      },
       provideSampleSolution = Just True,
       rigorousValidation = Just True } )
 
@@ -79,6 +85,256 @@ spec = do
     it "allows specifying fixity" $
       hlintIO dilatedWithFixity useDilated errorP configHlintErrors
       `shouldReturn` [Left "Warning: Use dilated"]
+  describe "maybe feedback" $ do
+    it "should suggest replacing if with case-of when applicable (isJust)" $ do
+        result <- maybeCheckIO False False (Just "Is there maybe a better way to express this?") [SI.i|
+  module Main where
+  import Data.Maybe
+
+  def :: Maybe Int -> Int
+  def mVal = if isNothing mVal then -3 else fromJust mVal|]
+
+        result `shouldBe` [
+          [SI.i|Found:
+  if isNothing mVal then -3 else fromJust mVal
+
+Is there maybe a better way to express this?
+|]
+          ]
+    it "should suggest replacing if with case-of when applicable (isNothing)" $ do
+        result <- maybeCheckIO False True Nothing [SI.i|
+  module Main where
+  import Data.Maybe
+
+  def :: Maybe Int -> Int
+  def mVal = if mVal == Nothing then -3 else fromJust mVal|]
+
+        length result `shouldBe` 1
+    it "should suggest replacing if with case-of when applicable (== Nothing)" $ do
+        result <- maybeCheckIO False True Nothing [SI.i|
+  module Main where
+  import Data.Maybe
+
+  def :: Maybe Int -> Int
+  def mVal = if mVal /= Nothing then fromJust mVal else -3|]
+
+        length result `shouldBe` 1
+    it "should suggest replacing if with case-of when applicable (/= Nothing)" $ do
+        result <- maybeCheckIO False True Nothing [SI.i|
+  module Main where
+  import Data.Maybe
+
+  def :: Maybe Int -> Int
+  def mVal = if isJust mVal then fromJust mVal else -3|]
+
+        length result `shouldBe` 1
+    it "should not suggest replacing if with case-of when condition is mixed" $ do
+        result <- maybeCheckIO False True Nothing [SI.i|
+  module Main where
+  import Data.Maybe
+
+  def :: Maybe Int -> Int
+  def mVal = if isJust mVal && True then fromJust mVal else -3|]
+
+        length result `shouldBe` 0
+    it "should not suggest replacing if with case-of when condition is comparison with Just value" $ do
+        result <- maybeCheckIO False True Nothing [SI.i|
+  module Main where
+  import Data.Maybe
+
+  def :: Maybe Int -> Int
+  def mVal = if mVal == Just 5 then fromJust mVal else -3|]
+
+        length result `shouldBe` 0
+    it "should not suggest replacing if with case-of when value is not used" $ do
+        result <- maybeCheckIO False True Nothing [SI.i|
+  module Main where
+  import Data.Maybe
+
+  def :: Maybe Int -> Int
+  def mVal = if isJust mVal then 5 else -3|]
+
+        length result `shouldBe` 0
+    it "replacement should not introduce variable names that are already used or will be used later" $ do
+        result <- maybeCheckIO False True Nothing [SI.i|
+  module Main where
+  import Data.Maybe
+
+  def mVal = let value = -3 in if isJust mVal then fromJust mVal else value
+
+  def2 mVal = if isJust mVal then let value = 5 in fromJust mVal else -3
+
+  def3 mVal = if isJust mVal then fromJust mVal * value else 0
+    where value = 17
+
+  def4 val = case val of
+    [value] -> if isJust value then 2 * fromJust value else -1
+    _ -> 0
+
+  def5 mVal f = if isJust mVal then f (\\value -> fromJust mVal value) else undefined
+
+  def6 mVal x = if isJust mVal then 2 - fromJust mVal else process x
+    where
+      process value = 3 * abs value
+
+  def7 mVal xs = if isJust mVal then [fromJust mVal value | value <- xs] else xs
+
+  def8 mVal xs = if isJust mVal
+    then do
+      value <- xs
+      pure $ fromJust mVal value
+    else xs
+  |]
+
+        result `shouldBe` [
+          [SI.i|Found:
+  if isJust mVal then fromJust mVal else value
+Perhaps:
+  case mVal of
+    Nothing -> value
+    Just value' -> value'|],
+          [SI.i|Found:
+  if isJust mVal then let value = 5 in fromJust mVal else -3
+Perhaps:
+  case mVal of
+    Nothing -> -3
+    Just value' -> let value = 5 in value'|],
+          [SI.i|Found:
+  if isJust mVal then fromJust mVal * value else 0
+Perhaps:
+  case mVal of
+    Nothing -> 0
+    Just value' -> value' * value|],
+          [SI.i|Found:
+  if isJust value then 2 * fromJust value else -1
+Perhaps:
+  case value of
+    Nothing -> -1
+    Just value' -> 2 * value'|],
+          [SI.i|Found:
+  if isJust mVal then f (\\ value -> fromJust mVal value) else
+  undefined
+Perhaps:
+  case mVal of
+    Nothing -> undefined
+    Just value' -> f (\\ value -> value' value)|],
+          [SI.i|Found:
+  if isJust mVal then 2 - fromJust mVal else process x
+Perhaps:
+  case mVal of
+    Nothing -> process x
+    Just value' -> 2 - value'|],
+          [SI.i|Found:
+  if isJust mVal then [fromJust mVal value | value <- xs] else xs
+Perhaps:
+  case mVal of
+    Nothing -> xs
+    Just value' -> [value' value | value <- xs]|],
+          [SI.i|Found:
+  if isJust mVal then
+  do value <- xs
+     pure $ fromJust mVal value
+  else xs
+Perhaps:
+  case mVal of
+    Nothing -> xs
+    Just value' -> do value <- xs
+                      pure $ value' value|]
+          ]
+    it "should suggest replacement even when nested" $ do
+        result <- maybeCheckIO False True Nothing [SI.i|
+  module Main where
+  import Data.Maybe
+
+  def :: Maybe Int -> Maybe Int -> Int
+  def mVal1 mVal 2 = if isJust mVal1 then fromJust mVal1 + if isJust mVal2 then 2 * fromJust mVal2 else 0 else -1|]
+
+        result `shouldBe` [
+          [SI.i|Found:
+  if isJust mVal1 then
+  fromJust mVal1 + if isJust mVal2 then 2 * fromJust mVal2 else 0
+  else -1
+Perhaps:
+  case mVal1 of
+    Nothing -> -1
+    Just value -> value +
+                    if isJust mVal2 then 2 * fromJust mVal2 else 0|],
+          [SI.i|Found:
+  if isJust mVal2 then 2 * fromJust mVal2 else 0
+Perhaps:
+  case mVal2 of
+    Nothing -> 0
+    Just value -> 2 * value|]
+          ]
+    it "should not suggest replacing if with case-of when isJust, fromJust, etc. are not from Data.Maybe" $ do
+        result <- maybeCheckIO False True Nothing [SI.i|
+  module Main where
+  import Data.Maybe
+
+  def :: Maybe Int -> Int
+  def mVal = if isJust mVal then fromJust mVal else -3
+    where isJust _ = False
+
+  def2 :: Maybe Int -> Int
+  def2 mVal = if isJust mVal then fromJust mVal else -3
+    where fromJust _ = 99
+
+  def3 :: Maybe Int -> Int
+  def3 mVal = if mVal /= Nothing then fromJust mVal else -3
+    where (/=) _ _ = True|]
+
+        length result `shouldBe` 0
+    it "should not suggest replacing if with case-of when scrutinee is not a variable" $ do
+        result <- maybeCheckIO False True Nothing [SI.i|
+  module Main where
+  import Data.Maybe
+
+  def :: a -> (a -> Maybe Int) -> Int
+  def val f = if isJust (f val) then fromMaybe (f val) else -3|]
+
+        length result `shouldBe` 0
+    it "should not suggest replacing if with case-of when fromJust is used on shadowed maybe value" $ do
+        result <- maybeCheckIO False True Nothing [SI.i|
+  module Main where
+  import Data.Maybe
+
+  def :: Maybe Int -> Int
+  def mVal = if isJust mVal then let mVal = Just 99 in fromJust mVal else -3|]
+
+        length result `shouldBe` 0
+    it "replacement should not use redundant brackets" $ do
+        result <- maybeCheckIO False True Nothing [SI.i|
+  module Main where
+  import Data.Maybe
+
+  def :: Maybe Int -> Int
+  def mVal = if (isJust (mVal)) then 1 + (fromJust ((mVal))) else -3|]
+
+        result `shouldBe` [
+          [SI.i|Found:
+  if (isJust (mVal)) then 1 + (fromJust ((mVal))) else -3
+Perhaps:
+  case mVal of
+    Nothing -> -3
+    Just value -> 1 + value|]
+          ]
+    it "replacement should not replace unrelated fromJust expressions" $ do
+        result <- maybeCheckIO False True Nothing [SI.i|
+  module Main where
+  import Data.Maybe
+
+  def :: Maybe Int -> Int
+  def mVal = if isJust m then fromJust m + (let m = Just 99 in fromJust m) else 0|]
+
+        result `shouldBe` [
+          [SI.i|Found:
+  if isJust m then fromJust m + (let m = Just 99 in fromJust m) else
+  0
+Perhaps:
+  case m of
+    Nothing -> 0
+    Just value -> value + (let m = Just 99 in fromJust m)|]
+          ]
   describe "grade" $ do
     it "is running" $
       gradeIO completedDefaultCode useImport `shouldReturn` ""
@@ -270,6 +526,16 @@ hlintIO config content display selectHints = do
     firstLineOf ('\\':'n':_) = []
     firstLineOf (y:ys)            = y : firstLineOf ys
     firstLineOf []                = []
+
+maybeCheckIO :: Bool -> Bool -> Maybe String -> String -> IO [String]
+maybeCheckIO asError offerReplacement additionalMessage code = do
+  codeAST <- parse (fail . show) [] code
+  let config = CaseOfWithMaybeConfig {
+      status = Identity $ if asError then Reject else Hint,
+      offerReplacement = Identity offerReplacement,
+      additionalMessage = Identity additionalMessage
+    }
+  getMaybeFeedback (pure . show) config codeAST
 
 render :: PP.Doc -> String
 render = unpack . PP.displayT . PP.renderPretty 1.0 100

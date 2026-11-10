@@ -3,6 +3,7 @@ autotool
 Bifunctor
 concat
 elems
+FCase
 finalise
 fmap
 fmidue
@@ -21,8 +22,14 @@ mempty
 mplus
 msum
 mzero
+PApp
+QName
+QOp
+QVar
+scrutinee
 snd
 thd
 uncurry
 unlines
+Utf
 yml

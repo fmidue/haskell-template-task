@@ -10,3 +10,4 @@ extra-deps:
   - git: https://github.com/owestphal/type-match
     commit: e1afab43d2e8bfa5e2006492ed34060036e7be51
   - raw
+  - haskell-names-0.9.9.1@sha256:79bb41850a7832543731bdbcaf7aace6ddfe121d78656c3c8b184c9ebf36ea18,12681
