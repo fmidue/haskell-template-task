@@ -131,13 +131,15 @@ defaultCode = BS.unpack (encode ( defaultSolutionConfig {
 \#                                           case-of expressions with Maybe values (instead of if-expressions);
 \#                                           this is part of the phase(s) including hlint checks
 \#    status            - status of the checker; can be one of:
-\#                        `Ignore`: disable the detection
-\#                        `Hint`: display the opportunities (directly after hlint suggestions) but don't reject
-\#                        `Reject`: reject the submission and show the first detection, but only if
+\#                          Ignore: disable the detection
+\#                          Hint: display the opportunities (directly after hlint suggestions) but don't reject
+\#                          Reject: reject the submission and show the first detection, but only if
 \#                                  no errors were reported by hlint, and then at that point
 \#    offerReplacement  - whether to offer the replacement expression;
-\#                        defaults to true if status is not set to `Ignore`
-\#    additionalMessage - potential message to show; defaults to no message
+\#                        defaults to true if status is not set to Ignore,
+\#                        otherwise is optional but can only be set to false
+\#    additionalMessage - potential message to show; defaults to no message,
+\#                        and cannot be set to anything if status is set to Ignore
 \#
 \# maxLineLength               - submissions with lines longer than this value are rejected; defaults to no limit
 \# syntaxCutoff                - determines the last step in the syntax phase (later steps are considered semantics);
