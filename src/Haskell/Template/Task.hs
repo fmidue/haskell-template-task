@@ -147,6 +147,8 @@ defaultCode = BS.unpack (encode ( defaultSolutionConfig {
 \#                                 CodeWidth, Compilation, GhcErrors, HlintErrors, TemplateMatch, TestSuite
 \#                               default on omission is TemplateMatch; steps after TestSuite are (in this order):
 \#                                 GhcWarnings, HlintSuggestions
+\#                               one subtlety of the Compilation phase is that there is a generic syntax error shown
+\#                               when haskell-src-exts is unable to parse a program, the GHC error will not surface
 \# disableSemantics            - will prevent the semantics phase (as determined by syntaxCutoff) from running;
 \#                               this means a submission will be accepted after passing the syntax phase;
 \#                               defaults to false
