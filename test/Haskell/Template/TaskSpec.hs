@@ -41,7 +41,7 @@ defaultConfig = fromJust $ toMaybeSolutionConfig
       configGhcWarnings = Just [],
       configHlintErrors = Just [],
       configHlintSuggestions = Just [],
-      detectOpportunitiesToUseCaseOfWithMaybe = Just $ MaybeCaseOfOpportunityDetectionSetting {
+      detectOpportunitiesToUseCaseOfWithMaybe = Just $ CaseOfWithMaybeConfig {
         status = Just Hint,
         offerReplacement = Just True,
         additionalMessage = Just Nothing
@@ -530,7 +530,7 @@ hlintIO config content display selectHints = do
 maybeCheckIO :: Bool -> Bool -> Maybe String -> String -> IO [String]
 maybeCheckIO asError offerReplacement additionalMessage code = do
   codeAST <- parse (fail . show) [] code
-  let config = MaybeCaseOfOpportunityDetectionSetting {
+  let config = CaseOfWithMaybeConfig {
       status = Identity $ if asError then Reject else Hint,
       offerReplacement = Identity offerReplacement,
       additionalMessage = Identity additionalMessage

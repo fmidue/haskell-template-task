@@ -13,7 +13,7 @@ import Data.Text (unpack)
 import Data.Text.Encoding (decodeUtf8Lenient)
 import Data.Yaml.Pretty (defConfig, encodePretty, setConfCompare)
 import Haskell.Template.Task (
-  FMaybeCaseOfOpportunityDetectionSetting (..),
+  FCaseOfWithMaybeConfig (..),
   FSolutionConfig (..),
   SolutionConfigOpt,
   Status (..),
@@ -35,7 +35,7 @@ adjustedDefaultConfig =
     , rigorousValidation = Just False
     , detectOpportunitiesToUseCaseOfWithMaybe =
         Just $
-          MaybeCaseOfOpportunityDetectionSetting {
+          CaseOfWithMaybeConfig {
             status = Just Ignore
             , offerReplacement = Just False
             , additionalMessage = Just Nothing

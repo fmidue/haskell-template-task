@@ -13,7 +13,7 @@ import Data.Text (unpack)
 import Data.Text.Encoding (decodeUtf8Lenient)
 import Data.Yaml.Pretty (defConfig, encodePretty, setConfCompare)
 import Haskell.Template.Task (
-  FMaybeCaseOfOpportunityDetectionSetting (..),
+  FCaseOfWithMaybeConfig (..),
   FSolutionConfig (..),
   SolutionConfigOpt,
   Status (..),
@@ -82,7 +82,7 @@ detectOpportunitiesToUseCaseOfWithMaybe:
   status: Reject
 |]
 
-      let expectedConfig = MaybeCaseOfOpportunityDetectionSetting (Identity Reject) (Identity True) (Identity Nothing)
+      let expectedConfig = CaseOfWithMaybeConfig (Identity Reject) (Identity True) (Identity Nothing)
 
       result `shouldSatisfy` \(mRejection, infos) ->
         isRight mRejection && any (isInfixOf (show expectedConfig)) infos
@@ -121,7 +121,7 @@ detectOpportunitiesToUseCaseOfWithMaybe:
   offerReplacement: false
 |]
 
-      let expectedConfig = MaybeCaseOfOpportunityDetectionSetting (Identity Reject) (Identity False) (Identity Nothing)
+      let expectedConfig = CaseOfWithMaybeConfig (Identity Reject) (Identity False) (Identity Nothing)
 
       result `shouldSatisfy` \(mRejection, infos) ->
         isRight mRejection && any (isInfixOf (show expectedConfig)) infos
@@ -135,7 +135,7 @@ detectOpportunitiesToUseCaseOfWithMaybe:
   status: Ignore
 |]
 
-      let expectedConfig = MaybeCaseOfOpportunityDetectionSetting (Identity Ignore) (Identity False) (Identity Nothing)
+      let expectedConfig = CaseOfWithMaybeConfig (Identity Ignore) (Identity False) (Identity Nothing)
 
       result `shouldSatisfy` \(mRejection, infos) ->
         isRight mRejection && any (isInfixOf (show expectedConfig)) infos
