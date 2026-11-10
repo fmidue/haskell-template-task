@@ -37,6 +37,7 @@ dependencies:
   - aeson
   - containers
   - haskell-names
+  - exceptions
 
 ghc-options:
   - -Wall

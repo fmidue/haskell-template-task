@@ -28,11 +28,6 @@ import System.FilePath                  ((</>))
 import System.IO.Temp                   (withTempDirectory)
 import Test.Hspec
 
-newtype CustomException = CustomException PP.Doc
-  deriving Show
-
-instance Exception CustomException
-
 defaultConfig :: SolutionConfig
 defaultConfig = fromJust $ toMaybeSolutionConfig
   ( defaultSolutionConfig {
