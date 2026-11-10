@@ -6,7 +6,7 @@ import Control.Exception (IOException, try)
 import Data.Aeson (ToJSON)
 import Data.Either.Extra (isRight, mapLeft)
 import Data.IORef (modifyIORef, newIORef, readIORef)
-import Data.List (isPrefixOf)
+import Data.List (isPrefixOf, isInfixOf)
 import Data.Maybe (fromMaybe)
 import qualified Data.String.Interpolate as SI (i)
 import Data.Text (unpack)
@@ -72,3 +72,15 @@ main ::
 |]
 
     result `shouldSatisfy` \(mResult, _) -> isRight mResult
+  it "parses the submission" $ do
+    result <-
+      evaluateGrade
+        (encode adjustedDefaultConfig Nothing)
+        [SI.i|module Main where
+
+main ::
+|]
+
+    result `shouldSatisfy` \(mResult, _) -> case mResult of
+      Left err -> "your submission is no Haskell program" `isInfixOf` err
+      Right _ -> False
