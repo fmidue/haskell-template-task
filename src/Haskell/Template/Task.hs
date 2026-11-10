@@ -32,7 +32,6 @@ module Haskell.Template.Task (
   FCaseOfWithMaybeConfig (..),
   CaseOfWithMaybeConfigOpt,
   Status (..),
-  CustomException (..),
   ) where
 
 import qualified Data.ByteString.Char8            as BS
@@ -89,8 +88,6 @@ import Text.Read                        (readMaybe)
 import Text.Regex.PCRE.Heavy            (re, sub, (=~))
 import Language.Haskell.Names (loadBase, annotate)
 import Haskell.Template.Detection (collectIfsWithMaybeChecks)
-import Control.Exception (try, Exception)
-import Control.Monad.Catch (throwM)
 
 encode :: ToJSON a => a -> BS.ByteString
 encode = encodePretty $ setConfCompare compare defConfig
@@ -239,11 +236,6 @@ Also available are the following modules:
       (Detailed output of correct/incorrect Tests in case of failure,
       with the option to allow a fixed number of tests to fail.)
  -}|]
-
-newtype CustomException = CustomException Doc
-  deriving Show
-
-instance Exception CustomException
 
 data FeedbackPhase
   = CodeWidth
@@ -620,16 +612,7 @@ grade withSyntax withSemantics reject inform dirname task submission = do
       else writeModules (moduleName', submission) others dirname
     submissionAST <- case runIdentity syntaxCutoff of
       CodeWidth | runIdentity disableSemantics -> pure undefined
-      _ -> do
-        result <- liftIO (
-          try (
-            parse (throwM . CustomException) exts submission) :: IO (Either CustomException (E.Module E.SrcSpanInfo))
-          )
-        case result of
-          Left (CustomException errDoc) -> do
-            void $ withSyntax $ reject errDoc
-            pure undefined
-          Right ast -> pure ast
+      _ -> parse reject exts submission
     let
      (syntax, semantics) = splitAt (fromEnum syntaxCutoff)
       $ testPhases reject inform template submissionFile modules config exts submission submissionAST dirname
