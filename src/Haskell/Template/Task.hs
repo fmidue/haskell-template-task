@@ -621,7 +621,10 @@ grade withSyntax withSemantics reject inform dirname task submission = do
     submissionAST <- case runIdentity syntaxCutoff of
       CodeWidth | runIdentity disableSemantics -> pure undefined
       _ -> do
-        result <- liftIO (try (parse (throwM . CustomException) exts submission) :: IO (Either CustomException (E.Module E.SrcSpanInfo)))
+        result <- liftIO (
+          try (
+            parse (throwM . CustomException) exts submission) :: IO (Either CustomException (E.Module E.SrcSpanInfo))
+          )
         case result of
           Left (CustomException errDoc) -> do
             void $ withSyntax $ reject errDoc
