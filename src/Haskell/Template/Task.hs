@@ -218,7 +218,7 @@ data FeedbackPhase
   | HlintErrors
   | TemplateMatch
   | TestSuite
-  deriving (Enum, Eq, Generic, Show, FromJSON, ToJSON)
+  deriving (Enum, Eq, Generic, Ord, Show, FromJSON, ToJSON)
 
 data FSolutionConfig m = SolutionConfig {
     allowAdding                 :: m Bool,
@@ -498,8 +498,8 @@ grade withSyntax withSemantics reject inform dirname task submission = do
       (const $ pure ())
       task
     withSyntax $ mapM_ (checkLineLength reject submission) $ runIdentity maxLineLength
-    (modules, submissionFile) <- if runIdentity $ fmap (== CodeWidth) syntaxCutoff &&^ disableSemantics
-      -- Completely skip file writing if code length is the only syntax phase action
+    (modules, submissionFile) <- if runIdentity $ fmap (< Compilation) syntaxCutoff &&^ disableSemantics
+      -- Completely skip file writing if compilation is in semantics phase
       -- and semantics phase is disabled.
       then pure (undefined, undefined)
       else writeModules (moduleName', submission) others dirname
