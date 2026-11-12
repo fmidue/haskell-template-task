@@ -760,18 +760,17 @@ parse reject' exts' m = case E.readExtensions m of
                     { P.extensions = exts ++ exts' }
     in case P.parseModuleWithMode parseMode m of
          P.ParseOk a -> return a
-         P.ParseFailed loc msg ->
-           rejectParse reject' m loc msg
+         P.ParseFailed loc _ ->
+           rejectParse reject' m loc
 
-rejectParse :: (Doc -> t) -> String -> E.SrcLoc -> String -> t
-rejectParse reject' m loc msg =
+rejectParse :: (Doc -> t) -> String -> E.SrcLoc -> t
+rejectParse reject' m loc =
   let (lPre, _) = splitAt (E.srcLine loc) $ lines m
       lPre'     = takeEnd 3 lPre
       tag       = replicate (E.srcColumn loc - 1) '.' ++ "^"
   in reject' $ vcat
        ["Syntax error (your submission is no Haskell program):",
-        bloc $ lPre' ++ [tag],
-        string msg]
+        bloc $ lPre' ++ [tag]]
 
 rejectMatch
   :: Applicative m
