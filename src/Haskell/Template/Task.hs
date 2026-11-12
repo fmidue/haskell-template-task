@@ -45,6 +45,7 @@ import Control.Applicative              ((<|>))
 import Control.Monad                    (forM, guard, msum, unless, void, when)
 import Control.Monad.Extra              ((&&^), whenJust)
 import Control.Monad.IO.Class           (MonadIO)
+import Control.Monad.State.Strict       (StateT (..), evalStateT, get, put, runStateT)
 import Data.Aeson (rejectUnknownFields, defaultOptions, genericParseJSON)
 import Data.Char                        (isUpper)
 import Data.Functor.Identity            (Identity (..))
@@ -385,7 +386,9 @@ check reject inform path i = do
       let content = replace "SampleSolution" m sampleSolution
       mapM_ (checkLineLength reject content . subtract 3) $ runIdentity maxLineLength
       (modules, solutionFile) <- writeModules (m, content) others path
-      sequence_ $ testPhases reject inform s solutionFile modules stricterConfig exts content path
+      evalStateT
+        (sequence_ $ testPhases reject inform s solutionFile modules stricterConfig exts content path)
+        undefined
   where
     parseModule exts (m, s) = do
       inform $ string $ "Parsing module " <> m
@@ -472,9 +475,9 @@ after the grading is already completed, with `maybeSampleSolution`.
 -}
 grade
   :: MonadIO m
-  => (m () -> m ())
+  => (forall a. m a -> m a)
   -- ^ Evaluation function for the syntax phase
-  -> (m () -> m ())
+  -> (forall a. m a -> m a)
   -- ^ Evaluation function for the semantics phase
   -> (forall c. Doc -> m c)
   -- ^ display a message and fail
@@ -503,11 +506,11 @@ grade withSyntax withSemantics reject inform dirname task submission = do
     let
      (syntax, semantics) = splitAt (fromEnum syntaxCutoff)
       $ testPhases reject inform template submissionFile modules config exts submission dirname
-    withSyntax $ sequence_ syntax
+    ((), submissionAST) <- withSyntax $ runStateT (sequence_ syntax) undefined
     if runIdentity disableSemantics
     then pure False
     else do
-     withSemantics $ sequence_ semantics
+     withSemantics $ evalStateT (sequence_ semantics) submissionAST
      case
       (,) <$> lookup "SampleSolution" others
           <*> runIdentity messageOnCloningSampleSolution
@@ -941,52 +944,51 @@ testPhases
   -> [E.Extension]
   -> String
   -> FilePath
-  -> [m ()]
+  -> [StateT (E.Module E.SrcSpanInfo) m ()]
 testPhases reject inform template submissionFile modules config exts submission dirname =
   [
     do
     -- Reject if the submission does not parse
-    _ast <- parse reject exts submission
-
-    pure ()
+    ast <- liftAction $ parse reject exts submission
+    put ast
   ,
-    do
-    -- Reject if submission does not compile with provided hidden modules,
-    -- but without Test module.
-    compilation <- liftIO $ unsafeRunInterpreterWithArgs
-      -- disable default warnings (bleed into error report if code doesn't compile)
-      ["-w"]
-      (compiler dirname exts noTest)
-    checkResult reject compilation reject Nothing $ const $ return ()
+    liftAction $ do
+      -- Reject if submission does not compile with provided hidden modules,
+      -- but without Test module.
+      compilation <- liftIO $ unsafeRunInterpreterWithArgs
+        -- disable default warnings (bleed into error report if code doesn't compile)
+        ["-w"]
+        (compiler dirname exts noTest)
+      checkResult reject compilation reject Nothing $ const $ return ()
 
-    -- Reject if submission does not compile with provided hidden modules.
-    -- This only runs when allowModifying is set to True in the config
-    -- and displays a custom message telling students not to change type signatures.
-    when (runIdentity $ allowModifying config) $ do
-      compilationWithTests <- liftIO $ runInterpreter $
-        compiler dirname exts modules
-      checkResult reject compilationWithTests signatureError Nothing $ const $ return ()
+      -- Reject if submission does not compile with provided hidden modules.
+      -- This only runs when allowModifying is set to True in the config
+      -- and displays a custom message telling students not to change type signatures.
+      when (runIdentity $ allowModifying config) $ do
+        compilationWithTests <- liftIO $ runInterpreter $
+          compiler dirname exts modules
+        checkResult reject compilationWithTests signatureError Nothing $ const $ return ()
   ,
     -- Reject if GHC warnings configured as errors are triggered by submission.
-    compileWithArgsAndCheck dirname reject rejectWithHint config noTest configGhcErrors
+    liftAction $ compileWithArgsAndCheck dirname reject rejectWithHint config noTest configGhcErrors
   ,
     -- Reject if HLint warnings configured as errors are triggered by submission.
-    void $ getHlintFeedback rejectWithHint config dirname submissionFile configHlintErrors
+    liftAction $ void $ getHlintFeedback rejectWithHint config dirname submissionFile configHlintErrors
   ,
     -- Reject on task template violations according to settings (modifying, adding, deleting).
-    matchTemplate reject config 2 exts template submission
+    liftAction $ matchTemplate reject config 2 exts template submission
   ,
-    do
+    liftAction $ do
     -- Reject if test suite fails for submission.
     result <- liftIO $ runInterpreter (interpreter dirname exts modules)
     checkResult reject result reject Nothing $ handleCounts reject
   ,
     do
     -- Displays GHC warnings configured as non-errors triggered by submission.
-    compileWithArgsAndCheck dirname reject inform config noTest configGhcWarnings
+    liftAction $ compileWithArgsAndCheck dirname reject inform config noTest configGhcWarnings
 
     -- Displays HLint suggestions configured as non-errors triggered by submission.
-    void $ getHlintFeedback inform config dirname submissionFile configHlintSuggestions
+    liftAction $ void $ getHlintFeedback inform config dirname submissionFile configHlintSuggestions
   ]
   where
     noTest = delete "Test" modules
@@ -997,6 +999,10 @@ testPhases reject inform template submissionFile modules config exts submission 
       Your code is not compatible with the test suite.
       Please do adhere to type requirements expressed in the given code template.
       |]
+
+    liftAction action = StateT $ \state -> do
+      result <- action
+      pure (result, state)
 
 checkLineLength :: Applicative m => (forall a. Doc -> m a) -> String -> Natural -> m ()
 checkLineLength reject code maxLength = case hasLonger of
