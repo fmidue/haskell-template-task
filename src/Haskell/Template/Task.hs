@@ -118,7 +118,7 @@ defaultCode = BS.unpack (encode ( defaultSolutionConfig {
 \# maxLineLength               - submissions with lines longer than this value are rejected; defaults to no limit
 \# syntaxCutoff                - determines the last step in the syntax phase (later steps are considered semantics);
 \#                               possible values (and also the order of steps):
-\#                                 CodeWidth, Compilation, GhcErrors, HlintErrors, TemplateMatch, TestSuite
+\#                                 CodeWidth, Parsing, Compilation, GhcErrors, HlintErrors, TemplateMatch, TestSuite
 \#                               default on omission is TemplateMatch; steps after TestSuite are (in this order):
 \#                                 GhcWarnings, HlintSuggestions
 \# disableSemantics            - will prevent the semantics phase (as determined by syntaxCutoff) from running;
@@ -211,6 +211,7 @@ Also available are the following modules:
 
 data FeedbackPhase
   = CodeWidth
+  | Parsing
   | Compilation
   | GhcErrors
   | HlintErrors
@@ -943,6 +944,12 @@ testPhases
   -> [m ()]
 testPhases reject inform template submissionFile modules config exts submission dirname =
   [
+    do
+    -- Reject if the submission does not parse
+    _ast <- parse reject exts submission
+
+    pure ()
+  ,
     do
     -- Reject if submission does not compile with provided hidden modules,
     -- but without Test module.
