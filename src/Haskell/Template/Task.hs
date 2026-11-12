@@ -521,7 +521,7 @@ grade withSyntax withSemantics reject inform dirname task submission = do
           (inform $ string message)
           exts
           (replace "SampleSolution" moduleName' sampleSolution)
-          submission
+          submissionAST
 
 rejectHint :: Doc
 rejectHint = [SI.iii|
@@ -608,9 +608,10 @@ matchTemplate
   -> [E.Extension]
   -> String
   -> String
+  -> E.Module E.SrcSpanInfo
   -> m ()
-matchTemplate reject config context exts template submission =
-  runMatchTestOn reject exts template submission $ \case
+matchTemplate reject config context exts template submission submissionAST =
+  runMatchTestOn reject exts template submissionAST $ \case
     Fail loc -> mapM_ (rejectMatch rejectWithHint config context template submission) loc
       where
         rejectWithHint = rejectWithMessage reject rejectHint
@@ -622,10 +623,10 @@ catchSampleSolutionClone
   -> m ()
   -> [E.Extension]
   -> String
-  -> String
+  -> E.Module E.SrcSpanInfo
   -> m Bool
-catchSampleSolutionClone reject displayMessage exts sample submission =
-  runMatchTestOn reject exts sample submission $ \case
+catchSampleSolutionClone reject displayMessage exts sample submissionAST =
+  runMatchTestOn reject exts sample submissionAST $ \case
     Fail loc | any missingOrDifferent loc
       -> pure False
     _ -> displayMessage >> pure True
@@ -638,13 +639,12 @@ runMatchTestOn
   => (forall a. Doc -> m a)
   -> [E.Extension]
   -> String
-  -> String
+  -> E.Module E.SrcSpanInfo
   -> (Result () -> m b)
   -> m b
-runMatchTestOn reject exts rawTemplate rawSubmission whatToDo = do
+runMatchTestOn reject exts rawTemplate submissionAST whatToDo = do
   template  <- parse reject exts rawTemplate
-  submission <- parse reject exts rawSubmission
-  case Match.test template submission of
+  case Match.test template submissionAST of
     Continue -> reject [SI.i|Haskell.Template.Central.matchTemplate:
 #{informTutorMessage}|]
     otherResult -> whatToDo otherResult
@@ -975,8 +975,10 @@ testPhases reject inform template submissionFile modules config exts submission 
     -- Reject if HLint warnings configured as errors are triggered by submission.
     liftAction $ void $ getHlintFeedback rejectWithHint config dirname submissionFile configHlintErrors
   ,
+    do
+    submissionAST <- get
     -- Reject on task template violations according to settings (modifying, adding, deleting).
-    liftAction $ matchTemplate reject config 2 exts template submission
+    liftAction $ matchTemplate reject config 2 exts template submission submissionAST
   ,
     liftAction $ do
     -- Reject if test suite fails for submission.
