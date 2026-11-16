@@ -63,6 +63,7 @@ test-suite haskell-template-task-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      Haskell.Template.Detection.GuardsSpec
       Haskell.Template.MatchSpec
       Haskell.Template.TaskSpec
       Paths_haskell_template_task
