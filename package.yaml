@@ -35,6 +35,9 @@ dependencies:
   - wl-pprint-text
   - yaml
   - aeson
+  - haskell-names
+  - z3
+  - witherable
 
 ghc-options:
   - -Wall
